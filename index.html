@@ -1,0 +1,1578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}</style>
+</head>
+<body>
+<title>Ape Rumble</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: the live ravine fight fills the screen; one left-docked menu card over it; a slim HUD while playing. */
+:root {
+  --bg: #14110d;
+  --panel: rgba(22, 18, 13, 0.88);
+  --ink: #f3ead8;
+  --muted: #b9ad94;
+  --line: rgba(243, 234, 216, 0.14);
+  --banana: #ffc23a;
+  --danger: #ff6a3d;
+  --font-display: "Lilita One", "Arial Black", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; }
+#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#menu {
+  position: fixed; inset: 0; overflow-y: auto; display: flex; align-items: flex-start;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px; pointer-events: none;
+}
+.panel {
+  pointer-events: auto; width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 16px; backdrop-filter: blur(6px);
+}
+.kicker { margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(52px, 14vw, 76px); line-height: 0.9; color: var(--banana); text-wrap: balance; text-shadow: 0 4px 0 #6b3d12; }
+.lede { margin: 0; font-size: 15px; line-height: 1.5; max-width: 36ch; }
+.facts { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.facts li { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+button { font: 600 15px var(--font-body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 11px 18px; cursor: pointer; }
+button.primary { background: var(--banana); border-color: var(--banana); color: #2a1a05; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.status { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+details { font-size: 13px; line-height: 1.5; color: var(--muted); }
+summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+details ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+#hud { position: fixed; inset: 0; pointer-events: none; }
+.hud-top {
+  position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+  display: flex; gap: 16px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 18px; font-family: var(--font-display); font-size: 20px; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.hud-top small { font: 500 12px var(--font-body); color: var(--muted); margin-right: 4px; }
+#xhair { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; border: 2px solid var(--ink); }
+#hmsg { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-family: var(--font-display); font-size: clamp(34px, 8vw, 70px); color: var(--banana); text-shadow: 0 4px 0 #6b3d12; padding-inline: 16px; }
+.hud-bot { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); width: min(320px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.hud-bot span { font-size: 12px; color: var(--ink); text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
+.bar { width: 100%; height: 12px; border-radius: 999px; background: rgba(0,0,0,0.45); overflow: hidden; border: 1px solid var(--line); }
+.bar i { display: block; height: 100%; width: 0%; background: var(--danger); }
+#hmenu { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: auto; background: var(--panel); }
+#hko { position: absolute; inset: 0; background: rgba(20, 10, 0, 0.45); }
+#hhint { position: absolute; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); padding-inline: 16px; }
+@media (max-width: 520px) { #menu { align-items: flex-end; } .panel { max-width: none; } .hud-top { font-size: 16px; gap: 10px; } }
+</style>
+
+<canvas id="c"></canvas>
+<div id="hud" hidden>
+  <div class="hud-top"><span><small>Round</small><b id="hround">1</b></span><span><small>Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span></div>
+  <div id="xhair"></div>
+  <div id="hko" hidden></div>
+  <div id="hmsg"></div>
+  <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab, let go to throw · Esc frees the mouse</div>
+  <div class="hud-bot"><span>Dizzy</span><div class="bar"><i id="hdizzy"></i></div></div>
+  <button id="hmenu" type="button">Menu</button>
+</div>
+
+<main id="menu">
+  <section class="panel" aria-label="Ape Rumble menu">
+    <p class="kicker">VR ape brawler · prototype 0.1</p>
+    <h1>Ape<br>Rumble</h1>
+    <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
+    <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
+    <div class="actions">
+      <button id="bvr" class="primary" type="button" disabled>Enter VR</button>
+      <button id="bpc" type="button">Play on computer</button>
+    </div>
+    <p id="vrstatus" class="status">Checking for a VR headset…</p>
+    <details>
+      <summary>How to play</summary>
+      <h3>In VR</h3>
+      <ul>
+        <li>Push floors, walls and logs with your hands to move. Fling your arms to jump.</li>
+        <li>Swing your hand fast into an ape to slap it. Faster swings hit harder.</li>
+        <li>Enough slaps make an ape dizzy and floppy. Hold grip near it to pick it up, then swing and let go to throw.</li>
+        <li>Hold grip on a ledge or beam to hang on. Right stick turns.</li>
+        <li>Fall into the ravine and you're out until the next round. Watch out for the swinging log.</li>
+      </ul>
+      <h3>On a computer</h3>
+      <ul><li>WASD to move, Space to hop, mouse to look, click to slap, hold right-click to grab and release to throw.</li></ul>
+    </details>
+  </section>
+</main>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ================= config =================
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const rand = (a, b) => a + Math.random() * (b - a);
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const GRAV = 9.8;
+const ROUND_TIME = 120;
+const FALL_Y = -8;
+const SKY_TOP = 0x5d93c4, FOG_HEX = 0xa9c3c4, FOG_NEAR = 26, FOG_FAR = 150;
+const LOCO = {
+  handR: 0.06, armMax: 1.35, unstick: 0.7, releaseEps: 0.003, histWindow: 0.1,
+  flingMin: 0.4, flingMul: 1.2, flingCap: 7.5,
+};
+const FIGHT = {
+  slapMin: 2.2, slapMul: 0.75, slapCap: 9, slapUp: 1.6, dizzyPerSpeed: 8, koTime: 3.5,
+  throwMul: 1.5, throwCap: 12, holdAwake: 1.2, reach: 0.5,
+};
+const HUMAN_SPH = [{ dy: 0, r: 0.2 }, { dy: -0.38, r: 0.28 }];
+const BOT_SPH = [{ dy: 0, r: 0.3 }, { dy: -0.27, r: 0.28 }];
+const raw = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace);
+const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
+const LIGHT_DIR = new THREE.Vector3(0.45, 0.8, 0.35).normalize();
+
+// ================= renderer / scene =================
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local-floor');
+renderer.xr.setFoveation(1);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(FOG_HEX);
+scene.fog = new THREE.Fog(FOG_HEX, FOG_NEAR, FOG_FAR);
+const rig = new THREE.Group();
+scene.add(rig);
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 400);
+rig.add(camera);
+addEventListener('resize', () => {
+  if (renderer.xr.isPresenting) return;
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ================= textures =================
+const MATS = {
+  grass: { l: 0, s: 0.25 }, dirt: { l: 1, s: 0.25 }, rock: { l: 2, s: 0.22 }, planks: { l: 3, s: 0.9 },
+  bark: { l: 4, s: 0.6 }, darkwood: { l: 5, s: 0.7 }, stone: { l: 6, s: 0.5 }, leaves: { l: 7, s: 0.45 },
+  crystal: { l: 8, s: 0.7 }, fur: { l: 9, s: 2.2 },
+};
+const LAYER_SCALE = Object.values(MATS).sort((a, b) => a.l - b.l).map((m) => m.s);
+const TEX = 64;
+function tileNoise(seed, px, py = px) {
+  const r = mulberry32(seed), g = new Float32Array(px * py);
+  for (let i = 0; i < g.length; i++) g[i] = r();
+  const at = (x, y) => g[(((y % py) + py) % py) * px + (((x % px) + px) % px)];
+  return (u, v) => {
+    const x = u * px, y = v * py, xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+  };
+}
+const pal = (p, t) => p[clamp(Math.floor(t * p.length), 0, p.length - 1)];
+const hash2 = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+function genTextures() {
+  const L = 10, data = new Uint8Array(TEX * TEX * 4 * L);
+  const gens = [];
+  { // 0 grass: mossy mosaic of greens and tans
+    const a = tileNoise(11, 4), b = tileNoise(12, 8), c = tileNoise(13, 16), r = mulberry32(14);
+    const P = [[46, 64, 26], [66, 88, 32], [88, 114, 42], [116, 138, 56], [146, 150, 84], [176, 168, 118]];
+    gens.push((u, v) => pal(P, (0.45 * a(u, v) + 0.3 * b(u, v) + 0.25 * c(u, v)) * 0.8 + r() * 0.32 - 0.06));
+  }
+  { // 1 dirt
+    const a = tileNoise(21, 4), b = tileNoise(22, 16), r = mulberry32(23);
+    const P = [[64, 48, 33], [86, 65, 45], [108, 84, 58], [132, 106, 76], [158, 136, 102]];
+    gens.push((u, v) => pal(P, 0.55 * a(u, v) + 0.25 * b(u, v) + r() * 0.3 - 0.05));
+  }
+  { // 2 rock: warm grey with cracks and strata
+    const a = tileNoise(31, 4), b = tileNoise(32, 8), c = tileNoise(33, 16), k = tileNoise(34, 6), r = mulberry32(35);
+    gens.push((u, v) => {
+      const base = 0.5 * a(u, v) + 0.3 * b(u, v) + 0.2 * c(u, v);
+      let g = 88 + base * 92 + r() * 18 + Math.sin((v * 5 + base * 1.5) * Math.PI * 2) * 7;
+      const ridge = 1 - Math.abs(k(u, v) * 2 - 1);
+      if (ridge > 0.96) g *= 0.74;
+      return [g * 1.03, g * 0.98, g * 0.9];
+    });
+  }
+  { // 3 planks: 4 boards across, grain along u
+    const gr = tileNoise(41, 4, 32), r = mulberry32(42);
+    gens.push((u, v, i, j) => {
+      const p = Math.floor(j / 16), jj = j % 16;
+      let t = (0.8 + 0.3 * hash2(p, 3)) * (0.78 + 0.32 * gr(u + p * 0.37, v)) + r() * 0.06;
+      if (jj === 0) t *= 0.4; else if (jj === 1) t *= 0.78;
+      if ((i + p * 23) % 64 < 1) t *= 0.5;
+      if (jj === 8 && (i + p * 11) % 32 === 4) t *= 0.45;
+      return [150 * t, 104 * t, 64 * t];
+    });
+  }
+  { // 4 bark: vertical furrows
+    const a = tileNoise(51, 8, 2), b = tileNoise(52, 16, 4), r = mulberry32(53);
+    gens.push((u, v) => {
+      const n = 0.65 * a(u, v) + 0.35 * b(u, v);
+      let t = 0.65 + n * 0.55 + r() * 0.08;
+      if (n < 0.38) t *= 0.55;
+      return [104 * t, 76 * t, 54 * t];
+    });
+  }
+  { // 5 dark wood: vertical boards
+    const gr = tileNoise(61, 32, 4), r = mulberry32(62);
+    gens.push((u, v, i) => {
+      const p = Math.floor(i / 16), ii = i % 16;
+      let t = (0.78 + 0.32 * hash2(p, 9)) * (0.75 + 0.35 * gr(u, v + p * 0.29)) + r() * 0.06;
+      if (ii === 0) t *= 0.4; else if (ii === 1) t *= 0.75;
+      return [98 * t, 70 * t, 48 * t];
+    });
+  }
+  { // 6 stone tiles
+    const a = tileNoise(71, 8), r = mulberry32(72);
+    gens.push((u, v, i, j) => {
+      if (i % 32 < 2 || j % 32 < 2) return [66, 64, 60];
+      const g = 112 + 46 * hash2(Math.floor(i / 32), Math.floor(j / 32)) + a(u, v) * 26 + r() * 12;
+      return [g, g * 0.99, g * 0.96];
+    });
+  }
+  { // 7 leaves
+    const a = tileNoise(81, 8), b = tileNoise(82, 16), r = mulberry32(83);
+    const P = [[20, 40, 20], [32, 62, 26], [52, 92, 34], [80, 124, 46], [112, 150, 62]];
+    gens.push((u, v) => pal(P, 0.55 * a(u, v) + 0.45 * b(u, v) + r() * 0.28 - 0.1));
+  }
+  { // 8 crystal: bright facets with streaks (tinted per shard)
+    const a = tileNoise(91, 4), r = mulberry32(92);
+    gens.push((u, v) => {
+      const s = (u + v) * 3 + a(u, v) * 0.8;
+      const f = s - Math.floor(s);
+      const g = 175 + (f < 0.15 ? 80 : f * 40) + r() * 14;
+      return [g, g, g];
+    });
+  }
+  { // 9 fur: soft streaks, tinted per ape
+    const a = tileNoise(101, 16, 4), b = tileNoise(102, 32, 8), r = mulberry32(103);
+    gens.push((u, v) => { const n = 0.6 * a(u, v) + 0.4 * b(u, v); let t = 0.66 + n * 0.45 + r() * 0.08; if (n < 0.33) t *= 0.72; const g = 235 * t; return [g, g, g]; });
+  }
+  for (let l = 0; l < L; l++) for (let j = 0; j < TEX; j++) for (let i = 0; i < TEX; i++) {
+    const c = gens[l]((i + 0.5) / TEX, (j + 0.5) / TEX, i, j);
+    const o = ((l * TEX + j) * TEX + i) * 4;
+    data[o] = clamp(c[0], 0, 255); data[o + 1] = clamp(c[1], 0, 255); data[o + 2] = clamp(c[2], 0, 255); data[o + 3] = 255;
+  }
+  const t = new THREE.DataArrayTexture(data, TEX, TEX, L);
+  t.format = THREE.RGBAFormat; t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter; t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+}
+const texArr = genTextures();
+const NOISE_GLSL = `
+  float hsh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float vnoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y);
+  }`;
+
+// ================= world boxes =================
+const boxes = [];
+const WHITE = [1, 1, 1];
+function box(x, cy, z, w, h, d, o = {}) {
+  const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(o.rx || 0, o.ry || 0, 0, 'YXZ')).elements;
+  const b = {
+    c: new THREE.Vector3(x, cy, z), h: [w / 2, h / 2, d / 2],
+    ax: [m[0], m[1], m[2]], ay: [m[4], m[5], m[6]], az: [m[8], m[9], m[10]],
+    rad: Math.hypot(w, h, d) / 2, col: o.col || WHITE, solid: true, hidden: !!o.hidden,
+    mask: o.faces || null, mat: o.mat || 'rock', top: o.top || null, side: o.side || null,
+  };
+  boxes.push(b);
+  return b;
+}
+const blk = (x, y0, z, w, h, d, o) => box(x, y0 + h / 2, z, w, h, d, o);
+const DECK = { top: 'planks', side: 'darkwood' };
+const SPAWNS = [];
+const EDGE_POINTS = [];
+const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
+function buildLevel() {
+  // main deck (top at y = 0) on posts that drop into the ravine
+  blk(0, -0.6, 0, 12, 0.6, 12, DECK);
+  for (const [x, z] of [[-5.6, -5.6], [5.6, -5.6], [-5.6, 5.6], [5.6, 5.6]]) blk(x, -30, z, 0.6, 29.4, 0.6, { mat: 'bark' });
+  // swing frame holding the log
+  blk(-5.6, 0, 0, 0.5, 10, 0.5, { mat: 'bark' });
+  blk(5.6, 0, 0, 0.5, 10, 0.5, { mat: 'bark' });
+  blk(0, 10, 0, 11.7, 0.5, 0.5, { mat: 'bark' });
+  // crates
+  blk(-3.6, 0, -2.6, 1.1, 1.1, 1.1, { mat: 'darkwood' });
+  blk(3.8, 0, 3.4, 1.0, 1.0, 1.0, { mat: 'darkwood' });
+  blk(3.8, 1.0, 3.4, 0.8, 0.8, 0.8, { mat: 'darkwood', ry: 0.4 });
+  // east: plank ramp up to the shed deck
+  const ae = Math.atan2(1.2, 5);
+  box(8.5, 0.45, 0, 2.2, 0.3, 5.3, { rx: ae, ry: Math.PI / 2, mat: 'planks' });
+  blk(14.5, 0, 0, 7, 1.2, 9, DECK);
+  for (const [x, z] of [[11.3, -4.2], [17.7, -4.2], [11.3, 4.2], [17.7, 4.2]]) blk(x, -30, z, 0.6, 30, 0.6, { mat: 'bark' });
+  for (const [x, z] of [[12.3, -3], [16.7, -3], [12.3, 3], [16.7, 3]]) blk(x, 1.2, z, 0.35, 2.6, 0.35, { mat: 'bark' });
+  box(14.5, 4.65, 1.755, 5.6, 0.25, 3.9, { rx: -0.45, mat: 'planks' });
+  box(14.5, 4.65, -1.755, 5.6, 0.25, 3.9, { rx: 0.45, mat: 'planks' });
+  // west: narrow log bridge to a rock island with glowing crystals
+  const aw = Math.atan2(1.5, 5);
+  box(-8.6, 0.55, 0, 0.9, 0.5, 5.6, { rx: -aw, ry: Math.PI / 2, mat: 'bark' });
+  blk(-14.5, -30, 0, 7, 31.5, 7, { mat: 'rock', top: 'grass' });
+  for (const [x, y, z, s] of CRYSTALS) blk(x, y, z, s, s * 1.1, s, { hidden: true });
+  // north: steep log up to a lookout
+  blk(0, -30, -11, 0.7, 34.2, 0.7, { mat: 'bark' });
+  blk(0, 4.2, -11, 4, 0.4, 4, DECK);
+  box(0, 2.35, -7.6, 0.8, 0.4, 5.6, { rx: -0.98, mat: 'bark' });
+  // south: the "out" ledge where knocked-out players watch
+  blk(0, 11.5, 26, 6, 0.5, 4, DECK);
+  blk(0, -30, 26, 0.6, 41.5, 0.6, { mat: 'bark' });
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.5; SPAWNS.push(new THREE.Vector3(Math.cos(a) * 4, 0, Math.sin(a) * 4)); }
+  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; const s = 7.2 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))); EDGE_POINTS.push(new THREE.Vector3(Math.cos(a) * s, 0, Math.sin(a) * s)); }
+}
+buildLevel();
+const solids = boxes;
+const OUT_LEDGE = new THREE.Vector3(0, 12, 26);
+
+// ================= collision =================
+const RES = { ground: false, wall: false, count: 0, reset() { this.ground = false; this.wall = false; this.count = 0; } };
+function pushSphere(p, r, res, vel) {
+  for (let bi = 0; bi < solids.length; bi++) {
+    const b = solids[bi];
+    const dx = p.x - b.c.x, dy = p.y - b.c.y, dz = p.z - b.c.z;
+    const rr = b.rad + r;
+    if (dx * dx + dy * dy + dz * dz > rr * rr) continue;
+    const lx = dx * b.ax[0] + dy * b.ax[1] + dz * b.ax[2];
+    const ly = dx * b.ay[0] + dy * b.ay[1] + dz * b.ay[2];
+    const lz = dx * b.az[0] + dy * b.az[1] + dz * b.az[2];
+    const hx = b.h[0], hy = b.h[1], hz = b.h[2];
+    const ex = lx - clamp(lx, -hx, hx), ey = ly - clamp(ly, -hy, hy), ez = lz - clamp(lz, -hz, hz);
+    const d2 = ex * ex + ey * ey + ez * ez;
+    let nx, ny, nz, pen;
+    if (d2 > 1e-12) {
+      if (d2 >= r * r) continue;
+      const d = Math.sqrt(d2);
+      nx = ex / d; ny = ey / d; nz = ez / d; pen = r - d;
+    } else {
+      const px = hx - Math.abs(lx), py = hy - Math.abs(ly), pz = hz - Math.abs(lz);
+      nx = ny = nz = 0;
+      if (px < py && px < pz) { nx = lx < 0 ? -1 : 1; pen = px + r; }
+      else if (py < pz) { ny = ly < 0 ? -1 : 1; pen = py + r; }
+      else { nz = lz < 0 ? -1 : 1; pen = pz + r; }
+    }
+    const wx = nx * b.ax[0] + ny * b.ay[0] + nz * b.az[0];
+    const wy = nx * b.ax[1] + ny * b.ay[1] + nz * b.az[1];
+    const wz = nx * b.ax[2] + ny * b.ay[2] + nz * b.az[2];
+    p.x += wx * pen; p.y += wy * pen; p.z += wz * pen;
+    if (res) { res.count++; if (wy > 0.55) res.ground = true; else if (Math.abs(wy) < 0.4) res.wall = true; }
+    if (vel) { const vn = vel.x * wx + vel.y * wy + vel.z * wz; if (vn < 0) { vel.x -= wx * vn; vel.y -= wy * vn; vel.z -= wz * vn; } }
+  }
+}
+// sphere sweep from a to b (radius r) against all solids. Returns hit or null.
+const HIT = { t: 0, p: new THREE.Vector3(), n: new THREE.Vector3(), box: null, fi: 0 };
+const _o = [0, 0, 0], _d = [0, 0, 0];
+function sweepSphere(a, bpt, r, skipInside = false) {
+  const Dx = bpt.x - a.x, Dy = bpt.y - a.y, Dz = bpt.z - a.z;
+  const segLen = Math.sqrt(Dx * Dx + Dy * Dy + Dz * Dz);
+  let best = Infinity, bb = null, bk = 0, bs = 0, bnx = 0, bny = 0, bnz = 0, insideHit = false;
+  const mx = a.x + Dx * 0.5, my = a.y + Dy * 0.5, mz = a.z + Dz * 0.5;
+  for (let bi = 0; bi < solids.length; bi++) {
+    const b = solids[bi];
+    const cx = mx - b.c.x, cy = my - b.c.y, cz = mz - b.c.z;
+    const rr = b.rad + r + segLen * 0.5;
+    if (cx * cx + cy * cy + cz * cz > rr * rr) continue;
+    const ox = a.x - b.c.x, oy = a.y - b.c.y, oz = a.z - b.c.z;
+    _o[0] = ox * b.ax[0] + oy * b.ax[1] + oz * b.ax[2];
+    _o[1] = ox * b.ay[0] + oy * b.ay[1] + oz * b.ay[2];
+    _o[2] = ox * b.az[0] + oy * b.az[1] + oz * b.az[2];
+    _d[0] = Dx * b.ax[0] + Dy * b.ax[1] + Dz * b.ax[2];
+    _d[1] = Dx * b.ay[0] + Dy * b.ay[1] + Dz * b.ay[2];
+    _d[2] = Dx * b.az[0] + Dy * b.az[1] + Dz * b.az[2];
+    let tmin = -Infinity, tmax = Infinity, axis = -1, sgn = 0, miss = false;
+    for (let k = 0; k < 3; k++) {
+      const H = b.h[k] + r;
+      if (Math.abs(_d[k]) < 1e-9) { if (_o[k] < -H || _o[k] > H) { miss = true; break; } }
+      else {
+        let t1 = (-H - _o[k]) / _d[k], t2 = (H - _o[k]) / _d[k], s = -1;
+        if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; s = 1; }
+        if (t1 > tmin) { tmin = t1; axis = k; sgn = s; }
+        if (t2 < tmax) tmax = t2;
+        if (tmin > tmax) { miss = true; break; }
+      }
+    }
+    if (miss || tmax < 0) continue;
+    if (tmin >= 0) {
+      if (tmin <= 1 && tmin < best) { best = tmin; bb = b; bk = axis; bs = sgn; insideHit = false; }
+    } else if (!skipInside && 0 < best) {
+      // starting inside the inflated box: only a hit if moving inward
+      const hx = b.h[0], hy = b.h[1], hz = b.h[2];
+      const ex = _o[0] - clamp(_o[0], -hx, hx), ey = _o[1] - clamp(_o[1], -hy, hy), ez = _o[2] - clamp(_o[2], -hz, hz);
+      let nx = 0, ny = 0, nz = 0;
+      const d2 = ex * ex + ey * ey + ez * ez;
+      if (d2 > 1e-12) {
+        // pick dominant axis for a face normal
+        const ax = Math.abs(ex), ay = Math.abs(ey), az = Math.abs(ez);
+        if (ax >= ay && ax >= az) nx = Math.sign(ex); else if (ay >= az) ny = Math.sign(ey); else nz = Math.sign(ez);
+      } else {
+        const px = hx - Math.abs(_o[0]), py = hy - Math.abs(_o[1]), pz = hz - Math.abs(_o[2]);
+        if (px < py && px < pz) nx = _o[0] < 0 ? -1 : 1; else if (py < pz) ny = _o[1] < 0 ? -1 : 1; else nz = _o[2] < 0 ? -1 : 1;
+      }
+      if (_d[0] * nx + _d[1] * ny + _d[2] * nz < 0) {
+        best = 0; bb = b; insideHit = true; bnx = nx; bny = ny; bnz = nz;
+        bk = nx ? 0 : ny ? 1 : 2; bs = nx || ny || nz;
+      }
+    }
+  }
+  if (!bb) return null;
+  HIT.t = best; HIT.box = bb;
+  HIT.p.set(a.x + Dx * best, a.y + Dy * best, a.z + Dz * best);
+  let nx = 0, ny = 0, nz = 0;
+  if (insideHit) { nx = bnx; ny = bny; nz = bnz; } else { if (bk === 0) nx = bs; else if (bk === 1) ny = bs; else nz = bs; }
+  HIT.n.set(
+    nx * bb.ax[0] + ny * bb.ay[0] + nz * bb.az[0],
+    nx * bb.ax[1] + ny * bb.ay[1] + nz * bb.az[1],
+    nx * bb.ax[2] + ny * bb.ay[2] + nz * bb.az[2]);
+  HIT.fi = bk * 2 + (bs > 0 ? 0 : 1);
+  return HIT;
+}
+
+// ================= level mesh =================
+const FACE_DEF = [
+  { k: 0, n: [1, 0, 0], u: [0, 0, -1], v: [0, 1, 0], name: '+X' },
+  { k: 0, n: [-1, 0, 0], u: [0, 0, 1], v: [0, 1, 0], name: '-X' },
+  { k: 1, n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, -1], name: '+Y' },
+  { k: 1, n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, 1], name: '-Y' },
+  { k: 2, n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], name: '+Z' },
+  { k: 2, n: [0, 0, -1], u: [-1, 0, 0], v: [0, 1, 0], name: '-Z' },
+];
+const axisOf = (v) => (v[0] !== 0 ? 0 : v[1] !== 0 ? 1 : 2);
+const dirW = (b, l) => [
+  b.ax[0] * l[0] + b.ay[0] * l[1] + b.az[0] * l[2],
+  b.ax[1] * l[0] + b.ay[1] * l[1] + b.az[1] * l[2],
+  b.ax[2] * l[0] + b.ay[2] * l[1] + b.az[2] * l[2]];
+function buildLevelMesh() {
+  const pos = [], nor = [], col = [], tile = [], lay = [], idx = [];
+  for (const b of boxes) {
+    if (b.hidden) continue;
+    for (let i = 0; i < 6; i++) {
+      const fd = FACE_DEF[i];
+      if (b.mask && !b.mask.includes(fd.name)) continue;
+      const hu = b.h[axisOf(fd.u)], hv = b.h[axisOf(fd.v)], hn = b.h[fd.k];
+      const lo = [fd.n[0] * hn - fd.u[0] * hu - fd.v[0] * hv, fd.n[1] * hn - fd.u[1] * hu - fd.v[1] * hv, fd.n[2] * hn - fd.u[2] * hu - fd.v[2] * hv];
+      const o = dirW(b, lo), U = dirW(b, fd.u), V = dirW(b, fd.v), N = dirW(b, fd.n);
+      const mat = MATS[i === 2 ? (b.top || b.mat) : (b.side || b.mat)];
+      const w = hu * 2, h = hv * 2, vi = pos.length / 3;
+      for (const [uu, vv] of [[0, 0], [w, 0], [w, h], [0, h]]) {
+        const x = b.c.x + o[0] + U[0] * uu + V[0] * vv, y = b.c.y + o[1] + U[1] * uu + V[1] * vv, z = b.c.z + o[2] + U[2] * uu + V[2] * vv;
+        pos.push(x, y, z); nor.push(N[0], N[1], N[2]);
+        const ao = Math.abs(N[1]) < 0.5 && Math.abs(y) < 0.05 ? 0.7 : 1;
+        col.push(b.col[0] * ao, b.col[1] * ao, b.col[2] * ao);
+        tile.push(uu * mat.s, vv * mat.s); lay.push(mat.l);
+      }
+      idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aTile', new THREE.Float32BufferAttribute(tile, 2));
+  g.setAttribute('aLayer', new THREE.Float32BufferAttribute(lay, 1));
+  g.setIndex(idx);
+  const mat = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: { texArr: { value: texArr }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR } },
+    vertexShader: `
+      in vec3 aCol; in vec2 aTile; in float aLayer;
+      out vec2 vTile; out vec3 vCol; out vec3 vN; out vec3 vW; out float vDepth; flat out float vLayer;
+      void main() {
+        vTile = aTile; vCol = aCol; vN = normal; vLayer = aLayer;
+        vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
+        vec4 mv = viewMatrix * wp; vDepth = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      precision highp sampler2DArray;
+      out vec4 outColor;
+      uniform sampler2DArray texArr; uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
+      in vec2 vTile; in vec3 vCol; in vec3 vN; in vec3 vW; in float vDepth; flat in float vLayer;
+      ${NOISE_GLSL}
+      void main() {
+        vec3 tex = texture(texArr, vec3(vTile, vLayer)).rgb;
+        if (vLayer < 0.5) {
+          vec2 q = floor(vW.xz * 4.0) / 4.0;
+          float n = vnoise(q * 0.3) * 0.7 + vnoise(q * 0.9) * 0.3;
+          tex = mix(tex, texture(texArr, vec3(vTile, 1.0)).rgb, step(0.62, n));
+        }
+        float ndl = max(dot(vN, lightDir), 0.0);
+        float light = 0.5 + 0.42 * ndl + 0.16 * (0.5 + 0.5 * vN.y);
+        light *= mix(0.55, 1.0, clamp((vW.y + 20.0) / 22.0, 0.0, 1.0));
+        float f = smoothstep(fogNear, fogFar, vDepth);
+        outColor = vec4(mix(tex * vCol * light, fogColor, f), 1.0);
+      }`,
+  });
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+}
+buildLevelMesh();
+
+// ================= scenery =================
+function M(x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
+  return new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
+}
+function buildScenery() {
+  const pos = [], nor = [], col = [], lay = [], emit = [];
+  const r = mulberry32(2024);
+  const add = (geo, m, matName, c, glow = 0, jitter = 0) => {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    if (jitter) {
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const h = hash2(Math.round(x * 97) + Math.round(z * 13) * 7, Math.round(y * 53) + jitter * 3.1);
+        const k = 1 + (h - 0.5) * 0.45;
+        p.setXYZ(i, x * k, y * (1 + (hash2(h * 91, jitter) - 0.5) * 0.3), z * k);
+      }
+    }
+    g.applyMatrix4(m); g.computeVertexNormals();
+    const P = g.attributes.position.array, N = g.attributes.normal.array, l = MATS[matName].l;
+    for (let i = 0; i < P.length; i += 3) {
+      pos.push(P[i], P[i + 1], P[i + 2]); nor.push(N[i], N[i + 1], N[i + 2]);
+      col.push(c[0], c[1], c[2]); lay.push(l); emit.push(glow);
+    }
+  };
+  const rock = (x, y, z, sx, sy, sz, tint = 1) =>
+    add(new THREE.IcosahedronGeometry(1, 1), M(x, y, z, r() * 0.4, r() * 6.28, r() * 0.4, sx, sy, sz), 'rock', [tint, tint * 0.98, tint * 0.95], 0, Math.floor(r() * 1000) + 1);
+  const pine = (x, y, z, s) => {
+    add(new THREE.CylinderGeometry(0.22 * s, 0.32 * s, 4.5 * s, 6), M(x, y + 2.25 * s, z), 'bark', [1, 1, 1]);
+    const t = 0.85 + r() * 0.3;
+    [[1.8, 2.2], [1.45, 3.6], [1.0, 4.9], [0.55, 6.0]].forEach(([rad, h]) =>
+      add(new THREE.ConeGeometry(rad * s, 1.9 * s, 7), M(x, y + h * s, z, 0, r() * 6.28, 0), 'leaves', [t, t, t]));
+  };
+  const CC = [[0.22, 0.9, 1], [1, 0.24, 0.95], [0.95, 1, 0.3], [1, 0.32, 0.55]];
+  const cluster = (x, y, z, s) => {
+    const n = 7 + Math.floor(r() * 5);
+    for (let i = 0; i < n; i++) {
+      const c = CC[i === 0 ? 0 : Math.floor(r() * (r() < 0.6 ? 1 : CC.length))];
+      const h = s * (0.5 + r() * 0.9), w = s * (0.1 + r() * 0.12);
+      add(new THREE.OctahedronGeometry(1, 0), M(x + (r() - 0.5) * s * 0.8, y + h * 0.45, z + (r() - 0.5) * s * 0.8, (r() - 0.5) * 1.1, r() * 6.28, (r() - 0.5) * 1.1, w, h, w), 'crystal', c, 1);
+    }
+  };
+  // canyon walls on both sides of the ravine, stacked boulders from deep below to the rim
+  for (const side of [-1, 1]) {
+    for (let z = -110; z <= 110; z += 9) {
+      for (const [y, s] of [[-34, 16], [-14, 15], [6, 13], [20, 10]]) {
+        const x = side * (42 + r() * 8 + (y > 10 ? 6 : 0));
+        rock(x, y + r() * 4, z + r() * 5, s * (0.8 + r() * 0.5), s * (0.7 + r() * 0.5), s * (0.8 + r() * 0.5), 0.78 + r() * 0.25);
+      }
+      if (r() < 0.35) cluster(side * (27 + r() * 3), -20 + r() * 30, z + r() * 6, 2 + r() * 2);
+    }
+    // rim forest
+    for (let i = 0; i < 45; i++) pine(side * (46 + r() * 30), 26, -110 + r() * 220, 1.4 + r() * 1.2);
+  }
+  // far end of the canyon, so the ravine doesn't run into nothing
+  for (const end of [-1, 1]) for (let x = -50; x <= 50; x += 12) rock(x + r() * 6, -10 + r() * 20, end * (130 + r() * 15), 16 + r() * 10, 30 + r() * 20, 14, 0.75);
+  // rock island crystals
+  for (const [x, y, z, s] of CRYSTALS) cluster(x, y, z, s);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aLayer', new THREE.Float32BufferAttribute(lay, 1));
+  g.setAttribute('aEmit', new THREE.Float32BufferAttribute(emit, 1));
+  const mat = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: { texArr: { value: texArr }, layerScale: { value: LAYER_SCALE }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR } },
+    vertexShader: `
+      in vec3 aCol; in float aLayer; in float aEmit;
+      out vec3 vCol; out vec3 vN; out vec3 vW; out float vDepth; flat out float vLayer; flat out float vEmit;
+      void main() {
+        vCol = aCol; vN = normal; vLayer = aLayer; vEmit = aEmit;
+        vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
+        vec4 mv = viewMatrix * wp; vDepth = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      precision highp sampler2DArray;
+      out vec4 outColor;
+      uniform sampler2DArray texArr; uniform float layerScale[10];
+      uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
+      in vec3 vCol; in vec3 vN; in vec3 vW; in float vDepth; flat in float vLayer; flat in float vEmit;
+      void main() {
+        vec3 an = abs(vN);
+        vec2 uv = an.y > max(an.x, an.z) ? vW.xz : (an.x > an.z ? vW.zy : vW.xy);
+        vec3 tex = texture(texArr, vec3(uv * layerScale[int(vLayer + 0.5)], vLayer)).rgb;
+        float f = smoothstep(fogNear, fogFar, vDepth);
+        vec3 col;
+        if (vEmit > 0.5) { col = vCol * (0.55 + 0.7 * tex.r) + vec3(0.08); f *= 0.45; }
+        else {
+          float ndl = max(dot(vN, lightDir), 0.0);
+          col = tex * vCol * (0.48 + 0.44 * ndl + 0.16 * (0.5 + 0.5 * vN.y));
+          col *= mix(0.45, 1.0, clamp((vW.y + 40.0) / 50.0, 0.0, 1.0));
+        }
+        outColor = vec4(mix(col, fogColor, f), 1.0);
+      }`,
+  });
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+}
+buildScenery();
+const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 12), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { top: { value: hexToV3(SKY_TOP) }, hor: { value: hexToV3(FOG_HEX) } },
+  vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform vec3 top, hor; varying vec3 vDir;
+    void main() { float h = vDir.y; vec3 c = mix(hor, top, smoothstep(0.02, 0.55, h)); c = mix(c, hor * vec3(0.55, 0.68, 0.7), smoothstep(-0.02, -0.5, h)); gl_FragColor = vec4(c, 1.0); }`,
+}));
+sky.renderOrder = -10; sky.frustumCulled = false;
+scene.add(sky);
+
+// ================= apes (instanced, pixel fur) =================
+const apeMat = new THREE.ShaderMaterial({
+  glslVersion: THREE.GLSL3,
+  uniforms: { texArr: { value: texArr }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR } },
+  vertexShader: `
+    in vec3 aCol; in float aLayer; in float aTint;
+    out vec3 vCol; out vec3 vN; out vec3 vLP; out vec3 vON; out float vDepth; flat out float vLayer;
+    void main() {
+      mat4 im = instanceMatrix;
+      vec4 wp = modelMatrix * im * vec4(position, 1.0);
+      vN = normalize(mat3(modelMatrix * im) * normal);
+      vON = normal; vLP = position; vLayer = aLayer;
+      vCol = aTint > 0.5 ? aCol * instanceColor : aCol;
+      vec4 mv = viewMatrix * wp; vDepth = -mv.z;
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    precision highp sampler2DArray;
+      out vec4 outColor;
+    uniform sampler2DArray texArr; uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
+    in vec3 vCol; in vec3 vN; in vec3 vLP; in vec3 vON; in float vDepth; flat in float vLayer;
+    void main() {
+      vec3 base = vCol;
+      if (vLayer > -0.5) {
+        vec3 an = abs(vON);
+        vec2 uv = an.y > max(an.x, an.z) ? vLP.xz : (an.x > an.z ? vLP.zy : vLP.xy);
+        base *= texture(texArr, vec3(uv * 2.2, vLayer)).rgb;
+      }
+      float ndl = max(dot(normalize(vN), lightDir), 0.0);
+      vec3 col = base * (0.55 + 0.42 * ndl + 0.15 * (0.5 + 0.5 * vN.y));
+      outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), 1.0);
+    }`,
+});
+// parts: { geo, m, c: [r,g,b], layer: name|null, tint: true -> multiplied by the ape's fur color }
+function mergeParts(parts) {
+  const pos = [], nor = [], col = [], lay = [], tint = [];
+  for (const p of parts) {
+    const g = p.geo.index ? p.geo.toNonIndexed() : p.geo.clone();
+    if (p.m) g.applyMatrix4(p.m);
+    g.computeVertexNormals();
+    const P = g.attributes.position.array, N = g.attributes.normal.array;
+    const l = p.layer ? MATS[p.layer].l : -1;
+    for (let i = 0; i < P.length; i += 3) {
+      pos.push(P[i], P[i + 1], P[i + 2]); nor.push(N[i], N[i + 1], N[i + 2]);
+      col.push(p.c[0], p.c[1], p.c[2]); lay.push(l); tint.push(p.tint ? 1 : 0);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('aCol', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aLayer', new THREE.Float32BufferAttribute(lay, 1));
+  g.setAttribute('aTint', new THREE.Float32BufferAttribute(tint, 1));
+  g.computeBoundingSphere();
+  return g;
+}
+const ico = (r, d = 1) => new THREE.IcosahedronGeometry(r, d);
+const cyl = (r1, r2, h, s) => new THREE.CylinderGeometry(r1, r2, h, s);
+const SKIN = [0.86, 0.7, 0.56], DARK = [0.12, 0.09, 0.08], WHITEC = [0.96, 0.95, 0.92];
+const F = [1, 1, 1];
+// Our ape: hunched furry torso, head with a pale face mask, big round chimp ears, heavy brow. Front is -Z.
+const apeGeo = mergeParts([
+  { geo: ico(0.3, 1), c: F, layer: 'fur', tint: true, m: M(0, -0.08, 0.02, 0.25, 0, 0, 1.05, 1.0, 0.9) },
+  { geo: ico(0.19, 1), c: F, layer: 'fur', tint: true, m: M(0, 0.2, -0.1, 0, 0, 0, 1, 0.95, 1) },
+  { geo: ico(0.13, 1), c: SKIN, m: M(0, 0.17, -0.22, 0, 0, 0, 1.15, 1.05, 0.65) },
+  { geo: ico(0.085, 1), c: SKIN, m: M(0, 0.1, -0.27, 0, 0, 0, 1.35, 0.85, 0.85) },
+  { geo: new THREE.BoxGeometry(0.26, 0.05, 0.07), c: F, layer: 'fur', tint: true, m: M(0, 0.255, -0.24) },
+  { geo: cyl(0.075, 0.075, 0.03, 10), c: SKIN, m: M(0.205, 0.22, -0.08, 0, 0, Math.PI / 2) },
+  { geo: cyl(0.075, 0.075, 0.03, 10), c: SKIN, m: M(-0.205, 0.22, -0.08, 0, 0, Math.PI / 2) },
+  { geo: ico(0.035, 1), c: WHITEC, m: M(0.06, 0.205, -0.29) },
+  { geo: ico(0.035, 1), c: WHITEC, m: M(-0.06, 0.205, -0.29) },
+  { geo: ico(0.02, 1), c: DARK, m: M(0.062, 0.205, -0.318) },
+  { geo: ico(0.02, 1), c: DARK, m: M(-0.062, 0.205, -0.318) },
+  { geo: new THREE.BoxGeometry(0.1, 0.012, 0.02), c: DARK, m: M(0, 0.07, -0.34) },
+  { geo: ico(0.014, 0), c: DARK, m: M(0.025, 0.125, -0.345) },
+  { geo: ico(0.014, 0), c: DARK, m: M(-0.025, 0.125, -0.345) },
+]);
+const bandGeo = mergeParts([{ geo: cyl(0.195, 0.195, 0.055, 12), c: F, tint: true, m: M(0, 0.245, -0.1, -0.12, 0, 0) },
+  { geo: new THREE.BoxGeometry(0.05, 0.1, 0.04), c: F, tint: true, m: M(0.05, 0.2, 0.09, 0.3, 0, 0.3) }]);
+const armGeo = mergeParts([{ geo: cyl(0.055, 0.045, 1, 6).translate(0, 0.5, 0), c: F, layer: 'fur', tint: true }]);
+const handGeo = mergeParts([{ geo: ico(0.075, 1), c: SKIN, m: M(0, 0, 0, 0, 0, 0, 1, 0.8, 1.15) }, { geo: ico(0.035, 0), c: SKIN, m: M(0.06, 0.01, -0.03) }]);
+const starGeo = mergeParts([{ geo: new THREE.OctahedronGeometry(0.05, 0), c: [1, 0.86, 0.25] }]);
+const MAXA = 8;
+function inst(geo, n) {
+  const im = new THREE.InstancedMesh(geo, apeMat, n);
+  im.frustumCulled = false; im.count = 0;
+  for (let i = 0; i < n; i++) im.setColorAt(i, raw(1, 1, 1));
+  scene.add(im);
+  return im;
+}
+const apesIM = inst(apeGeo, MAXA), bandsIM = inst(bandGeo, MAXA), armsIM = inst(armGeo, MAXA * 2 + 2), handsIM = inst(handGeo, MAXA * 2), starsIM = inst(starGeo, MAXA * 3);
+const shadowIM = new THREE.InstancedMesh(new THREE.CircleGeometry(0.34, 12).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), MAXA);
+shadowIM.frustumCulled = false; shadowIM.count = 0; scene.add(shadowIM);
+// your own hands (VR and computer)
+const myHandsIM = inst(mergeParts([
+  { geo: ico(0.06, 1), c: SKIN, m: M(0, 0, 0, 0, 0, 0, 1, 0.8, 1.2) },
+  { geo: ico(0.028, 0), c: SKIN, m: M(0.05, 0.01, -0.03) },
+  { geo: cyl(0.04, 0.045, 0.1, 7), c: F, layer: 'fur', tint: true, m: M(0, 0, 0.085, Math.PI / 2, 0, 0) },
+]), 2);
+
+// ================= swinging log =================
+const LOG = { pivot: new THREE.Vector3(0, 9.9, 0), L: 9, A: 1.0, w: 1.15, theta: 0, c: new THREE.Vector3(), v: new THREE.Vector3(), half: [2.3, 0.42, 0.42] };
+const logIM = inst(mergeParts([
+  { geo: cyl(0.42, 0.42, 4.6, 9), c: F, layer: 'bark', m: M(0, 0, 0, 0, 0, Math.PI / 2) },
+  { geo: cyl(0.36, 0.36, 0.02, 9), c: [0.9, 0.75, 0.5], m: M(2.31, 0, 0, 0, 0, Math.PI / 2) },
+  { geo: cyl(0.36, 0.36, 0.02, 9), c: [0.9, 0.75, 0.5], m: M(-2.31, 0, 0, 0, 0, Math.PI / 2) },
+]), 1);
+const ropeIM = inst(mergeParts([{ geo: cyl(0.035, 0.035, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 2);
+logIM.count = 1; ropeIM.count = 2;
+
+// ================= text panels =================
+function makePanel(w, h, pw, ph) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false }));
+  return { c, ctx: c.getContext('2d'), tex, mesh };
+}
+const FD = '"Lilita One", "Arial Black", sans-serif', FB = 'Inter, system-ui, sans-serif';
+function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+const board = makePanel(1024, 512, 5.6, 2.8);
+board.mesh.position.set(0, 7.2, -14); scene.add(board.mesh);
+const wrist = makePanel(256, 128, 0.16, 0.08);
+wrist.mesh.material.depthTest = false; wrist.mesh.renderOrder = 10; wrist.mesh.visible = false; scene.add(wrist.mesh);
+const vignette = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8), new THREE.MeshBasicMaterial({ color: 0x1a0d00, transparent: true, opacity: 0, side: THREE.BackSide, depthTest: false, fog: false }));
+vignette.renderOrder = 20; vignette.visible = false; camera.add(vignette);
+
+// ================= audio =================
+let AC = null, noiseBuf = null;
+function initAudio() {
+  try {
+    if (!AC) {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const n = AC.sampleRate * 0.6; noiseBuf = AC.createBuffer(1, n, AC.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (AC.state !== 'running') AC.resume();
+  } catch (e) { AC = null; }
+}
+const _lp = new THREE.Vector3();
+function sfx(type, at, vol = 1) {
+  if (!AC || AC.state !== 'running') return;
+  if (at) { camera.getWorldPosition(_lp); vol *= 1 / (1 + at.distanceTo(_lp) * 0.15); if (vol < 0.03) return; }
+  const a = AC, t = a.currentTime, g = a.createGain(); g.connect(a.destination);
+  const env = (v, dur) => { g.gain.setValueAtTime(v * vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur); };
+  const noise = (dur, f, q, ft = 'bandpass') => { const s = a.createBufferSource(); s.buffer = noiseBuf; const fl = a.createBiquadFilter(); fl.type = ft; fl.frequency.value = f; fl.Q.value = q; s.connect(fl); fl.connect(g); s.start(t); s.stop(t + dur); };
+  const tone = (f0, f1, dur, wave = 'sine', off = 0) => { const o = a.createOscillator(); o.type = wave; o.frequency.setValueAtTime(f0, t + off); o.frequency.exponentialRampToValueAtTime(f1, t + off + dur); o.connect(g); o.start(t + off); o.stop(t + off + dur + 0.02); };
+  switch (type) {
+    case 'slap': env(0.45, 0.12); noise(0.1, 1800, 0.7); tone(320, 140, 0.06, 'triangle'); break;
+    case 'bonk': env(0.5, 0.3); tone(260, 90, 0.25, 'triangle'); noise(0.12, 700, 0.8, 'lowpass'); break;
+    case 'grab': env(0.15, 0.08); noise(0.07, 900, 1.5); break;
+    case 'throw': env(0.18, 0.3); noise(0.3, 600, 0.6); break;
+    case 'ko': env(0.25, 0.8); [880, 1100, 880, 1100].forEach((f, i) => tone(f, f * 0.98, 0.12, 'sine', i * 0.12)); break;
+    case 'fall': env(0.25, 1.1); tone(700, 120, 1.0, 'triangle'); break;
+    case 'tap': env(0.05, 0.04); noise(0.04, 1400, 2); break;
+    case 'beep': env(0.2, 0.2); tone(660, 660, 0.16); break;
+    case 'go': env(0.25, 0.4); tone(990, 990, 0.36); break;
+    case 'win': env(0.25, 0.9); [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.18, 'triangle', i * 0.13)); break;
+  }
+}
+
+// ================= actors =================
+const APES = [
+  { name: 'You', fur: [0.5, 0.34, 0.22], band: [0.9, 0.18, 0.15], css: '#e62e26' },
+  { name: 'Bonk', fur: [0.24, 0.21, 0.2], band: [0.16, 0.45, 0.95], css: '#2973f2' },
+  { name: 'Mojo', fur: [0.74, 0.42, 0.2], band: [0.2, 0.8, 0.3], css: '#33cc4d' },
+  { name: 'Pip', fur: [0.58, 0.57, 0.56], band: [1, 0.8, 0.15], css: '#ffcc26' },
+  { name: 'Tango', fur: [0.82, 0.64, 0.34], band: [0.95, 0.35, 0.75], css: '#f259bf' },
+  { name: 'Biscuit', fur: [0.88, 0.84, 0.76], band: [0.2, 0.85, 0.9], css: '#33d9e6' },
+];
+function mkHand(k) {
+  return { k, L: new THREE.Vector3(), q: new THREE.Quaternion(), T: new THREE.Vector3(), pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(),
+    anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
+}
+function baseActor(i) {
+  const d = APES[i];
+  return { i, name: d.name, fur: raw(...d.fur), band: raw(...d.band), css: d.css, active: false, out: false, wins: 0,
+    pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, dizzy: 0, lastHit: -9, ko: 0, heldBy: null, heldHand: null, heldT: 0, thrownT: 0,
+    tilt: new THREE.Vector2(), tiltV: new THREE.Vector2(), hitCD: new Map(), grounded: false };
+}
+const human = Object.assign(baseActor(0), {
+  isHuman: true, kind: 'none', P: new THREE.Vector3(), V: new THREE.Vector3(), pitch: 0,
+  headL: new THREE.Vector3(0, 1, 0), head: new THREE.Vector3(), hands: [mkHand(0), mkHand(1)], hist: [], wasAnch: false, snapLatch: false, noGrab: 0,
+});
+human.vel = human.V;
+function mkBot(i) {
+  return Object.assign(baseActor(i), { isBot: true, think: 0, hopCD: 0, slapCD: 0, slapT: -1, slapHand: 1, goal: null, target: null, holding: null, holdT: 0, blocked: 0,
+    skill: rand(0.8, 1.05), grudge: [], grudgeT: 0, hands: [0, 1].map(() => ({ pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3() })), slapDir: new THREE.Vector3() });
+}
+const bots = [1, 2, 3, 4, 5].map(mkBot);
+const actors = [human, ...bots];
+
+// ================= game state =================
+const G = { state: 'menu', demo: true, round: 0, timeLeft: ROUND_TIME, countdown: 0, endT: 0, winner: null, lastCount: 4, feed: [], feedT: 0 };
+let now = 0;
+const _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3(), _t3 = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
+function rotY(v, yaw, out) { const c = Math.cos(yaw), s = Math.sin(yaw); return out.set(v.x * c + v.z * s, v.y, -v.x * s + v.z * c); }
+function headWorld(out) { return rotY(human.headL, human.yaw, out).add(human.P); }
+function feed(msg) { G.feed.unshift(msg); G.feed.length = Math.min(G.feed.length, 3); G.feedT = 4; }
+const alive = () => actors.filter((a) => a.active && !a.out);
+
+function placeHuman(floorPt, yaw) {
+  const H = human;
+  H.yaw = yaw; H.V.set(0, 0, 0); H.hist.length = 0; H.wasAnch = false;
+  rotY(H.headL, yaw, _t1);
+  H.P.set(floorPt.x, floorPt.y + 0.68, floorPt.z).sub(_t1);
+  headWorld(H.head); H.pos.copy(H.head).setY(H.head.y - 0.1);
+  for (const h of H.hands) {
+    dropHeld(h); h.anchored = false; handTarget(h, h.pos);
+    // never start a hand on the far side of a floor or wall
+    const hh = sweepSphere(H.head, h.pos, LOCO.handR, true);
+    if (hh) h.pos.copy(hh.p);
+    h.prev.copy(h.pos);
+  }
+}
+function resetActor(a, i) {
+  a.out = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
+  const sp = SPAWNS[i % SPAWNS.length];
+  const yaw = Math.atan2(sp.x, sp.z);
+  if (a === human) placeHuman(sp, yaw);
+  else { a.pos.set(sp.x, sp.y + 0.56, sp.z); a.vel.set(0, 0, 0); a.yaw = yaw; a.holding = null; a.slapT = -1; a.goal = null; for (const h of a.hands) h.pos.copy(a.pos); }
+}
+function startRound() {
+  G.round++; G.state = 'countdown'; G.countdown = 3.2; G.lastCount = 4; G.timeLeft = ROUND_TIME; G.winner = null; G.feed = [];
+  const order = actors.map((a, i) => i).sort(() => Math.random() - 0.5);
+  actors.forEach((a, k) => {
+    a.active = a === human ? human.kind !== 'none' : true;
+    if (a.active) resetActor(a, order[k]);
+  });
+}
+function endRound() {
+  const left = alive();
+  G.winner = left.length === 1 ? left[0] : null;
+  if (G.winner) G.winner.wins++;
+  G.state = 'end'; G.endT = 5.5;
+  if (!G.demo) sfx(G.winner === human ? 'win' : 'go');
+}
+function eliminate(a) {
+  if (a.out) return;
+  a.out = true; a.ko = 0;
+  if (a.heldBy) release(a, null);
+  feed(`${a.name === 'You' ? 'You' : a.name} fell!`);
+  sfx('fall', a === human ? null : a.pos, 0.7);
+  if (a === human) {
+    for (const h of human.hands) dropHeld(h);
+    placeHuman(OUT_LEDGE, Math.PI);
+  } else { if (a.holding) release(a.holding, null); a.holding = null; }
+}
+function goMenu() {
+  human.kind = 'none'; human.active = false; G.demo = true; G.round = 0;
+  for (const a of actors) a.wins = 0;
+  $('menu').hidden = false; $('hud').hidden = true;
+  if (document.pointerLockElement) document.exitPointerLock();
+  startRound(); G.countdown = 0.01;
+}
+function updateGame(dt) {
+  G.feedT -= dt;
+  if (G.state === 'countdown') {
+    G.countdown -= dt;
+    const c = Math.ceil(G.countdown);
+    if (c !== G.lastCount && !G.demo) { G.lastCount = c; if (c > 0) sfx('beep'); }
+    if (G.countdown <= 0) { G.state = 'fight'; if (!G.demo) sfx('go'); }
+  } else if (G.state === 'fight') {
+    G.timeLeft -= dt;
+    if (alive().length <= 1 || G.timeLeft <= 0) endRound();
+  } else if (G.state === 'end') {
+    G.endT -= dt;
+    if (G.endT <= 0) startRound();
+  }
+  for (const a of actors) {
+    if (!a.active) continue;
+    if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
+    else if (a === human && a.out && human.head.y < FALL_Y) placeHuman(OUT_LEDGE, Math.PI);
+    if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
+    else if (now - a.lastHit > 1.5) a.dizzy = Math.max(0, a.dizzy - 14 * dt);
+    if (a.thrownT > 0) a.thrownT -= dt;
+    // wobble spring
+    a.tiltV.x += (-a.tilt.x * 60 - a.tiltV.x * 7) * dt; a.tiltV.y += (-a.tilt.y * 60 - a.tiltV.y * 7) * dt;
+    a.tilt.x += a.tiltV.x * dt; a.tilt.y += a.tiltV.y * dt;
+  }
+}
+
+// ================= fighting =================
+function hit(attacker, target, hv, speed, from) {
+  if (!target.active || target.out || target === attacker) return;
+  const key = attacker.i * 10 + (from ?? 0);
+  if ((target.hitCD.get(key) || 0) > now) return;
+  target.hitCD.set(key, now + 0.35);
+  const s = Math.min(speed, FIGHT.slapCap);
+  _v.copy(hv).setLength(s * FIGHT.slapMul); _v.y = Math.max(_v.y, 0) + FIGHT.slapUp * (s / 6);
+  push(target, _v);
+  target.dizzy += s * FIGHT.dizzyPerSpeed * (target.ko > 0 ? 0.3 : 1);
+  target.lastHit = now;
+  target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
+  if (target.heldBy && target.heldBy !== attacker) release(target, null);
+  if (target.isBot && target.holding) release(target.holding, null);
+  if (target === human) { pulseAll(Math.min(1, 0.3 + s * 0.08), 80); flash = 0.25; }
+  if (attacker === human) pulseHand(from, Math.min(1, 0.3 + s * 0.1), 50);
+  sfx(s > 6 ? 'bonk' : 'slap', target === human ? null : target.pos, 0.6 + s * 0.06);
+  // an ape holding you lets go when you slap it
+  if (attacker === human && target.holding === human) release(human, null);
+  if (target.dizzy >= 100 && target.ko <= 0) { target.ko = FIGHT.koTime; feed(`${target.name === 'You' ? 'You are' : target.name + ' is'} dizzy!`); sfx('ko', target === human ? null : target.pos); }
+}
+function push(a, v) {
+  if (a === human) {
+    for (const h of human.hands) h.anchored = false;
+    human.V.add(v); human.noGrab = 0.25; human.wasAnch = false; human.hist.length = 0;
+  } else { a.vel.add(v); a.thrownT = 0.4; }
+}
+function grab(holder, handRef, target) {
+  if (target.heldBy || target.out || !target.active) return false;
+  target.heldBy = holder; target.heldHand = handRef; target.heldT = 0;
+  if (holder === human) handRef.holding = target; else holder.holding = target;
+  sfx('grab', target === human ? null : target.pos);
+  if (target === human) { for (const h of human.hands) h.anchored = false; human.hist.length = 0; }
+  return true;
+}
+function release(target, throwVel) {
+  const holder = target.heldBy;
+  if (!holder) return;
+  if (holder === human) { for (const h of human.hands) if (h.holding === target) h.holding = null; } else holder.holding = null;
+  target.heldBy = null; target.heldHand = null;
+  if (throwVel) { if (target === human) human.V.copy(throwVel); else { target.vel.copy(throwVel); target.thrownT = 0.8; } sfx('throw', target.pos); }
+}
+function dropHeld(h) { if (h.holding) release(h.holding, null); h.holding = null; }
+function setHeldPos(a, p) {
+  if (a === human) { _t1.subVectors(p, human.pos); human.P.add(_t1); human.V.set(0, 0, 0); headWorld(human.head); human.pos.copy(human.head).setY(human.head.y - 0.1); }
+  else { a.pos.copy(p); a.vel.set(0, 0, 0); }
+}
+function updateHeld(dt) {
+  for (const a of actors) {
+    if (!a.heldBy) continue;
+    a.heldT += dt;
+    const hp = a.heldHand.pos;
+    _t2.set(hp.x, hp.y - 0.32, hp.z);
+    setHeldPos(a, _t2);
+    // an awake ape wriggles free after a moment
+    if (a.ko <= 0 && a.heldT > FIGHT.holdAwake) { _t3.copy(a.heldHand.vel).multiplyScalar(0.3); _t3.y += 2; release(a, _t3); }
+  }
+}
+function bodyBump() {
+  const list = actors.filter((a) => a.active && !a.heldBy);
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    const a = list[i], b = list[j];
+    if (a.out !== b.out) continue;
+    _t1.subVectors(b.pos, a.pos); const d = _t1.length();
+    if (d > 0.001 && d < 0.72) {
+      _t1.multiplyScalar((0.72 - d) / d * 0.5);
+      if (a === human) human.P.sub(_t1); else a.pos.sub(_t1);
+      if (b === human) human.P.add(_t1); else b.pos.add(_t1);
+    }
+  }
+}
+// hands that move fast into another ape slap it
+function handHits(attacker, handList) {
+  for (let k = 0; k < handList.length; k++) {
+    const h = handList[k];
+    if (h.holding) continue;
+    // on a computer only a thrown punch counts; bots only hit with the hand that's slapping
+    if (attacker === human && human.kind === 'pc' && h.punchT <= 0) continue;
+    if (attacker.isBot && (k !== attacker.slapHand || attacker.slapT < 0.08)) continue;
+    const sp = h.vel.length() * (attacker.isBot ? 0.5 : 1);
+    if (sp < FIGHT.slapMin) continue;
+    for (const t of actors) {
+      if (t === attacker || !t.active || t.out || t.heldBy === attacker) continue;
+      if (h.pos.distanceToSquared(t.pos) < 0.5 * 0.5) hit(attacker, t, h.vel, sp, k);
+    }
+  }
+}
+function updateLog(dt) {
+  LOG.theta = LOG.A * Math.sin(now * LOG.w);
+  const th = LOG.theta, om = LOG.A * LOG.w * Math.cos(now * LOG.w);
+  LOG.c.set(0, LOG.pivot.y - LOG.L * Math.cos(th), LOG.L * Math.sin(th));
+  LOG.v.set(0, LOG.L * om * Math.sin(th), LOG.L * om * Math.cos(th));
+  const _m = _mm.compose(LOG.c, _q.setFromAxisAngle(_xAxis, th), _s.set(1, 1, 1));
+  logIM.setMatrixAt(0, _m); logIM.instanceMatrix.needsUpdate = true;
+  for (let k = 0; k < 2; k++) {
+    const x = k ? 1.6 : -1.6;
+    _t1.set(x, LOG.c.y, LOG.c.z); _t2.set(x, LOG.pivot.y, 0);
+    setSeg(ropeIM, k, _t1, _t2);
+  }
+  ropeIM.instanceMatrix.needsUpdate = true;
+  // log hits apes (log axis is world X; it rotates about X)
+  const c = Math.cos(th), s = Math.sin(th);
+  for (const a of actors) {
+    if (!a.active || a.out || a.heldBy) continue;
+    _t1.subVectors(a.pos, LOG.c);
+    const ly = _t1.y * c + _t1.z * s, lz = -_t1.y * s + _t1.z * c, lx = _t1.x;
+    const ex = lx - clamp(lx, -LOG.half[0], LOG.half[0]), ey = ly - clamp(ly, -LOG.half[1], LOG.half[1]), ez = lz - clamp(lz, -LOG.half[2], LOG.half[2]);
+    if (ex * ex + ey * ey + ez * ez < 0.42 * 0.42 && LOG.v.length() > 1) {
+      if ((a.hitCD.get(-1) || 0) > now) continue;
+      a.hitCD.set(-1, now + 0.6);
+      _v.copy(LOG.v).multiplyScalar(1.25); _v.y = Math.max(_v.y, 0) + 3;
+      push(a, _v);
+      a.dizzy += 45; a.lastHit = now; a.tiltV.x += LOG.v.x; a.tiltV.y += LOG.v.z;
+      if (a.dizzy >= 100 && a.ko <= 0) { a.ko = FIGHT.koTime; sfx('ko', a.pos); }
+      sfx('bonk', a === human ? null : a.pos, 1.2);
+      if (a === human) { pulseAll(1, 150); flash = 0.3; }
+    }
+  }
+}
+
+// ================= human: VR movement =================
+const xrIn = { head: new THREE.Vector3(0, 1.6, 0), hands: [0, 1].map(() => ({ ok: false, pos: new THREE.Vector3(), q: new THREE.Quaternion(), trigger: false, grip: false, gamepad: null })), stickX: 0 };
+function handTarget(h, out) {
+  rotY(h.L, human.yaw, out).add(human.P);
+  headWorld(_t1);
+  _t2.subVectors(out, _t1);
+  const len = _t2.length();
+  if (len > LOCO.armMax) out.copy(_t1).addScaledVector(_t2, LOCO.armMax / len);
+  return out;
+}
+const RES2 = { ground: false, wall: false, count: 0, reset() { this.ground = false; this.wall = false; this.count = 0; } };
+function collideHuman(withVel, dt, friction = true) {
+  const H = human;
+  RES2.reset();
+  for (let it = 0; it < 2; it++) for (const s of HUMAN_SPH) {
+    headWorld(_t1); _t1.y += s.dy; _t2.copy(_t1);
+    pushSphere(_t1, s.r, RES2, withVel ? H.V : null);
+    H.P.add(_t1.sub(_t2));
+  }
+  H.grounded = RES2.ground;
+  if (withVel && friction && RES2.ground) { const f = Math.exp(-9 * dt); H.V.x *= f; H.V.z *= f; }
+}
+function fling() {
+  const H = human, hs = H.hist;
+  if (hs.length < 2) return;
+  const a = hs[0], b = hs[hs.length - 1], dt = b.t - a.t;
+  if (dt < 0.015) return;
+  _t3.set((b.x - a.x) / dt, (b.y - a.y) / dt, (b.z - a.z) / dt);
+  if (_t3.length() < LOCO.flingMin) { H.V.copy(_t3); return; }
+  _t3.multiplyScalar(LOCO.flingMul);
+  if (_t3.length() > LOCO.flingCap) _t3.setLength(LOCO.flingCap);
+  H.V.copy(_t3);
+}
+const _D = new THREE.Vector3(), _rel = new THREE.Vector3();
+function vrStep(dt, inp) {
+  const H = human;
+  H.headL.copy(inp.head);
+  for (let k = 0; k < 2; k++) {
+    const h = H.hands[k], s = inp.hands[k];
+    h.ok = s.ok; if (!s.ok) continue;
+    h.L.copy(s.pos); h.q.copy(s.q); h.trigger = s.trigger; h.gripWas = h.grip; h.grip = s.grip; h.gamepad = s.gamepad;
+  }
+  if (Math.abs(inp.stickX) > 0.7 && !H.snapLatch) {
+    H.snapLatch = true;
+    headWorld(_t1);
+    H.yaw -= Math.sign(inp.stickX) * Math.PI / 6;
+    rotY(H.headL, H.yaw, _t2); H.P.subVectors(_t1, _t2);
+    for (const h of H.hands) { h.anchored = false; handTarget(h, h.pos); h.prev.copy(h.pos); }
+  } else if (Math.abs(inp.stickX) < 0.3) H.snapLatch = false;
+  H.noGrab -= dt;
+  const stunned = H.ko > 0 || H.heldBy;
+  if (H.heldBy) { for (const h of H.hands) { h.anchored = false; handTarget(h, h.pos); } headWorld(H.head); H.pos.copy(H.head).setY(H.head.y - 0.1); return; }
+
+  let n1 = 0; _D.set(0, 0, 0);
+  for (const h of H.hands) {
+    if (!h.ok || !h.anchored) continue;
+    handTarget(h, h.T);
+    _rel.subVectors(h.T, h.A);
+    const out = _rel.dot(h.n), dist = _rel.length();
+    if (stunned || dist > LOCO.unstick || (out > LOCO.releaseEps && !h.grip)) { h.anchored = false; continue; }
+    _rel.addScaledVector(h.n, -out); h.A.addScaledVector(_rel, 0.02);
+    _D.add(h.A).sub(h.T); n1++;
+  }
+  if (n1 > 0) {
+    H.P.addScaledVector(_D, 1 / n1); collideHuman(false, dt); H.V.set(0, 0, 0);
+  } else {
+    if (H.wasAnch) fling();
+    H.V.y -= GRAV * dt;
+    H.P.addScaledVector(H.V, dt);
+    collideHuman(true, dt);
+  }
+  let n2 = 0; _D.set(0, 0, 0);
+  for (const h of H.hands) {
+    if (!h.ok || h.anchored) continue;
+    handTarget(h, h.T);
+    const hit2 = h.holding || stunned || H.noGrab > 0 ? null : sweepSphere(h.pos, h.T, LOCO.handR);
+    if (hit2) {
+      h.anchored = true; h.A.copy(hit2.p); h.n.copy(hit2.n);
+      _D.add(h.A).sub(h.T); n2++;
+      const sp = H.V.length();
+      pulseHand(h.k, Math.min(1, 0.15 + sp * 0.08), 25);
+      if (sp > 2) sfx('tap', h.A);
+    } else h.pos.copy(h.T);
+  }
+  if (n2 > 0) {
+    H.P.addScaledVector(_D, 1 / n2); collideHuman(false, dt); H.V.set(0, 0, 0);
+    for (const h of H.hands) {
+      if (!h.ok || h.anchored) continue;
+      handTarget(h, h.T);
+      const hit3 = h.holding ? null : sweepSphere(h.pos, h.T, LOCO.handR);
+      h.pos.copy(hit3 ? hit3.p : h.T);
+    }
+  }
+  let any = false;
+  for (const h of H.hands) if (h.anchored) { h.pos.copy(h.A); any = true; }
+  if (any) {
+    H.hist.push({ t: now, x: H.P.x, y: H.P.y, z: H.P.z });
+    while (H.hist.length > 2 && now - H.hist[0].t > LOCO.histWindow) H.hist.shift();
+  } else H.hist.length = 0;
+  H.wasAnch = any;
+  headWorld(H.head); H.pos.copy(H.head).setY(H.head.y - 0.1);
+}
+function vrGrabs() {
+  const H = human;
+  if (H.ko > 0 || H.heldBy || H.out) { for (const h of H.hands) dropHeld(h); return; }
+  for (const h of H.hands) {
+    if (!h.ok) continue;
+    if (h.grip && !h.gripWas && !h.anchored && !h.holding) {
+      let best = null, bd = FIGHT.reach;
+      for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = h.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
+      if (best && grab(H, h, best)) pulseHand(h.k, 0.6, 60);
+    } else if (!h.grip && h.holding) {
+      _v.copy(h.vel).multiplyScalar(FIGHT.throwMul); _v.y += 1.2;
+      if (_v.length() > FIGHT.throwCap) _v.setLength(FIGHT.throwCap);
+      release(h.holding, _v);
+    }
+  }
+}
+function pulseHand(k, v, ms) { try { human.hands[k]?.gamepad?.hapticActuators?.[0]?.pulse(v, ms); } catch (e) { /* no haptics */ } }
+function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
+
+// ================= human: computer controls =================
+const keys = {};
+const mouse = { left: false, right: false, drag: false, lx: 0, ly: 0 };
+addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('mousedown', (e) => {
+  if (human.kind !== 'pc') return;
+  initAudio();
+  if (!document.pointerLockElement) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* drag to look */ } }
+  if (e.button === 0) { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
+  if (e.button === 2) mouse.right = true;
+  mouse.drag = true; mouse.lx = e.clientX; mouse.ly = e.clientY;
+});
+addEventListener('mouseup', (e) => { if (e.button === 2) mouse.right = false; mouse.drag = false; });
+addEventListener('mousemove', (e) => {
+  if (human.kind !== 'pc') return;
+  let dx = 0, dy = 0;
+  if (document.pointerLockElement === canvas) { dx = e.movementX; dy = e.movementY; if (Math.abs(dx) > 250 || Math.abs(dy) > 250) return; }
+  else if (mouse.drag) { dx = e.clientX - mouse.lx; dy = e.clientY - mouse.ly; mouse.lx = e.clientX; mouse.ly = e.clientY; }
+  human.yaw -= dx * 0.0025; human.pitch = clamp(human.pitch - dy * 0.0025, -1.3, 1.3);
+});
+let pcPunchHand = 1;
+const _e = new THREE.Euler(0, 0, 0, 'YXZ'), _qq = new THREE.Quaternion();
+function pcHandPos(k, out) {
+  const h = human.hands[k], side = k === 0 ? -1 : 1;
+  let x = side * 0.24, y = -0.22, z = -0.38;
+  if (h.punchT > 0) { const t = 1 - h.punchT / 0.32; const f = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7; x = side * (0.24 - 0.16 * f); y = -0.22 + 0.12 * f; z = -0.38 - 0.62 * f; }
+  else if (mouse.right || h.holding) { x = side * 0.14; y = -0.12; z = -0.72; }
+  _e.set(human.pitch, human.yaw, 0, 'YXZ');
+  out.set(x, y, z).applyQuaternion(_qq.setFromEuler(_e)).add(human.head);
+  return out;
+}
+function pcStep(dt) {
+  const H = human;
+  H.headL.set(0, 1, 0);
+  if (keys.KeyQ) H.yaw += 2.2 * dt;
+  if (keys.KeyE) H.yaw -= 2.2 * dt;
+  if (!H.heldBy) {
+    const can = H.ko <= 0 && !H.out;
+    const f = can ? (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) : 0;
+    const s = can ? (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) : 0;
+    const sn = Math.sin(H.yaw), cs = Math.cos(H.yaw);
+    let wx = -sn * f + cs * s, wz = -cs * f - sn * s;
+    const wl = Math.hypot(wx, wz); if (wl > 0) { wx /= wl; wz /= wl; }
+    const k = H.grounded ? (H.noGrab > 0 ? 1.5 : 14) : 2.5;
+    H.V.x += (wx * 4.6 - H.V.x) * Math.min(1, k * dt);
+    H.V.z += (wz * 4.6 - H.V.z) * Math.min(1, k * dt);
+    if (can && keys.Space && H.grounded) { H.V.y = 5.8; H.grounded = false; }
+    H.noGrab -= dt;
+    H.V.y -= GRAV * dt;
+    H.P.addScaledVector(H.V, dt);
+    collideHuman(true, dt, false);
+  }
+  headWorld(H.head); H.pos.copy(H.head).setY(H.head.y - 0.1);
+  for (let k = 0; k < 2; k++) { const h = H.hands[k]; h.ok = true; if (h.punchT > 0) h.punchT -= dt; pcHandPos(k, h.pos); }
+  // grab with right mouse, throw where you look on release
+  const R = H.hands[1];
+  if (mouse.right && !R.holding && H.ko <= 0 && !H.out) {
+    let best = null, bd = 1.0;
+    for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = R.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
+    if (best) grab(H, R, best);
+  } else if (!mouse.right && R.holding) {
+    _e.set(human.pitch + 0.25, human.yaw, 0, 'YXZ');
+    _v.set(0, 0, -1).applyQuaternion(_qq.setFromEuler(_e)).multiplyScalar(9);
+    release(R.holding, _v);
+  }
+}
+
+// ================= bots =================
+function nearestTarget(b) {
+  let best = null, bd = 1e9;
+  for (const t of actors) {
+    if (t === b || !t.active || t.out || t.heldBy) continue;
+    const d = t.pos.distanceTo(b.pos) - (t.ko > 0 ? 3 : 0) + (b.grudge[t.i] || 0);
+    if (d < bd) { bd = d; best = t; }
+  }
+  return best;
+}
+const _land = new THREE.Vector3(), _dn = new THREE.Vector3();
+function groundAt(p, up = 1.5, down = 4) {
+  _t3.set(p.x, p.y + up, p.z); _dn.set(p.x, p.y - down, p.z);
+  const h = sweepSphere(_t3, _dn, 0.1, true);
+  return h && h.n.y > 0.6;
+}
+function safeHop(b, vx, vy, vz) {
+  const tf = (vy + Math.sqrt(vy * vy + 2 * GRAV * 0.6)) / GRAV;
+  _land.set(b.pos.x + vx * tf, b.pos.y, b.pos.z + vz * tf);
+  return groundAt(_land, 2.5, 4);
+}
+function botThink(b) {
+  b.think = rand(0.2, 0.35);
+  if (b.holding) {
+    // carry to the nearest edge
+    let best = null, bd = 1e9;
+    for (const e of EDGE_POINTS) { const d = e.distanceTo(b.pos); if (d < bd) { bd = d; best = e; } }
+    b.goal = best; b.target = null;
+    return;
+  }
+  if (now > b.grudgeT) { b.grudgeT = now + rand(3, 6); b.grudge = actors.map(() => rand(0, 3)); }
+  b.target = nearestTarget(b);
+  b.goal = b.target ? b.target.pos : null;
+}
+const _xAxis = new THREE.Vector3(1, 0, 0), _yAxis = new THREE.Vector3(0, 1, 0);
+function updateBot(b, dt) {
+  if (!b.active || b.out) return;
+  b.think -= dt; b.hopCD -= dt; b.slapCD -= dt; b.blocked -= dt;
+  const live = G.state === 'fight';
+  for (const h of b.hands) h.prev.copy(h.pos);
+  if (b.heldBy) { b.grounded = false; animBot(b, dt); return; }
+  if (b.think <= 0 && b.ko <= 0) botThink(b);
+  const canAct = live && b.ko <= 0;
+  if (canAct && b.goal) {
+    const dx = b.goal.x - b.pos.x, dz = b.goal.z - b.pos.z, dh = Math.hypot(dx, dz), dy = b.goal.y - b.pos.y;
+    if (b.holding && dh < 1.6) {
+      // throw outward off the edge
+      _v.set(dx, 0, dz).normalize().multiplyScalar(7.5); _v.y = 3.5;
+      release(b.holding, _v); b.slapCD = 0.8;
+    } else if (b.grounded && b.hopCD <= 0 && dh > (b.holding ? 0.5 : 1.0)) {
+      let sp = Math.min(5.6, 1.8 + dh * 0.45) * b.skill * (b.holding ? 0.7 : 1);
+      let vy = clamp(3.2 + Math.max(0, dy) * 1.5 + (b.blocked > 0 ? 3.5 : 0), 3, 9);
+      let vx = (dx / dh) * sp, vz = (dz / dh) * sp;
+      if (!safeHop(b, vx, vy, vz)) { vx *= 0.4; vz *= 0.4; vy = Math.min(vy, 4); if (!safeHop(b, vx, vy, vz)) { vx = vz = 0; vy = 0; } }
+      if (vy > 0) { b.vel.set(vx, vy, vz); b.hopCD = rand(0.12, 0.4); }
+      else b.hopCD = 0.3;
+    }
+    const t = b.target;
+    if (t && !b.holding) {
+      const d = t.pos.distanceTo(b.pos);
+      if (t.ko > 0 && d < 1.1) { grab(b, b.hands[1], t); b.think = 0; }
+      else if (d < 1.25 && b.slapCD <= 0 && b.slapT < 0) {
+        if (Math.random() < 0.12 && d < 0.95) { grab(b, b.hands[1], t); b.holdT = 0; b.think = 0; }
+        else { b.slapT = 0; b.slapHand = 1 - b.slapHand; b.slapDir.subVectors(t.pos, b.pos).normalize(); b.slapCD = rand(0.45, 0.95) / b.skill; }
+      }
+    }
+  }
+  b.vel.y -= GRAV * dt;
+  b.pos.addScaledVector(b.vel, dt);
+  RES.reset();
+  for (let it = 0; it < 2; it++) for (const s of BOT_SPH) { _t1.copy(b.pos); _t1.y += s.dy; _t2.copy(_t1); pushSphere(_t1, s.r, RES, b.vel); b.pos.add(_t1.sub(_t2)); }
+  b.grounded = RES.ground;
+  if (RES.wall && !RES.ground) b.blocked = 0.7;
+  if (b.grounded) { const f = Math.exp(-(b.thrownT > 0 || b.ko > 0 ? 3 : 12) * dt); b.vel.x *= f; b.vel.z *= f; }
+  // face where we're going or who we're fighting
+  let fx = b.vel.x, fz = b.vel.z;
+  if (b.target && b.ko <= 0) { fx = b.target.pos.x - b.pos.x; fz = b.target.pos.z - b.pos.z; }
+  if (b.ko <= 0 && fx * fx + fz * fz > 0.04) {
+    let d = Math.atan2(-fx, -fz) - b.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+    b.yaw += d * Math.min(1, 8 * dt);
+  }
+  animBot(b, dt);
+}
+function animBot(b, dt) {
+  const sn = Math.sin(b.yaw), cs = Math.cos(b.yaw);
+  for (let k = 0; k < 2; k++) {
+    const side = k === 0 ? -1 : 1, h = b.hands[k];
+    rotY(_t3.set(side * 0.27, -0.06, -0.02), b.yaw, _t2).add(b.pos);
+    if (b.ko > 0 || b.heldBy) {
+      rotY(_t3.set(side * 0.6, -0.35 + Math.sin(now * 5 + k) * 0.05, 0.1), b.yaw, _t1); h.pos.copy(b.pos).add(_t1);
+    } else if (b.slapT >= 0 && k === b.slapHand) {
+      const t = b.slapT / 0.24;
+      const back = rotY(_t3.set(side * 0.55, 0.25, 0.25), b.yaw, _t1);
+      _w.copy(b.pos).add(back);
+      _t3.copy(b.pos).addScaledVector(b.slapDir, 0.95);
+      const e = t < 0.35 ? 0 : Math.min(1, (t - 0.35) / 0.45);
+      h.pos.lerpVectors(_w, _t3, e * e);
+      if (t >= 1) b.slapT = -1;
+    } else if (b.holding && k === 1) {
+      h.pos.set(b.pos.x - sn * 0.45, b.pos.y + 0.65, b.pos.z - cs * 0.45);
+    } else if (b.grounded) {
+      const sw = Math.sin(now * 9 + k * Math.PI) * 0.08 * (Math.hypot(b.vel.x, b.vel.z) > 0.5 ? 1 : 0.2);
+      rotY(_t3.set(side * 0.42, -0.5, -0.22 + sw), b.yaw, _t1); h.pos.copy(b.pos).add(_t1);
+    } else {
+      rotY(_t3.set(side * 0.62, 0.15 + Math.sin(now * 14 + k) * 0.1, 0.05), b.yaw, _t1); h.pos.copy(b.pos).add(_t1);
+    }
+  }
+  if (b.slapT >= 0) b.slapT += dt;
+  for (const h of b.hands) h.vel.subVectors(h.pos, h.prev).multiplyScalar(1 / Math.max(dt, 1e-3));
+}
+
+// ================= visuals =================
+const _mm = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _a = new THREE.Vector3();
+let flash = 0;
+function setSeg(im, i, from, to) {
+  _a.subVectors(to, from);
+  const len = Math.max(0.05, _a.length());
+  _q.setFromUnitVectors(_yAxis, _a.multiplyScalar(1 / len));
+  im.setMatrixAt(i, _mm.compose(from, _q, _s.set(1, len, 1)));
+}
+function updateVisuals(dt) {
+  let ai = 0, hi = 0, si = 0, sti = 0, armI = 0;
+  for (const a of actors) {
+    if (!a.active) continue;
+    const isMe = a === human && human.kind !== 'none';
+    if (!isMe) {
+      // body: yaw, then wobble tilt; knocked-out apes flop onto their backs
+      _q.setFromAxisAngle(_yAxis, a.yaw);
+      const ko = a.ko > 0 || (a.heldBy && a.ko > 0);
+      const tx = clamp(a.tilt.y * 0.12, -0.7, 0.7) + (ko ? -1.25 : 0), tz = clamp(-a.tilt.x * 0.12, -0.7, 0.7);
+      _q2.setFromEuler(_e.set(tx, 0, tz, 'XYZ'));
+      _q.premultiply(_q2);
+      apesIM.setMatrixAt(ai, _mm.compose(a.pos, _q, _s.set(1, 1, 1))); apesIM.setColorAt(ai, a.fur);
+      bandsIM.setMatrixAt(ai, _mm); bandsIM.setColorAt(ai, a.band);
+      ai++;
+      const hands = a.isBot ? a.hands : human.hands;
+      for (let k = 0; k < 2; k++) {
+        rotY(_t3.set(k === 0 ? -0.27 : 0.27, -0.06, -0.02), a.yaw, _t2).add(a.pos);
+        setSeg(armsIM, armI, _t2, hands[k].pos); armsIM.setColorAt(armI, a.fur); armI++;
+        handsIM.setMatrixAt(hi++, _mm.compose(hands[k].pos, _q.setFromAxisAngle(_yAxis, a.yaw), _s.set(1, 1, 1)));
+      }
+      if (a.ko > 0) for (let k = 0; k < 3; k++) {
+        const an = now * 4 + k * 2.09;
+        _p.set(a.pos.x + Math.cos(an) * 0.28, a.pos.y + 0.5, a.pos.z + Math.sin(an) * 0.28);
+        starsIM.setMatrixAt(sti++, _mm.compose(_p, _q.setFromAxisAngle(_yAxis, now * 6), _s.set(1, 1, 1)));
+      }
+    }
+    if (a.out || (isMe && human.kind === 'pc')) continue;
+    const h = sweepSphere(a.pos, _p.set(a.pos.x, a.pos.y - 25, a.pos.z), 0.02, true);
+    if (h && h.n.y > 0.5) {
+      const s = clamp(1 - (a.pos.y - h.p.y) * 0.08, 0.35, 1);
+      shadowIM.setMatrixAt(si++, _mm.compose(_p.copy(h.p).setY(h.p.y + 0.015), _q.identity(), _s.set(s, 1, s)));
+    }
+  }
+  apesIM.count = bandsIM.count = ai; armsIM.count = armI; handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
+  for (const im of [apesIM, bandsIM, armsIM, handsIM, starsIM, shadowIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  // your hands
+  const show = human.kind !== 'none';
+  myHandsIM.count = show ? 2 : 0;
+  if (show) {
+    _q2.setFromAxisAngle(_yAxis, human.yaw);
+    for (let k = 0; k < 2; k++) {
+      const h = human.hands[k];
+      if (human.kind === 'vr') _q.copy(_q2).multiply(h.q); else _q.setFromEuler(_e.set(human.pitch, human.yaw, 0, 'YXZ'));
+      myHandsIM.setMatrixAt(k, _mm.compose(h.pos, _q, _s.set(1, 1, 1))); myHandsIM.setColorAt(k, human.fur);
+    }
+    myHandsIM.instanceMatrix.needsUpdate = true; myHandsIM.instanceColor.needsUpdate = true;
+  }
+  // wrist display + board
+  wrist.mesh.visible = human.kind === 'vr' && human.hands[0].ok;
+  if (wrist.mesh.visible) { wrist.mesh.position.copy(human.hands[0].pos).y += 0.1; wrist.mesh.lookAt(human.head); }
+  camera.getWorldPosition(_p);
+  sky.position.copy(_p);
+  board.mesh.lookAt(_p.x, board.mesh.position.y, _p.z);
+  flash = Math.max(0, flash - dt);
+  const vo = human.ko > 0 ? 0.55 : flash * 1.6;
+  vignette.visible = human.kind !== 'none' && vo > 0.01;
+  vignette.material.opacity = vo;
+}
+
+// ================= HUD =================
+const fmtTime = (t) => { t = Math.max(0, Math.ceil(t)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+function banner() {
+  if (G.state === 'countdown') return G.countdown > 0.2 ? String(Math.ceil(G.countdown)) : 'RUMBLE!';
+  if (G.state === 'fight' && G.timeLeft > ROUND_TIME - 1) return 'RUMBLE!';
+  if (G.state === 'end') return G.winner ? (G.winner === human ? 'You win!' : `${G.winner.name} wins!`) : 'Nobody wins!';
+  if (human.out && human.kind !== 'none') return 'You fell! Next round soon';
+  if (human.ko > 0) return 'Dizzy!';
+  return '';
+}
+function drawBoard() {
+  const { ctx, c } = board;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = 'rgba(22,18,13,0.88)'; rr(ctx, 0, 0, c.width, c.height, 44); ctx.fill();
+  ctx.fillStyle = '#ffc23a'; ctx.font = `76px ${FD}`; ctx.textAlign = 'left';
+  ctx.fillText(`ROUND ${G.round}`, 48, 100);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#f3ead8';
+  ctx.fillText(G.state === 'countdown' ? banner() : G.state === 'end' ? 'NEXT…' : fmtTime(G.timeLeft), 976, 100);
+  ctx.textAlign = 'left';
+  actors.filter((a) => a.active).forEach((a, i) => {
+    const x = 48 + (i % 2) * 470, y = 170 + Math.floor(i / 2) * 92;
+    ctx.globalAlpha = a.out ? 0.35 : 1;
+    ctx.fillStyle = a.css; rr(ctx, x, y, 56, 56, 14); ctx.fill();
+    ctx.fillStyle = '#f3ead8'; ctx.font = `52px ${FD}`; ctx.fillText(a.name, x + 76, y + 46);
+    ctx.font = `600 34px ${FB}`; ctx.fillStyle = '#b9ad94'; ctx.textAlign = 'right';
+    ctx.fillText(a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
+    ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+  });
+  if (G.state === 'end') {
+    ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 120, 190, 784, 160, 30); ctx.fill();
+    ctx.fillStyle = '#ffc23a'; ctx.font = `86px ${FD}`; ctx.textAlign = 'center'; ctx.fillText(banner(), 512, 300);
+  }
+  board.tex.needsUpdate = true;
+}
+function drawWrist() {
+  const { ctx } = wrist, H = human;
+  ctx.clearRect(0, 0, 256, 128);
+  ctx.fillStyle = 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, 256, 128, 22); ctx.fill();
+  ctx.fillStyle = '#f3ead8'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left';
+  ctx.fillText(H.out ? 'OUT' : H.ko > 0 ? 'DIZZY' : fmtTime(G.timeLeft), 16, 50);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(`${alive().length} left`, 240, 50);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; rr(ctx, 16, 80, 224, 22, 11); ctx.fill();
+  ctx.fillStyle = '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, H.dizzy / 100)), 22, 11); ctx.fill();
+  wrist.tex.needsUpdate = true;
+}
+function drawHtmlHud() {
+  $('hround').textContent = G.round; $('halive').textContent = alive().length; $('htime').textContent = fmtTime(G.timeLeft);
+  $('hmsg').textContent = banner() || (G.feedT > 0 ? G.feed[0] : '');
+  $('hdizzy').style.width = `${Math.min(100, human.dizzy)}%`;
+  $('hko').hidden = !(human.ko > 0);
+}
+
+// ================= camera =================
+function updateCamera() {
+  if (renderer.xr.isPresenting) { rig.position.copy(human.P); rig.rotation.set(0, human.yaw, 0); return; }
+  if (human.kind === 'pc') {
+    rig.position.copy(human.P); rig.rotation.set(0, human.yaw, 0);
+    camera.position.copy(human.headL); camera.rotation.set(human.pitch, 0, 0, 'YXZ');
+    return;
+  }
+  rig.position.set(0, 0, 0); rig.rotation.set(0, 0, 0);
+  const a = now * 0.07;
+  camera.position.set(Math.sin(a) * 15, 6.5 + Math.sin(now * 0.13) * 1.5, Math.cos(a) * 15);
+  camera.lookAt(1.5, 0.5, 0);
+}
+
+// ================= XR =================
+function readXR(frame) {
+  const ref = renderer.xr.getReferenceSpace();
+  const vp = frame.getViewerPose(ref);
+  if (!vp) return false;
+  const t = vp.transform.position; xrIn.head.set(t.x, t.y, t.z);
+  for (const h of xrIn.hands) h.ok = false;
+  for (const src of frame.session.inputSources) {
+    const k = src.handedness === 'left' ? 0 : src.handedness === 'right' ? 1 : -1;
+    if (k < 0) continue;
+    const h = xrIn.hands[k];
+    const gp = src.gripSpace ? frame.getPose(src.gripSpace, ref) : null;
+    const ap = frame.getPose(src.targetRaySpace, ref);
+    if (gp) { const p = gp.transform.position; h.pos.set(p.x, p.y, p.z); h.ok = true; }
+    else if (ap) { const p = ap.transform.position; h.pos.set(p.x, p.y, p.z); h.ok = true; }
+    const o = (gp || ap)?.transform.orientation; if (o) h.q.set(o.x, o.y, o.z, o.w);
+    const pad = src.gamepad;
+    h.gamepad = pad || null;
+    h.trigger = !!pad?.buttons[0]?.pressed; h.grip = !!pad?.buttons[1]?.pressed;
+    if (k === 1 && pad) xrIn.stickX = pad.axes[2] ?? pad.axes[0] ?? 0;
+  }
+  return true;
+}
+let firstVRFrame = false;
+async function enterVR() {
+  initAudio();
+  try {
+    const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
+    session.addEventListener('end', goMenu);
+    await renderer.xr.setSession(session);
+    camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0);
+    human.kind = 'vr'; human.active = true; G.demo = false; firstVRFrame = true;
+    for (const a of actors) a.wins = 0;
+    G.round = 0;
+    $('menu').hidden = true; $('hud').hidden = true;
+  } catch (e) {
+    $('vrstatus').textContent = `Couldn't start VR here (${e.message || e.name}). If this page is inside another app, open it directly in the Meta Quest Browser.`;
+  }
+}
+
+// ================= main loop =================
+let last = -1, hudT = 0;
+function update(dt, frame) {
+  now += dt;
+  for (const h of human.hands) h.prev.copy(h.pos);
+  if (renderer.xr.isPresenting && frame && human.kind === 'vr') {
+    if (readXR(frame)) {
+      if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); startRound(); }
+      if (G.state === 'countdown' && !human.out) { /* free to look around, movement locked */ for (const h of human.hands) { h.L.copy(xrIn.hands[h.k].pos); h.q.copy(xrIn.hands[h.k].q); h.ok = xrIn.hands[h.k].ok; handTarget(h, h.pos); } human.headL.copy(xrIn.head); headWorld(human.head); }
+      else vrStep(dt, xrIn);
+    }
+  } else if (human.kind === 'pc') pcStep(dt);
+  for (const h of human.hands) h.vel.subVectors(h.pos, h.prev).multiplyScalar(1 / Math.max(dt, 1e-3));
+  updateGame(dt);
+  for (const b of bots) updateBot(b, dt);
+  if (G.state === 'fight') {
+    if (human.kind === 'vr') vrGrabs();
+    if (human.active && !human.out && human.ko <= 0 && !human.heldBy) handHits(human, human.hands);
+    for (const b of bots) if (b.active && !b.out && b.ko <= 0 && !b.heldBy) handHits(b, b.hands);
+  }
+  updateHeld(dt);
+  bodyBump();
+  updateLog(dt);
+  updateVisuals(dt);
+  updateCamera();
+  hudT -= dt;
+  if (hudT <= 0) {
+    hudT = 0.15;
+    drawBoard();
+    if (human.kind === 'vr') drawWrist();
+    if (human.kind === 'pc') drawHtmlHud();
+  }
+}
+renderer.setAnimationLoop((t, frame) => {
+  const ts = t / 1000;
+  const dt = last < 0 ? 1 / 60 : clamp(ts - last, 0.001, 0.05);
+  last = ts;
+  update(dt, frame);
+  renderer.render(scene, camera);
+});
+
+// ================= menu wiring =================
+$('bpc').addEventListener('click', () => {
+  initAudio();
+  human.kind = 'pc'; human.active = true; G.demo = false; G.round = 0;
+  for (const a of actors) a.wins = 0;
+  $('menu').hidden = true; $('hud').hidden = false;
+  startRound();
+});
+$('hmenu').addEventListener('click', goMenu);
+$('bvr').addEventListener('click', enterVR);
+(async () => {
+  let ok = false;
+  try { ok = !!navigator.xr && await navigator.xr.isSessionSupported('immersive-vr'); } catch (e) { ok = false; }
+  $('bvr').disabled = !ok;
+  $('vrstatus').textContent = ok
+    ? 'Headset ready. Press Enter VR to jump into the next round.'
+    : 'No VR headset found in this browser. Open this page in the Meta Quest Browser to play in VR, or try it here on your computer.';
+})();
+if (document.fonts) document.fonts.ready.then(drawBoard);
+goMenu();
+
+window.AR = { vrGrabs, updateHeld, G, human, bots, actors, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+</script>
+
+</body>
+</html>
