@@ -50,10 +50,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 legend { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; padding: 0; }
-.seg { display: flex; gap: 6px; flex-wrap: wrap; }
-.seg label { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; cursor: pointer; }
-.seg label:has(input:checked) { border-color: var(--banana); background: rgba(255, 194, 58, 0.1); }
-.seg input { accent-color: var(--banana); margin: 0; }
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
 .fields input { font: 500 15px var(--font-body); color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; box-sizing: border-box; text-transform: none; }
@@ -103,15 +99,11 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
     <fieldset class="netpick">
       <legend>Play</legend>
-      <div class="seg">
-        <label><input type="radio" name="net" id="net-on" value="online" checked> Online</label>
-        <label><input type="radio" name="net" id="net-off" value="offline"> Offline with bots</label>
-      </div>
       <div class="fields">
         <label for="nick">Your name<input id="nick" maxlength="12" autocomplete="off" spellcheck="false"></label>
         <label for="room">Room code<input id="room" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Empty = Quick Play"></label>
       </div>
-      <p class="status">Online puts you in a match with other players. Type the same room code as your friends to play together. Empty seats are filled with bots.</p>
+      <p class="status">Leave the room code empty to join anyone who's online, or type the same code as your friends to play together. Bots fill any empty seats, so you always get a full match of 6 apes.</p>
     </fieldset>
     <div class="actions">
       <button id="bvr" class="primary" type="button" disabled>Enter VR</button>
@@ -1843,7 +1835,7 @@ function netDrop(msg) {
   if (human.kind !== 'none') { G.round = 0; startRound(); }
 }
 function startPlay() {
-  net.want = $('net-on').checked;
+  net.want = true;
   net.nick = cleanNick($('nick').value) || randomNick();
   $('nick').value = net.nick;
   try { localStorage.setItem('wrecked-nick', net.nick); } catch (e) { /* storage blocked */ }
