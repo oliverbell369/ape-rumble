@@ -1,7 +1,9 @@
-# Ape Rumble
+# WRECKED
 
 A VR ape brawler prototype for Meta Quest (WebXR). Move by pushing the world with your arms, slap other apes until they're dizzy, then grab them and throw them off the Ravine Sawmill. Last ape standing wins.
 
-**Play:** open the GitHub Pages link for this repository in the Meta Quest Browser and press **Enter VR**. It also runs in a desktop browser (WASD, mouse, click to slap, hold right-click to grab).
+**Play:** https://oliverbell369.github.io/ape-rumble/ — open it in the Meta Quest Browser and press **Enter VR**. It also runs in a desktop browser (WASD, mouse, click to slap, hold right-click to grab).
 
-Prototype 0.1: single player against 5 bots. Online multiplayer is planned.
+Grabbed or dizzy? Shake your arms hard (or mash keys on a computer) to break free, or slap the ape holding you.
+
+Prototype 0.2: single player against 5 bots. Online multiplayer is planned.

@@ -6,7 +6,7 @@
 <style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}</style>
 </head>
 <body>
-<title>Ape Rumble</title>
+<title>WRECKED</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,14 +79,14 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
   <div id="hko" hidden></div>
   <div id="hmsg"></div>
   <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab, let go to throw · Esc frees the mouse</div>
-  <div class="hud-bot"><span>Dizzy</span><div class="bar"><i id="hdizzy"></i></div></div>
+  <div class="hud-bot"><span id="hbarlabel">Dizzy</span><div class="bar"><i id="hdizzy"></i></div></div>
   <button id="hmenu" type="button">Menu</button>
 </div>
 
 <main id="menu">
-  <section class="panel" aria-label="Ape Rumble menu">
-    <p class="kicker">VR ape brawler · prototype 0.1</p>
-    <h1>Ape<br>Rumble</h1>
+  <section class="panel" aria-label="WRECKED menu">
+    <p class="kicker">VR ape brawler · prototype 0.2</p>
+    <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
     <div class="actions">
@@ -131,7 +131,7 @@ const LOCO = {
 };
 const FIGHT = {
   slapMin: 2.2, slapMul: 0.75, slapCap: 9, slapUp: 1.6, dizzyPerSpeed: 8, koTime: 3.5,
-  throwMul: 1.5, throwCap: 12, holdAwake: 1.2, reach: 0.5,
+  throwMul: 0.9, throwCap: 7, awakeThrow: 0.6, holdAwake: 0.7, reach: 0.5,
 };
 const HUMAN_SPH = [{ dy: 0, r: 0.2 }, { dy: -0.38, r: 0.28 }];
 const BOT_SPH = [{ dy: 0, r: 0.3 }, { dy: -0.27, r: 0.28 }];
@@ -803,7 +803,7 @@ const APES = [
 ];
 function mkHand(k) {
   return { k, L: new THREE.Vector3(), q: new THREE.Quaternion(), T: new THREE.Vector3(), pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(),
-    anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
+    anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), Lp: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
 }
 function baseActor(i) {
   const d = APES[i];
@@ -813,7 +813,7 @@ function baseActor(i) {
 }
 const human = Object.assign(baseActor(0), {
   isHuman: true, kind: 'none', P: new THREE.Vector3(), V: new THREE.Vector3(), pitch: 0,
-  headL: new THREE.Vector3(0, 1, 0), head: new THREE.Vector3(), hands: [mkHand(0), mkHand(1)], hist: [], wasAnch: false, snapLatch: false, noGrab: 0,
+  headL: new THREE.Vector3(0, 1, 0), head: new THREE.Vector3(), hands: [mkHand(0), mkHand(1)], hist: [], wasAnch: false, snapLatch: false, noGrab: 0, struggle: 0,
 });
 human.vel = human.V;
 function mkBot(i) {
@@ -1070,11 +1070,15 @@ const _D = new THREE.Vector3(), _rel = new THREE.Vector3();
 function vrStep(dt, inp) {
   const H = human;
   H.headL.copy(inp.head);
+  let flail = 0;
   for (let k = 0; k < 2; k++) {
     const h = H.hands[k], s = inp.hands[k];
     h.ok = s.ok; if (!s.ok) continue;
+    flail += Math.min(6, h.Lp.distanceTo(s.pos) / Math.max(dt, 1e-3)); h.Lp.copy(s.pos);
     h.L.copy(s.pos); h.q.copy(s.q); h.trigger = s.trigger; h.gripWas = h.grip; h.grip = s.grip; h.gamepad = s.gamepad;
   }
+  // shaking your arms hard breaks a grab or shakes off dizziness
+  if (H.heldBy || H.ko > 0) addStruggle(Math.max(0, flail - 2) * 0.15 * dt); else H.struggle = 0;
   if (Math.abs(inp.stickX) > 0.7 && !H.snapLatch) {
     H.snapLatch = true;
     headWorld(_t1);
@@ -1145,11 +1149,28 @@ function vrGrabs() {
       for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = h.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
       if (best && grab(H, h, best)) pulseHand(h.k, 0.6, 60);
     } else if (!h.grip && h.holding) {
-      _v.copy(h.vel).multiplyScalar(FIGHT.throwMul); _v.y += 1.2;
+      _v.copy(h.vel).multiplyScalar(FIGHT.throwMul); _v.y += 1.0;
       if (_v.length() > FIGHT.throwCap) _v.setLength(FIGHT.throwCap);
+      if (h.holding.ko <= 0) _v.multiplyScalar(FIGHT.awakeThrow);
       release(h.holding, _v);
     }
   }
+}
+function addStruggle(v) {
+  const H = human;
+  if (!(H.heldBy || H.ko > 0) || H.out || G.state !== 'fight') return;
+  H.struggle += v;
+  if (H.struggle < 1) return;
+  H.struggle = 0;
+  if (H.heldBy) {
+    const holder = H.heldBy;
+    _t3.subVectors(H.pos, holder.pos).setY(0); if (_t3.lengthSq() < 1e-4) _t3.set(0, 0, 1);
+    _t3.setLength(2.5).setY(2.5);
+    release(H, _t3);
+    holder.tiltV.x -= _t3.x * 2; holder.tiltV.y -= _t3.z * 2;
+  }
+  if (H.ko > 0) { H.ko = 0; H.dizzy = 30; }
+  feed('You broke free!'); sfx('grab'); pulseAll(0.8, 120);
 }
 function pulseHand(k, v, ms) { try { human.hands[k]?.gamepad?.hapticActuators?.[0]?.pulse(v, ms); } catch (e) { /* no haptics */ } }
 function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
@@ -1157,13 +1178,14 @@ function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
 // ================= human: computer controls =================
 const keys = {};
 const mouse = { left: false, right: false, drag: false, lx: 0, ly: 0 };
-addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   if (human.kind !== 'pc') return;
   initAudio();
   if (!document.pointerLockElement) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* drag to look */ } }
+  addStruggle(0.12);
   if (e.button === 0) { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
   if (e.button === 2) mouse.right = true;
   mouse.drag = true; mouse.lx = e.clientX; mouse.ly = e.clientY;
@@ -1218,7 +1240,7 @@ function pcStep(dt) {
     if (best) grab(H, R, best);
   } else if (!mouse.right && R.holding) {
     _e.set(human.pitch + 0.25, human.yaw, 0, 'YXZ');
-    _v.set(0, 0, -1).applyQuaternion(_qq.setFromEuler(_e)).multiplyScalar(9);
+    _v.set(0, 0, -1).applyQuaternion(_qq.setFromEuler(_e)).multiplyScalar(R.holding.ko > 0 ? 6.5 : 6.5 * FIGHT.awakeThrow);
     release(R.holding, _v);
   }
 }
@@ -1270,7 +1292,7 @@ function updateBot(b, dt) {
     const dx = b.goal.x - b.pos.x, dz = b.goal.z - b.pos.z, dh = Math.hypot(dx, dz), dy = b.goal.y - b.pos.y;
     if (b.holding && dh < 1.6) {
       // throw outward off the edge
-      _v.set(dx, 0, dz).normalize().multiplyScalar(7.5); _v.y = 3.5;
+      _v.set(dx, 0, dz).normalize().multiplyScalar(6); _v.y = 3;
       release(b.holding, _v); b.slapCD = 0.8;
     } else if (b.grounded && b.hopCD <= 0 && dh > (b.holding ? 0.5 : 1.0)) {
       let sp = Math.min(5.6, 1.8 + dh * 0.45) * b.skill * (b.holding ? 0.7 : 1);
@@ -1410,7 +1432,8 @@ function banner() {
   if (G.state === 'fight' && G.timeLeft > ROUND_TIME - 1) return 'RUMBLE!';
   if (G.state === 'end') return G.winner ? (G.winner === human ? 'You win!' : `${G.winner.name} wins!`) : 'Nobody wins!';
   if (human.out && human.kind !== 'none') return 'You fell! Next round soon';
-  if (human.ko > 0) return 'Dizzy!';
+  if (human.heldBy) return human.kind === 'pc' ? 'Grabbed! Mash keys or slap to escape' : 'Grabbed! Shake your arms or slap!';
+  if (human.ko > 0) return human.kind === 'pc' ? 'Dizzy! Mash keys to shake it off' : 'Dizzy! Shake your arms!';
   return '';
 }
 function drawBoard() {
@@ -1442,16 +1465,19 @@ function drawWrist() {
   ctx.clearRect(0, 0, 256, 128);
   ctx.fillStyle = 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, 256, 128, 22); ctx.fill();
   ctx.fillStyle = '#f3ead8'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left';
-  ctx.fillText(H.out ? 'OUT' : H.ko > 0 ? 'DIZZY' : fmtTime(G.timeLeft), 16, 50);
+  const stuck = H.heldBy || H.ko > 0;
+  ctx.fillText(H.out ? 'OUT' : stuck ? 'SHAKE!' : fmtTime(G.timeLeft), 16, 50);
   ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(`${alive().length} left`, 240, 50);
   ctx.fillStyle = 'rgba(255,255,255,0.15)'; rr(ctx, 16, 80, 224, 22, 11); ctx.fill();
-  ctx.fillStyle = '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, H.dizzy / 100)), 22, 11); ctx.fill();
+  ctx.fillStyle = stuck ? '#ffc23a' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, stuck ? H.struggle : H.dizzy / 100)), 22, 11); ctx.fill();
   wrist.tex.needsUpdate = true;
 }
 function drawHtmlHud() {
   $('hround').textContent = G.round; $('halive').textContent = alive().length; $('htime').textContent = fmtTime(G.timeLeft);
   $('hmsg').textContent = banner() || (G.feedT > 0 ? G.feed[0] : '');
-  $('hdizzy').style.width = `${Math.min(100, human.dizzy)}%`;
+  const stuck = human.heldBy || human.ko > 0;
+  $('hbarlabel').textContent = stuck ? 'Break free' : 'Dizzy';
+  $('hdizzy').style.width = `${Math.min(100, stuck ? human.struggle * 100 : human.dizzy)}%`;
   $('hko').hidden = !(human.ko > 0);
 }
 
@@ -1526,7 +1552,7 @@ function update(dt, frame) {
   for (const b of bots) updateBot(b, dt);
   if (G.state === 'fight') {
     if (human.kind === 'vr') vrGrabs();
-    if (human.active && !human.out && human.ko <= 0 && !human.heldBy) handHits(human, human.hands);
+    if (human.active && !human.out && human.ko <= 0) handHits(human, human.hands);
     for (const b of bots) if (b.active && !b.out && b.ko <= 0 && !b.heldBy) handHits(b, b.hands);
   }
   updateHeld(dt);
