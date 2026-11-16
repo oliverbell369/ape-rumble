@@ -48,6 +48,18 @@ button { font: 600 15px var(--font-body); color: var(--ink); background: transpa
 button.primary { background: var(--banana); border-color: var(--banana); color: #2a1a05; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+legend { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; padding: 0; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg label { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; cursor: pointer; }
+.seg label:has(input:checked) { border-color: var(--banana); background: rgba(255, 194, 58, 0.1); }
+.seg input { accent-color: var(--banana); margin: 0; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+.fields input { font: 500 15px var(--font-body); color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; box-sizing: border-box; text-transform: none; }
+#room { text-transform: uppercase; }
+#room::placeholder { text-transform: none; }
+.fields input:focus-visible { outline: 2px solid var(--banana); outline-offset: 1px; }
 .status { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
 details { font-size: 13px; line-height: 1.5; color: var(--muted); }
 summary { cursor: pointer; color: var(--ink); font-weight: 600; }
@@ -74,7 +86,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 
 <canvas id="c"></canvas>
 <div id="hud" hidden>
-  <div class="hud-top"><span><small>Round</small><b id="hround">1</b></span><span><small>Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span></div>
+  <div class="hud-top"><span id="hnet"></span><span><small>Round</small><b id="hround">1</b></span><span><small>Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span></div>
   <div id="xhair"></div>
   <div id="hko" hidden></div>
   <div id="hmsg"></div>
@@ -85,15 +97,28 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 
 <main id="menu">
   <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.2</p>
+    <p class="kicker">VR ape brawler · prototype 0.3</p>
     <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
+    <fieldset class="netpick">
+      <legend>Play</legend>
+      <div class="seg">
+        <label><input type="radio" name="net" id="net-on" value="online" checked> Online</label>
+        <label><input type="radio" name="net" id="net-off" value="offline"> Offline with bots</label>
+      </div>
+      <div class="fields">
+        <label for="nick">Your name<input id="nick" maxlength="12" autocomplete="off" spellcheck="false"></label>
+        <label for="room">Room code<input id="room" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Empty = Quick Play"></label>
+      </div>
+      <p class="status">Online puts you in a match with other players. Type the same room code as your friends to play together. Empty seats are filled with bots.</p>
+    </fieldset>
     <div class="actions">
       <button id="bvr" class="primary" type="button" disabled>Enter VR</button>
       <button id="bpc" type="button">Play on computer</button>
     </div>
     <p id="vrstatus" class="status">Checking for a VR headset…</p>
+    <p id="netstatus" class="status" hidden></p>
     <details>
       <summary>How to play</summary>
       <h3>In VR</h3>
@@ -110,6 +135,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
   </section>
 </main>
 
+<script src="photon-realtime.js"></script>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
 </script>
@@ -138,6 +164,13 @@ const BOT_SPH = [{ dy: 0, r: 0.3 }, { dy: -0.27, r: 0.28 }];
 const raw = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace);
 const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
 const LIGHT_DIR = new THREE.Vector3(0.45, 0.8, 0.35).normalize();
+// online play (Photon Realtime)
+const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
+const PHOTON_VERSION = 'wrecked-0.3';
+const PHOTON_REGION = 'us';
+const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8 };
+const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
+let mySlot = 0;
 
 // ================= renderer / scene =================
 const canvas = $('c');
@@ -806,7 +839,7 @@ function sfx(type, at, vol = 1) {
 
 // ================= actors =================
 const APES = [
-  { name: 'You', fur: [0.5, 0.34, 0.22], band: [0.9, 0.18, 0.15], css: '#e62e26' },
+  { name: 'Rex', fur: [0.5, 0.34, 0.22], band: [0.9, 0.18, 0.15], css: '#e62e26' },
   { name: 'Bonk', fur: [0.24, 0.21, 0.2], band: [0.16, 0.45, 0.95], css: '#2973f2' },
   { name: 'Mojo', fur: [0.74, 0.42, 0.2], band: [0.2, 0.8, 0.3], css: '#33cc4d' },
   { name: 'Pip', fur: [0.58, 0.57, 0.56], band: [1, 0.8, 0.15], css: '#ffcc26' },
@@ -827,13 +860,39 @@ const human = Object.assign(baseActor(0), {
   isHuman: true, kind: 'none', P: new THREE.Vector3(), V: new THREE.Vector3(), pitch: 0,
   headL: new THREE.Vector3(0, 1, 0), head: new THREE.Vector3(), hands: [mkHand(0), mkHand(1)], hist: [], wasAnch: false, snapLatch: false, noGrab: 0, struggle: 0,
 });
-human.vel = human.V;
+human.vel = human.V; human.name = 'You';
 function mkBot(i) {
   return Object.assign(baseActor(i), { isBot: true, think: 0, hopCD: 0, slapCD: 0, slapT: -1, slapHand: 1, goal: null, target: null, holding: null, holdT: 0, blocked: 0,
-    skill: rand(0.8, 1.05), grudge: [], grudgeT: 0, hang: false, hangT: 0, hangCool: 0, mayHang: true, hangPos: new THREE.Vector3(), hangDir: new THREE.Vector3(), hangLedge: new THREE.Vector3(), hands: [0, 1].map(() => ({ pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3() })), slapDir: new THREE.Vector3() });
+    skill: rand(0.8, 1.05), grudge: [], grudgeT: 0, hang: false, hangT: 0, hangCool: 0, mayHang: true, hangPos: new THREE.Vector3(), hangDir: new THREE.Vector3(), hangLedge: new THREE.Vector3(), hands: [0, 1].map(() => ({ pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3() })), slapDir: new THREE.Vector3(),
+    remote: false, player: false, snapP: new THREE.Vector3(), snapV: new THREE.Vector3(), snapYaw: 0, snapH: [new THREE.Vector3(), new THREE.Vector3()], snapT: 0, overrideT: 0 });
 }
-const bots = [1, 2, 3, 4, 5].map(mkBot);
-const actors = [human, ...bots];
+// six seats; in each round a seat is you, a bot simulated here, or a copy of someone else's ape
+const allBots = [0, 1, 2, 3, 4, 5].map(mkBot);
+let actors = [human, ...allBots.slice(1)];
+let bots = allBots.slice(1);
+const slotActor = (k) => (k === mySlot ? human : allBots[k]);
+function skinHuman(k) {
+  const d = APES[k] || APES[0];
+  human.i = k; human.fur = raw(...d.fur); human.band = raw(...d.band); human.css = d.css; human.name = 'You';
+}
+function setupSlots() {
+  const map = net.on ? net.map || {} : null;
+  mySlot = map ? (map[net.myNr] ?? -1) : 0;
+  const seatNr = new Map();
+  if (map) for (const nr in map) seatNr.set(map[nr], +nr);
+  actors = []; bots = [];
+  for (let k = 0; k < 6; k++) {
+    if (k === mySlot) { skinHuman(k); actors.push(human); continue; }
+    const b = allBots[k];
+    b.player = seatNr.has(k);
+    b.remote = !!map && (b.player || !net.host);
+    b.name = b.player ? (net.names[seatNr.get(k)] || 'Player') : APES[k].name;
+    b.active = true;
+    actors.push(b);
+    if (!b.remote) bots.push(b);
+  }
+  if (mySlot < 0) { skinHuman(0); human.i = 9; actors.push(human); }
+}
 
 // ================= game state =================
 const G = { state: 'menu', demo: true, round: 0, timeLeft: ROUND_TIME, countdown: 0, endT: 0, winner: null, lastCount: 4, feed: [], feedT: 0 };
@@ -866,12 +925,19 @@ function resetActor(a, i) {
   else { a.pos.set(sp.x, sp.y + 0.56, sp.z); a.vel.set(0, 0, 0); a.yaw = yaw; a.holding = null; a.slapT = -1; a.goal = null; for (const h of a.hands) h.pos.copy(a.pos); }
 }
 function startRound() {
+  if (net.on && !net.host) return;
+  if (net.on) buildMap();
+  setupSlots();
   G.round++; G.state = 'countdown'; G.countdown = 3.2; G.lastCount = 4; G.timeLeft = ROUND_TIME; G.winner = null; G.feed = [];
   const order = actors.map((a, i) => i).sort(() => Math.random() - 0.5);
   actors.forEach((a, k) => {
     a.active = a === human ? human.kind !== 'none' : true;
-    if (a.active) resetActor(a, order[k]);
+    if (!a.active) return;
+    if (a === human && mySlot < 0) { a.out = true; placeHuman(OUT_LEDGE, Math.PI); return; }
+    resetActor(a, net.on ? a.i : order[k]);
+    if (a.remote) { a.snapT = 0; a.holding = null; }
   });
+  if (net.on) sendState();
 }
 function endRound() {
   const left = alive();
@@ -879,12 +945,14 @@ function endRound() {
   if (G.winner) G.winner.wins++;
   G.state = 'end'; G.endT = 5.5;
   if (!G.demo) sfx(G.winner === human ? 'win' : 'go');
+  if (net.on) sendState();
 }
 function eliminate(a) {
   if (a.out) return;
   a.out = true; a.ko = 0;
   if (a.heldBy) release(a, null);
   feed(`${a.name === 'You' ? 'You' : a.name} fell!`);
+  if (net.on) netSendAll(EV.FEED, { m: `${a === human ? net.nick : a.name} fell!` });
   sfx('fall', a === human ? null : a.pos, 0.7);
   if (a === human) {
     for (const h of human.hands) dropHeld(h);
@@ -892,28 +960,34 @@ function eliminate(a) {
   } else { if (a.holding) release(a.holding, null); a.holding = null; }
 }
 function goMenu() {
+  netLeave();
   human.kind = 'none'; human.active = false; G.demo = true; G.round = 0;
-  for (const a of actors) a.wins = 0;
+  for (const a of [human, ...allBots]) a.wins = 0;
+  setupSlots();
   $('menu').hidden = false; $('hud').hidden = true;
   if (document.pointerLockElement) document.exitPointerLock();
   startRound(); G.countdown = 0.01;
 }
 function updateGame(dt) {
   G.feedT -= dt;
+  const auth = !net.on || net.host;
+  const before = G.state + G.round;
   if (G.state === 'countdown') {
     G.countdown -= dt;
     const c = Math.ceil(G.countdown);
     if (c !== G.lastCount && !G.demo) { G.lastCount = c; if (c > 0) sfx('beep'); }
-    if (G.countdown <= 0) { G.state = 'fight'; if (!G.demo) sfx('go'); }
+    if (G.countdown <= 0 && auth) { G.state = 'fight'; if (!G.demo) sfx('go'); }
   } else if (G.state === 'fight') {
     G.timeLeft -= dt;
-    if (alive().length <= 1 || G.timeLeft <= 0) endRound();
+    if (auth && (alive().length <= 1 || G.timeLeft <= 0)) endRound();
   } else if (G.state === 'end') {
     G.endT -= dt;
-    if (G.endT <= 0) startRound();
+    if (auth && G.endT <= 0) startRound();
   }
+  if (auth && net.on && before !== G.state + G.round) sendState();
   for (const a of actors) {
     if (!a.active) continue;
+    if (a.remote) { a.tiltV.x += (-a.tilt.x * 60 - a.tiltV.x * 7) * dt; a.tiltV.y += (-a.tilt.y * 60 - a.tiltV.y * 7) * dt; a.tilt.x += a.tiltV.x * dt; a.tilt.y += a.tiltV.y * dt; continue; }
     if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
     else if (a === human && a.out && human.head.y < FALL_Y) placeHuman(OUT_LEDGE, Math.PI);
     if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
@@ -931,6 +1005,15 @@ function hit(attacker, target, hv, speed, from) {
   const key = attacker.i * 10 + (from ?? 0);
   if ((target.hitCD.get(key) || 0) > now) return;
   target.hitCD.set(key, now + 0.35);
+  if (target.remote) {
+    // someone else's game owns this ape: tell it, show the hit here
+    netSendTo(slotOwnerNr(target.i), EV.HIT, { to: target.i, from: attacker.i, k: from ?? 0, v: pack3(hv), sp: r2(speed) });
+    target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
+    if (attacker === human) pulseHand(from, Math.min(1, 0.3 + speed * 0.1), 50);
+    sfx(speed > 6 ? 'bonk' : 'slap', target.pos, 0.6 + Math.min(speed, 9) * 0.06);
+    return;
+  }
+  if (target === human) for (const h of human.hands) if (h.holding) release(h.holding, null);
   const s = Math.min(speed, FIGHT.slapCap);
   _v.copy(hv).setLength(s * FIGHT.slapMul); _v.y = Math.max(_v.y, 0) + FIGHT.slapUp * (s / 6);
   push(target, _v);
@@ -955,18 +1038,37 @@ function push(a, v) {
 }
 function grab(holder, handRef, target) {
   if (target.heldBy || target.out || !target.active) return false;
+  if (target.remote) {
+    const k = holder === human ? handRef.k : Math.max(0, holder.hands.indexOf(handRef));
+    netSendTo(slotOwnerNr(target.i), EV.GRAB, { to: target.i, from: holder.i, k });
+    target.heldBy = holder; target.heldHand = handRef; target.heldT = 0;
+    if (holder === human) handRef.holding = target; else holder.holding = target;
+    sfx('grab', target.pos);
+    return true;
+  }
   target.heldBy = holder; target.heldHand = handRef; target.heldT = 0;
   if (holder === human) handRef.holding = target; else holder.holding = target;
   sfx('grab', target === human ? null : target.pos);
   if (target === human) { for (const h of human.hands) h.anchored = false; human.hist.length = 0; }
   return true;
 }
+function clearHold(target) {
+  const holder = target.heldBy;
+  if (!holder) return;
+  if (holder === human) { for (const h of human.hands) if (h.holding === target) h.holding = null; } else if (holder.holding === target) holder.holding = null;
+  target.heldBy = null; target.heldHand = null;
+}
 function release(target, throwVel) {
   const holder = target.heldBy;
   if (!holder) return;
-  if (holder === human) { for (const h of human.hands) if (h.holding === target) h.holding = null; } else holder.holding = null;
-  target.heldBy = null; target.heldHand = null;
+  clearHold(target);
+  if (target.remote) {
+    netSendTo(slotOwnerNr(target.i), EV.RELEASE, { to: target.i, v: throwVel ? pack3(throwVel) : null });
+    if (throwVel) sfx('throw', target.pos);
+    return;
+  }
   if (throwVel) { if (target === human) human.V.copy(throwVel); else { target.vel.copy(throwVel); target.thrownT = 0.8; } sfx('throw', target.pos); }
+  if (holder.remote) netSendAll(EV.FREED, { s: target.i });
 }
 function dropHeld(h) { if (h.holding) release(h.holding, null); h.holding = null; }
 function setHeldPos(a, p) {
@@ -979,6 +1081,13 @@ function updateHeld(dt) {
     a.heldT += dt;
     const hp = a.heldHand.pos;
     _t2.set(hp.x, hp.y - 0.32, hp.z);
+    if (a.remote) {
+      // we're holding someone else's ape: draw it in our hand until their game catches up
+      if (!a.heldBy.remote) { a.pos.copy(_t2); a.overrideT = 0.3; }
+      if (a.heldT > 6) clearHold(a);
+      continue;
+    }
+    if (a.heldBy.remote && (!actors.includes(a.heldBy) || now - a.heldBy.snapT > 1)) { release(a, null); continue; }
     setHeldPos(a, _t2);
     // an awake ape wriggles free after a moment
     if (a.ko <= 0 && a.heldT > FIGHT.holdAwake) { _t3.copy(a.heldHand.vel).multiplyScalar(0.3); _t3.y += 2; release(a, _t3); }
@@ -991,9 +1100,10 @@ function bodyBump() {
     if (a.out !== b.out) continue;
     _t1.subVectors(b.pos, a.pos); const d = _t1.length();
     if (d > 0.001 && d < 0.72) {
-      _t1.multiplyScalar((0.72 - d) / d * 0.5);
-      if (a === human) human.P.sub(_t1); else a.pos.sub(_t1);
-      if (b === human) human.P.add(_t1); else b.pos.add(_t1);
+      if (a.remote && b.remote) continue;
+      _t1.multiplyScalar(((0.72 - d) / d) * (a.remote || b.remote ? 1 : 0.5));
+      if (!a.remote) { if (a === human) human.P.sub(_t1); else a.pos.sub(_t1); }
+      if (!b.remote) { if (b === human) human.P.add(_t1); else b.pos.add(_t1); }
     }
   }
 }
@@ -1014,8 +1124,9 @@ function handHits(attacker, handList) {
   }
 }
 function updateLog(dt) {
-  LOG.theta = LOG.A * Math.sin(now * LOG.w);
-  const th = LOG.theta, om = LOG.A * LOG.w * Math.cos(now * LOG.w);
+  const lt = now + (net.on && !net.host ? net.hostOffset : 0);
+  LOG.theta = LOG.A * Math.sin(lt * LOG.w);
+  const th = LOG.theta, om = LOG.A * LOG.w * Math.cos(lt * LOG.w);
   LOG.c.set(0, LOG.pivot.y - LOG.L * Math.cos(th), LOG.L * Math.sin(th));
   LOG.v.set(0, LOG.L * om * Math.sin(th), LOG.L * om * Math.cos(th));
   const _m = _mm.compose(LOG.c, _q.setFromAxisAngle(_xAxis, th), _s.set(1, 1, 1));
@@ -1031,7 +1142,7 @@ function updateLog(dt) {
   // log hits apes (log axis is world X; it rotates about X)
   const c = Math.cos(th), s = Math.sin(th);
   for (const a of actors) {
-    if (!a.active || a.out || a.heldBy) continue;
+    if (!a.active || a.out || a.heldBy || a.remote) continue;
     if (a === human && human.hands.some((h) => h.anchored && h.dyn)) continue;
     _t1.subVectors(a.pos, LOG.c);
     const ly = _t1.y * c + _t1.z * s, lz = -_t1.y * s + _t1.z * c, lx = _t1.x;
@@ -1050,7 +1161,7 @@ function updateLog(dt) {
 }
 
 // ================= human: VR movement =================
-const xrIn = { head: new THREE.Vector3(0, 1.6, 0), hands: [0, 1].map(() => ({ ok: false, pos: new THREE.Vector3(), q: new THREE.Quaternion(), trigger: false, grip: false, gamepad: null })), stickX: 0 };
+const xrIn = { headQ: new THREE.Quaternion(), head: new THREE.Vector3(0, 1.6, 0), hands: [0, 1].map(() => ({ ok: false, pos: new THREE.Vector3(), q: new THREE.Quaternion(), trigger: false, grip: false, gamepad: null })), stickX: 0 };
 function handTarget(h, out) {
   rotY(h.L, human.yaw, out).add(human.P);
   headWorld(_t1);
@@ -1498,7 +1609,8 @@ function drawBoard() {
   ctx.fillText(`ROUND ${G.round}`, 48, 100);
   ctx.textAlign = 'right'; ctx.fillStyle = '#f3ead8';
   ctx.fillText(G.state === 'countdown' ? banner() : G.state === 'end' ? 'NEXT…' : fmtTime(G.timeLeft), 976, 100);
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'left'; ctx.fillStyle = '#b9ad94'; ctx.font = `600 30px ${FB}`;
+  ctx.fillText(netLabel(), 48, 142);
   actors.filter((a) => a.active).forEach((a, i) => {
     const x = 48 + (i % 2) * 470, y = 170 + Math.floor(i / 2) * 92;
     ctx.globalAlpha = a.out ? 0.35 : 1;
@@ -1526,7 +1638,13 @@ function drawWrist() {
   ctx.fillStyle = stuck ? '#ffc23a' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, stuck ? H.struggle : H.dizzy / 100)), 22, 11); ctx.fill();
   wrist.tex.needsUpdate = true;
 }
+function netLabel() {
+  if (net.on) { const n = net.lbc ? net.lbc.myRoomActorCount() : 1; return `${net.code ? 'Room ' + net.code : 'Quick Play'} · ${n} ${n === 1 ? 'player' : 'players'} online`; }
+  if (net.connecting) return 'Connecting to online play…';
+  return G.demo ? '' : 'Offline · bots';
+}
 function drawHtmlHud() {
+  $('hnet').textContent = net.on ? (net.code ? `Room ${net.code}` : 'Online') : net.connecting ? 'Connecting…' : 'Offline';
   $('hround').textContent = G.round; $('halive').textContent = alive().length; $('htime').textContent = fmtTime(G.timeLeft);
   $('hmsg').textContent = banner() || (G.feedT > 0 ? G.feed[0] : '');
   const stuck = human.heldBy || human.ko > 0;
@@ -1555,6 +1673,7 @@ function readXR(frame) {
   const vp = frame.getViewerPose(ref);
   if (!vp) return false;
   const t = vp.transform.position; xrIn.head.set(t.x, t.y, t.z);
+  const ho = vp.transform.orientation; xrIn.headQ.set(ho.x, ho.y, ho.z, ho.w);
   for (const h of xrIn.hands) h.ok = false;
   for (const src of frame.session.inputSources) {
     const k = src.handedness === 'left' ? 0 : src.handedness === 'right' ? 1 : -1;
@@ -1581,12 +1700,209 @@ async function enterVR() {
     await renderer.xr.setSession(session);
     camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0);
     human.kind = 'vr'; human.active = true; G.demo = false; firstVRFrame = true;
-    for (const a of actors) a.wins = 0;
-    G.round = 0;
     $('menu').hidden = true; $('hud').hidden = true;
   } catch (e) {
     $('vrstatus').textContent = `Couldn't start VR here (${e.message || e.name}). If this page is inside another app, open it directly in the Meta Quest Browser.`;
   }
+}
+
+
+// ================= online multiplayer =================
+// Every player simulates their own ape and sends where it is ~10 times a second. The room's host
+// (the first player in it) also runs the bots and the round clock. Slaps and grabs on someone
+// else's ape are sent to the game that owns that ape, which applies them.
+const r2 = (v) => Math.round(v * 100) / 100;
+const pack3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
+const flagsOf = (a) => (a.ko > 0 ? 1 : 0) | (a.out ? 2 : 0) | (a.dizzy > 60 ? 4 : 0) | (a.hang ? 8 : 0);
+function setNetStatus(msg) { net.status = msg; const el = $('netstatus'); el.textContent = msg; el.hidden = !msg; }
+function slotOwnerNr(k) {
+  if (net.map) for (const nr in net.map) if (net.map[nr] === k) return +nr;
+  return net.lbc ? net.lbc.myRoomMasterActorNr() : net.myNr;
+}
+function netSendTo(nr, code, data) {
+  if (!net.on) return;
+  if (nr === net.myNr) { onNetEvent(code, data, net.myNr); return; }
+  try { net.lbc.raiseEvent(code, data, { targetActors: [nr] }); } catch (e) { /* not in a room */ }
+}
+function netSendAll(code, data) { if (net.on) try { net.lbc.raiseEvent(code, data); } catch (e) { /* not in a room */ } }
+function humanFacing() {
+  if (human.kind !== 'vr') return human.yaw;
+  _t3.set(0, 0, -1).applyQuaternion(xrIn.headQ);
+  return human.yaw + Math.atan2(-_t3.x, -_t3.z);
+}
+function buildMap() {
+  const list = net.lbc.myRoomActorsArray().slice().sort((a, b) => a.actorNr - b.actorNr);
+  net.map = {}; net.names = {};
+  list.forEach((a, k) => {
+    net.names[a.actorNr] = (a.name || `Player ${a.actorNr}`).slice(0, 12);
+    if (k < 6) net.map[a.actorNr] = k;
+  });
+}
+function sendState() {
+  if (!net.on || !net.host) return;
+  net.stateT = 0.5;
+  const seats = [0, 1, 2, 3, 4, 5];
+  netSendAll(EV.STATE, { r: G.round, st: G.state, cd: r2(G.countdown), tl: r2(G.timeLeft), et: r2(G.endT), t: r2(now), map: net.map, names: net.names,
+    wins: seats.map((k) => slotActor(k).wins), w: G.winner ? G.winner.i : -1 });
+}
+function applyState(d) {
+  const off = d.t - now;
+  net.hostOffset = net.hasOffset ? net.hostOffset * 0.9 + off * 0.1 : off; net.hasOffset = true;
+  const newRound = d.r !== G.round;
+  net.names = d.names || {};
+  if (newRound || JSON.stringify(d.map) !== JSON.stringify(net.map)) { net.map = d.map || {}; setupSlots(); }
+  if (newRound) {
+    G.round = d.r; G.feed = [];
+    for (const a of actors) {
+      a.active = true;
+      if (a === human) { if (mySlot >= 0) resetActor(human, mySlot); else { human.out = true; placeHuman(OUT_LEDGE, Math.PI); } }
+      else { resetActor(a, a.i); a.holding = null; a.snapT = 0; }
+    }
+  }
+  const prev = G.state;
+  G.state = d.st; G.countdown = d.cd; G.timeLeft = d.tl; G.endT = d.et;
+  (d.wins || []).forEach((w, k) => { slotActor(k).wins = w; });
+  G.winner = d.w >= 0 ? slotActor(d.w) : null;
+  if (prev !== 'end' && G.state === 'end') sfx(G.winner === human ? 'win' : 'go');
+  if (prev === 'countdown' && G.state === 'fight') sfx('go');
+}
+function snap(b, p, v, yaw, h, f) {
+  if (!b || !b.remote) return;
+  b.snapP.set(p[0], p[1], p[2]); b.snapV.set(v[0], v[1], v[2]); b.snapYaw = yaw;
+  b.snapH[0].set(h[0], h[1], h[2]); b.snapH[1].set(h[3], h[4], h[5]);
+  if (!b.snapT) { b.pos.copy(b.snapP); b.yaw = yaw; b.hands[0].pos.copy(b.snapH[0]); b.hands[1].pos.copy(b.snapH[1]); }
+  b.snapT = now;
+  b.ko = f & 1 ? 1 : 0; b.out = !!(f & 2); b.dizzy = f & 4 ? 80 : 0; b.hang = !!(f & 8);
+}
+function onNetEvent(code, d, nr) {
+  switch (code) {
+    case EV.POSE: { const b = allBots[d.s]; if (b && b.player && slotOwnerNr(d.s) === nr) snap(b, d.p, d.v, d.y, d.h, d.f); break; }
+    case EV.BOTS: if (!net.host) for (const e of d) { const b = allBots[e[0]]; if (b && !b.player) snap(b, e.slice(1, 4), e.slice(4, 7), e[7], e.slice(8, 14), e[14]); } break;
+    case EV.STATE: if (!net.host) applyState(d); break;
+    case EV.HIT: { const t = slotActor(d.to), a = slotActor(d.from); if (t && !t.remote && a) hit(a, t, new THREE.Vector3(d.v[0], d.v[1], d.v[2]), d.sp, d.k); break; }
+    case EV.GRAB: { const t = slotActor(d.to), a = slotActor(d.from); if (t && !t.remote && a && !grab(a, a.hands[d.k] || a.hands[1], t)) netSendAll(EV.FREED, { s: d.to }); break; }
+    case EV.RELEASE: { const t = slotActor(d.to); if (t && !t.remote && t.heldBy) release(t, d.v ? new THREE.Vector3(d.v[0], d.v[1], d.v[2]) : null); break; }
+    case EV.FREED: { const t = slotActor(d.s); if (t && t.remote) clearHold(t); break; }
+    case EV.FEED: if (typeof d.m === 'string') feed(d.m.slice(0, 40)); break;
+  }
+}
+function updateProxy(b, dt) {
+  for (const h of b.hands) h.prev.copy(h.pos);
+  if (b.overrideT > 0) b.overrideT -= dt;
+  else if (b.snapT) {
+    const age = Math.min(0.2, now - b.snapT), k = 1 - Math.exp(-14 * dt);
+    _t1.copy(b.snapP).addScaledVector(b.snapV, age);
+    if (b.pos.distanceToSquared(_t1) > 9) b.pos.copy(_t1); else b.pos.lerp(_t1, k);
+    b.vel.copy(b.snapV);
+    let d = b.snapYaw - b.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); b.yaw += d * k;
+    for (let i = 0; i < 2; i++) {
+      _t2.copy(b.snapH[i]).addScaledVector(b.snapV, age);
+      if (b.hands[i].pos.distanceToSquared(_t2) > 9) b.hands[i].pos.copy(_t2); else b.hands[i].pos.lerp(_t2, Math.min(1, k * 1.5));
+    }
+  }
+  for (const h of b.hands) h.vel.subVectors(h.pos, h.prev).multiplyScalar(1 / Math.max(dt, 1e-3));
+}
+function aiReset(b) {
+  if (b.snapT) b.vel.copy(b.snapV);
+  b.think = 0; b.goal = null; b.target = null; b.hang = false; b.slapT = -1; b.holding = null; b.heldBy = null; b.snapT = 0;
+}
+function becomeHost() {
+  setupSlots();
+  for (const b of bots) aiReset(b);
+  feed('You are now the host');
+  sendState();
+}
+function netTick(dt) {
+  if (!net.on || !net.lbc) return;
+  const wasHost = net.host;
+  net.host = net.lbc.myRoomMasterActorNr() === net.myNr;
+  if (net.host && !wasHost) becomeHost();
+  net.poseT -= dt; net.stateT -= dt;
+  if (net.poseT <= 0) {
+    net.poseT = 0.1;
+    if (mySlot >= 0 && human.active) {
+      netSendAll(EV.POSE, { s: mySlot, p: pack3(human.pos), v: pack3(human.V), y: r2(humanFacing()),
+        h: [...pack3(human.hands[0].pos), ...pack3(human.hands[1].pos)], f: flagsOf(human) });
+    }
+    if (net.host && bots.length) {
+      netSendAll(EV.BOTS, bots.map((b) => [b.i, ...pack3(b.pos), ...pack3(b.vel), r2(b.yaw), ...pack3(b.hands[0].pos), ...pack3(b.hands[1].pos), flagsOf(b)]));
+    }
+  }
+  if (net.host && net.stateT <= 0) sendState();
+}
+function netLeave() {
+  const l = net.lbc;
+  net.lbc = null; net.on = false; net.connecting = false; net.host = true; net.map = null; net.hasOffset = false;
+  if (l) try { l.disconnect(); } catch (e) { /* already closed */ }
+}
+function netDrop(msg) {
+  if (!net.lbc && !net.on) return;
+  netLeave();
+  setNetStatus(msg);
+  feed('Playing offline');
+  if (human.kind !== 'none') { G.round = 0; startRound(); }
+}
+function startPlay() {
+  net.want = $('net-on').checked;
+  net.nick = cleanNick($('nick').value) || randomNick();
+  $('nick').value = net.nick;
+  try { localStorage.setItem('wrecked-nick', net.nick); } catch (e) { /* storage blocked */ }
+  net.code = cleanCode($('room').value);
+  netLeave();
+  G.demo = false; G.round = 0;
+  for (const a of [human, ...allBots]) a.wins = 0;
+  setupSlots(); startRound();
+  if (net.want) connectOnline(); else setNetStatus('');
+}
+function connectOnline() {
+  const P = window.Photon;
+  if (!P || !P.LoadBalancing) { setNetStatus("Online play couldn't load here, so you're playing offline with bots."); return; }
+  const LBC = P.LoadBalancing.LoadBalancingClient;
+  let lbc;
+  try { lbc = new LBC(P.ConnectionProtocol.Wss, PHOTON_APP_ID, PHOTON_VERSION); } catch (e) { setNetStatus("Online play couldn't start, so you're playing offline with bots."); return; }
+  try { lbc.setLogLevel(P.LogLevel.ERROR); } catch (e) { /* older SDK */ }
+  net.lbc = lbc; net.connecting = true; net.on = false; net.hasOffset = false;
+  setNetStatus('Connecting to online play…');
+  const mine = () => lbc === net.lbc;
+  lbc.onStateChange = (st) => {
+    if (!mine()) return;
+    if (st === LBC.State.JoinedLobby) {
+      lbc.myActor().setName(net.nick);
+      if (net.code) lbc.joinRoom(net.code, { createIfNotExists: true }, { maxPlayers: 6, isVisible: false });
+      else lbc.joinRandomOrCreateRoom({}, null, { maxPlayers: 6 });
+    } else if (st === LBC.State.Disconnected) netDrop('Lost the connection to online play, so you are playing offline with bots.');
+  };
+  lbc.onError = (code, msg) => { if (mine()) netDrop(`Couldn't play online (${msg || code}), so you are playing offline with bots.`); };
+  lbc.onEvent = (code, data, nr) => { if (mine()) onNetEvent(code, data, nr); };
+  lbc.onJoinRoom = () => {
+    if (!mine()) return;
+    net.on = true; net.connecting = false; net.myNr = lbc.myActor().actorNr;
+    net.host = lbc.myRoomMasterActorNr() === net.myNr;
+    for (const a of [human, ...allBots]) a.wins = 0;
+    if (net.host) { G.round = 0; startRound(); }
+    else { net.map = {}; G.round = -1; setupSlots(); human.out = true; placeHuman(OUT_LEDGE, Math.PI); G.state = 'end'; G.endT = 9; G.winner = null; }
+    setNetStatus(net.code ? `Online in room ${net.code}. Friends who type ${net.code} join you.` : 'Online in Quick Play.');
+  };
+  lbc.onActorJoin = (a) => {
+    if (!mine() || a.actorNr === net.myNr) return;
+    feed(`${(a.name || 'A player').slice(0, 12)} joined!`);
+    // start a fresh round so the new player can jump in
+    if (net.host && G.state !== 'end') { G.state = 'end'; G.winner = null; G.endT = 3; sendState(); }
+  };
+  lbc.onActorLeave = (a) => {
+    if (!mine()) return;
+    feed(`${(a.name || 'A player').slice(0, 12)} left`);
+    if (net.map && net.map[a.actorNr] !== undefined) {
+      const k = net.map[a.actorNr];
+      delete net.map[a.actorNr];
+      net.host = lbc.myRoomMasterActorNr() === net.myNr;
+      setupSlots();
+      const b = allBots[k];
+      b.out = true;
+      if (!b.remote) aiReset(b);
+    }
+  };
+  try { lbc.connectToRegionMaster(PHOTON_REGION); } catch (e) { netDrop("Couldn't reach online play, so you are playing offline with bots."); }
 }
 
 // ================= main loop =================
@@ -1596,7 +1912,7 @@ function update(dt, frame) {
   for (const h of human.hands) h.prev.copy(h.pos);
   if (renderer.xr.isPresenting && frame && human.kind === 'vr') {
     if (readXR(frame)) {
-      if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); startRound(); }
+      if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); startPlay(); }
       if (G.state === 'countdown' && !human.out) { /* free to look around, movement locked */ for (const h of human.hands) { h.L.copy(xrIn.hands[h.k].pos); h.q.copy(xrIn.hands[h.k].q); h.ok = xrIn.hands[h.k].ok; handTarget(h, h.pos); } human.headL.copy(xrIn.head); headWorld(human.head); }
       else vrStep(dt, xrIn);
     }
@@ -1604,6 +1920,7 @@ function update(dt, frame) {
   for (const h of human.hands) h.vel.subVectors(h.pos, h.prev).multiplyScalar(1 / Math.max(dt, 1e-3));
   updateGame(dt);
   for (const b of bots) updateBot(b, dt);
+  for (const a of actors) if (a.remote) updateProxy(a, dt);
   if (G.state === 'fight') {
     if (human.kind === 'vr') vrGrabs();
     if (human.active && !human.out && human.ko <= 0) handHits(human, human.hands);
@@ -1612,6 +1929,7 @@ function update(dt, frame) {
   updateHeld(dt);
   bodyBump();
   updateLog(dt);
+  netTick(dt);
   updateVisuals(dt);
   updateCamera();
   hudT -= dt;
@@ -1633,11 +1951,15 @@ renderer.setAnimationLoop((t, frame) => {
 // ================= menu wiring =================
 $('bpc').addEventListener('click', () => {
   initAudio();
-  human.kind = 'pc'; human.active = true; G.demo = false; G.round = 0;
-  for (const a of actors) a.wins = 0;
+  human.kind = 'pc'; human.active = true;
   $('menu').hidden = true; $('hud').hidden = false;
-  startRound();
+  startPlay();
 });
+const randomNick = () => `Ape${100 + Math.floor(Math.random() * 900)}`;
+const cleanNick = (v) => (v || '').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 12);
+const cleanCode = (v) => (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+try { $('nick').value = localStorage.getItem('wrecked-nick') || randomNick(); } catch (e) { $('nick').value = randomNick(); }
+for (const id of ['nick', 'room']) $(id).addEventListener('keydown', (e) => e.stopPropagation());
 $('hmenu').addEventListener('click', goMenu);
 $('bvr').addEventListener('click', enterVR);
 (async () => {
@@ -1650,8 +1972,9 @@ $('bvr').addEventListener('click', enterVR);
 })();
 if (document.fonts) document.fonts.ready.then(drawBoard);
 goMenu();
+setNetStatus('');
 
-window.AR = { updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, bots, actors, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>

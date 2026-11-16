@@ -6,4 +6,6 @@ A VR ape brawler prototype for Meta Quest (WebXR). Move by pushing the world wit
 
 Grabbed or dizzy? Shake your arms hard (or mash keys on a computer) to break free, or slap the ape holding you.
 
-Prototype 0.2: single player against 5 bots. Online multiplayer is planned.
+**Online:** pick Online on the menu. Leave the room code empty for Quick Play, or type the same code as your friends to play together (up to 6 players; bots fill empty seats). Multiplayer runs on Photon Realtime; the room's first player hosts the bots and the round clock.
+
+Prototype 0.3.
