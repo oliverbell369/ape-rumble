@@ -286,7 +286,7 @@ function box(x, cy, z, w, h, d, o = {}) {
   const b = {
     c: new THREE.Vector3(x, cy, z), h: [w / 2, h / 2, d / 2],
     ax: [m[0], m[1], m[2]], ay: [m[4], m[5], m[6]], az: [m[8], m[9], m[10]],
-    rad: Math.hypot(w, h, d) / 2, col: o.col || WHITE, solid: true, hidden: !!o.hidden,
+    rad: Math.hypot(w, h, d) / 2, col: o.col || WHITE, solid: true, hidden: !!o.hidden, dyn: !!o.dyn,
     mask: o.faces || null, mat: o.mat || 'rock', top: o.top || null, side: o.side || null,
   };
   boxes.push(b);
@@ -333,6 +333,18 @@ function buildLevel() {
   for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; const s = 7.2 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))); EDGE_POINTS.push(new THREE.Vector3(Math.cos(a) * s, 0, Math.sin(a) * s)); }
 }
 buildLevel();
+// moving parts you can grab and ride (positions are updated every frame)
+const logBox = box(0, 0.9, 0, 4.6, 0.84, 0.84, { hidden: true, dyn: true });
+const ropeBoxes = [-1.6, 1.6].map((x) => box(x, 5.4, 0, 0.12, 9, 0.12, { hidden: true, dyn: true }));
+function setBoxRotX(b, x, y, z, th) {
+  const c = Math.cos(th), s = Math.sin(th);
+  b.c.set(x, y, z); b.ax[0] = 1; b.ax[1] = 0; b.ax[2] = 0;
+  b.ay[0] = 0; b.ay[1] = c; b.ay[2] = s; b.az[0] = 0; b.az[1] = -s; b.az[2] = c;
+}
+const boxToLocal = (b, p, out) => { const dx = p.x - b.c.x, dy = p.y - b.c.y, dz = p.z - b.c.z; return out.set(dx * b.ax[0] + dy * b.ax[1] + dz * b.ax[2], dx * b.ay[0] + dy * b.ay[1] + dz * b.ay[2], dx * b.az[0] + dy * b.az[1] + dz * b.az[2]); };
+const dirToLocal = (b, d, out) => out.set(d.x * b.ax[0] + d.y * b.ax[1] + d.z * b.ax[2], d.x * b.ay[0] + d.y * b.ay[1] + d.z * b.ay[2], d.x * b.az[0] + d.y * b.az[1] + d.z * b.az[2]);
+const dirToWorld = (b, l, out) => out.set(b.ax[0] * l.x + b.ay[0] * l.y + b.az[0] * l.z, b.ax[1] * l.x + b.ay[1] * l.y + b.az[1] * l.z, b.ax[2] * l.x + b.ay[2] * l.y + b.az[2] * l.z);
+const boxToWorld = (b, l, out) => dirToWorld(b, l, out).add(b.c);
 const solids = boxes;
 const OUT_LEDGE = new THREE.Vector3(0, 12, 26);
 
@@ -803,7 +815,7 @@ const APES = [
 ];
 function mkHand(k) {
   return { k, L: new THREE.Vector3(), q: new THREE.Quaternion(), T: new THREE.Vector3(), pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(),
-    anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), Lp: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
+    anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), Lp: new THREE.Vector3(), dyn: null, lA: new THREE.Vector3(), ln: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
 }
 function baseActor(i) {
   const d = APES[i];
@@ -818,7 +830,7 @@ const human = Object.assign(baseActor(0), {
 human.vel = human.V;
 function mkBot(i) {
   return Object.assign(baseActor(i), { isBot: true, think: 0, hopCD: 0, slapCD: 0, slapT: -1, slapHand: 1, goal: null, target: null, holding: null, holdT: 0, blocked: 0,
-    skill: rand(0.8, 1.05), grudge: [], grudgeT: 0, hands: [0, 1].map(() => ({ pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3() })), slapDir: new THREE.Vector3() });
+    skill: rand(0.8, 1.05), grudge: [], grudgeT: 0, hang: false, hangT: 0, hangCool: 0, mayHang: true, hangPos: new THREE.Vector3(), hangDir: new THREE.Vector3(), hangLedge: new THREE.Vector3(), hands: [0, 1].map(() => ({ pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3() })), slapDir: new THREE.Vector3() });
 }
 const bots = [1, 2, 3, 4, 5].map(mkBot);
 const actors = [human, ...bots];
@@ -936,9 +948,10 @@ function hit(attacker, target, hv, speed, from) {
 }
 function push(a, v) {
   if (a === human) {
+    if (v.length() < 5.5 && human.hands.some((h) => h.anchored && h.grip)) { pulseAll(0.5, 60); return; }
     for (const h of human.hands) h.anchored = false;
     human.V.add(v); human.noGrab = 0.25; human.wasAnch = false; human.hist.length = 0;
-  } else { a.vel.add(v); a.thrownT = 0.4; }
+  } else { a.vel.add(v); a.thrownT = 0.4; a.hang = false; a.hangCool = 0.6; }
 }
 function grab(holder, handRef, target) {
   if (target.heldBy || target.out || !target.active) return false;
@@ -1013,10 +1026,13 @@ function updateLog(dt) {
     setSeg(ropeIM, k, _t1, _t2);
   }
   ropeIM.instanceMatrix.needsUpdate = true;
+  setBoxRotX(logBox, LOG.c.x, LOG.c.y, LOG.c.z, -th);
+  for (let k = 0; k < 2; k++) setBoxRotX(ropeBoxes[k], k ? 1.6 : -1.6, (LOG.c.y + LOG.pivot.y) / 2, LOG.c.z / 2, -th);
   // log hits apes (log axis is world X; it rotates about X)
   const c = Math.cos(th), s = Math.sin(th);
   for (const a of actors) {
     if (!a.active || a.out || a.heldBy) continue;
+    if (a === human && human.hands.some((h) => h.anchored && h.dyn)) continue;
     _t1.subVectors(a.pos, LOG.c);
     const ly = _t1.y * c + _t1.z * s, lz = -_t1.y * s + _t1.z * c, lx = _t1.x;
     const ex = lx - clamp(lx, -LOG.half[0], LOG.half[0]), ey = ly - clamp(ly, -LOG.half[1], LOG.half[1]), ez = lz - clamp(lz, -LOG.half[2], LOG.half[2]);
@@ -1093,11 +1109,13 @@ function vrStep(dt, inp) {
   let n1 = 0; _D.set(0, 0, 0);
   for (const h of H.hands) {
     if (!h.ok || !h.anchored) continue;
+    if (h.dyn) { boxToWorld(h.dyn, h.lA, h.A); dirToWorld(h.dyn, h.ln, h.n); }
     handTarget(h, h.T);
     _rel.subVectors(h.T, h.A);
     const out = _rel.dot(h.n), dist = _rel.length();
     if (stunned || dist > LOCO.unstick || (out > LOCO.releaseEps && !h.grip)) { h.anchored = false; continue; }
-    _rel.addScaledVector(h.n, -out); h.A.addScaledVector(_rel, 0.02);
+    _rel.addScaledVector(h.n, -out); h.A.addScaledVector(_rel, h.grip ? 0 : 0.02);
+    if (h.dyn) boxToLocal(h.dyn, h.A, h.lA);
     _D.add(h.A).sub(h.T); n1++;
   }
   if (n1 > 0) {
@@ -1115,6 +1133,8 @@ function vrStep(dt, inp) {
     const hit2 = h.holding || stunned || H.noGrab > 0 ? null : sweepSphere(h.pos, h.T, LOCO.handR);
     if (hit2) {
       h.anchored = true; h.A.copy(hit2.p); h.n.copy(hit2.n);
+      h.dyn = hit2.box.dyn ? hit2.box : null;
+      if (h.dyn) { boxToLocal(h.dyn, h.A, h.lA); dirToLocal(h.dyn, h.n, h.ln); }
       _D.add(h.A).sub(h.T); n2++;
       const sp = H.V.length();
       pulseHand(h.k, Math.min(1, 0.15 + sp * 0.08), 25);
@@ -1285,7 +1305,21 @@ function updateBot(b, dt) {
   b.think -= dt; b.hopCD -= dt; b.slapCD -= dt; b.blocked -= dt;
   const live = G.state === 'fight';
   for (const h of b.hands) h.prev.copy(h.pos);
-  if (b.heldBy) { b.grounded = false; animBot(b, dt); return; }
+  if (b.heldBy) { b.grounded = false; b.hang = false; animBot(b, dt); return; }
+  b.hangCool -= dt;
+  if (b.hang) {
+    b.hangT -= dt;
+    b.pos.copy(b.hangPos); b.vel.set(0, 0, 0); b.grounded = false;
+    if (b.ko > 0) { b.hang = false; b.hangCool = 2; }
+    else if (b.hangT <= 0 && G.state === 'fight') {
+      // pull up over the edge
+      b.hang = false; b.hangCool = 1.2;
+      b.pos.set(b.hangLedge.x + b.hangDir.x * 0.45, b.hangLedge.y + 0.62, b.hangLedge.z + b.hangDir.z * 0.45);
+      b.vel.set(b.hangDir.x * 1.5, 2.2, b.hangDir.z * 1.5);
+    }
+    animBot(b, dt);
+    return;
+  }
   if (b.think <= 0 && b.ko <= 0) botThink(b);
   const canAct = live && b.ko <= 0;
   if (canAct && b.goal) {
@@ -1317,6 +1351,8 @@ function updateBot(b, dt) {
   RES.reset();
   for (let it = 0; it < 2; it++) for (const s of BOT_SPH) { _t1.copy(b.pos); _t1.y += s.dy; _t2.copy(_t1); pushSphere(_t1, s.r, RES, b.vel); b.pos.add(_t1.sub(_t2)); }
   b.grounded = RES.ground;
+  if (b.grounded) b.mayHang = Math.random() < 0.75 * b.skill;
+  else if (b.mayHang && b.vel.y < -1 && b.hangCool <= 0 && b.ko <= 0 && !b.holding) tryLedge(b);
   if (RES.wall && !RES.ground) b.blocked = 0.7;
   if (b.grounded) { const f = Math.exp(-(b.thrownT > 0 || b.ko > 0 ? 3 : 12) * dt); b.vel.x *= f; b.vel.z *= f; }
   // face where we're going or who we're fighting
@@ -1327,6 +1363,22 @@ function updateBot(b, dt) {
     b.yaw += d * Math.min(1, 8 * dt);
   }
   animBot(b, dt);
+}
+function tryLedge(b) {
+  // look for a ledge top just above and in front of us (back the way we came)
+  _t3.set(-b.vel.x, 0, -b.vel.z);
+  if (_t3.lengthSq() < 0.01) _t3.set(-b.pos.x, 0, -b.pos.z);
+  _t3.normalize();
+  const px = b.pos.x + _t3.x * 0.6, pz = b.pos.z + _t3.z * 0.6;
+  _land.set(px, b.pos.y + 1.0, pz); _dn.set(px, b.pos.y - 0.1, pz);
+  const h = sweepSphere(_land, _dn, 0.05, true);
+  if (!h || h.n.y < 0.6 || h.p.y < b.pos.y + 0.15) return;
+  b.hang = true; b.hangT = rand(0.9, 2.2); b.mayHang = false;
+  b.hangDir.copy(_t3); b.hangLedge.copy(h.p);
+  b.hangPos.set(h.p.x - _t3.x * 0.5, h.p.y - 0.62, h.p.z - _t3.z * 0.5);
+  b.yaw = Math.atan2(-_t3.x, -_t3.z);
+  b.pos.copy(b.hangPos); b.vel.set(0, 0, 0);
+  sfx('tap', b.pos, 2);
 }
 function animBot(b, dt) {
   const sn = Math.sin(b.yaw), cs = Math.cos(b.yaw);
@@ -1343,6 +1395,8 @@ function animBot(b, dt) {
       const e = t < 0.35 ? 0 : Math.min(1, (t - 0.35) / 0.45);
       h.pos.lerpVectors(_w, _t3, e * e);
       if (t >= 1) b.slapT = -1;
+    } else if (b.hang) {
+      h.pos.set(b.hangLedge.x + b.hangDir.z * side * 0.24, b.hangLedge.y + 0.05, b.hangLedge.z - b.hangDir.x * side * 0.24);
     } else if (b.holding && k === 1) {
       h.pos.set(b.pos.x - sn * 0.45, b.pos.y + 0.65, b.pos.z - cs * 0.45);
     } else if (b.grounded) {
@@ -1597,7 +1651,7 @@ $('bvr').addEventListener('click', enterVR);
 if (document.fonts) document.fonts.ready.then(drawBoard);
 goMenu();
 
-window.AR = { vrGrabs, updateHeld, G, human, bots, actors, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, bots, actors, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
