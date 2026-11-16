@@ -422,8 +422,8 @@ namespace Wrecked
 
         string Banner()
         {
-            if (phase == Phase.Countdown) return countdown > 0.2f ? Mathf.CeilToInt(countdown).ToString() : "RUMBLE!";
-            if (phase == Phase.Fight && timeLeft > Cfg.RoundTime - 1f) return "RUMBLE!";
+            if (phase == Phase.Countdown) return countdown > 0.2f ? Mathf.CeilToInt(countdown).ToString() : "GET WRECKED!";
+            if (phase == Phase.Fight && timeLeft > Cfg.RoundTime - 1f) return "GET WRECKED!";
             if (phase == Phase.End) return winner != null ? (winner == human ? "You win!" : $"{winner.name} wins!") : "Nobody wins!";
             if (human.outed) return "You fell! Next round soon";
             if (human.heldBy != null) return human.kind == "pc" ? "Grabbed! Click to slap them till they let go" : "Grabbed! Slap them till they let go!";
