@@ -43,6 +43,19 @@ namespace Wrecked.EditorTools
             else Log("The main scene doesn't exist yet. Run WRECKED > Set Up Project first.");
         }
 
+        /// <summary>Opens the main scene and enters Play mode. Also usable from the command line: -executeMethod Wrecked.EditorTools.WreckedSetup.PlayMain</summary>
+        [MenuItem("WRECKED/Play Main Scene", priority = 2)]
+        public static void PlayMain()
+        {
+            EditorApplication.delayCall += () =>
+            {
+                if (EditorApplication.isPlaying) return;
+                if (!File.Exists(ScenePath)) { Log("The main scene doesn't exist yet. Run WRECKED > Set Up Project first."); return; }
+                EditorSceneManager.OpenScene(ScenePath);
+                EditorApplication.EnterPlaymode();
+            };
+        }
+
         static void Log(string m) => Debug.Log("[WRECKED setup] " + m);
         static void Warn(string m) => Debug.LogWarning("[WRECKED setup] " + m);
 
@@ -97,7 +110,7 @@ namespace Wrecked.EditorTools
             asset.shadowDistance = 0f;
             SetSerialized(asset, "m_MainLightShadowsSupported", false);
             SetSerialized(asset, "m_AdditionalLightShadowsSupported", false);
-            SetSerialized(asset, "m_SupportsSoftShadows", false);
+            SetSerialized(asset, "m_SoftShadowsSupported", false);
             EditorUtility.SetDirty(asset);
 
             GraphicsSettings.defaultRenderPipeline = asset;
@@ -139,7 +152,10 @@ namespace Wrecked.EditorTools
 
         static Type FindType(string fullName)
         {
+            // only reads types from packages that are loaded right now, so the unloaded-assembly caveat doesn't apply
+#pragma warning disable UAC0005
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+#pragma warning restore UAC0005
             {
                 var t = asm.GetType(fullName, false);
                 if (t != null) return t;

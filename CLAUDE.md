@@ -14,12 +14,15 @@ You are continuing work on **WRECKED**, a multiplayer VR ape brawler for Meta Qu
 1. **Web version (live, playable, multiplayer):** `index.html` + `photon-realtime.js` at the repo root, served by GitHub Pages at https://oliverbell369.github.io/ape-rumble/ (cache-bust with `?v=N`). Three.js r160 (from jsDelivr) + WebXR. Online play uses Photon Realtime (JS SDK 4.4.0, vendored browser build), App ID `93cabdc9-913e-40c3-90df-37cf906b11b4`, region `us`, app version `wrecked-0.3`. Every match is online; bots fill empty seats (6 seats). The first player in a room is host (runs bots + round clock); each player simulates their own ape and sends pose events 10x/s; hits/grabs/releases on someone else's ape are sent to the owner. This is the reference implementation for gameplay feel.
 2. **Unity version (in progress, the future store version):** `WRECKED-Unity/` — Unity 6, URP, OpenXR (Meta Quest feature + Oculus Touch profile), no external assets: everything (map, textures, apes, sounds) is generated in code by one bootstrap object. Phase 1 = single-player port of the web game (written, never yet compiled in real Unity). Phase 2 = multiplayer with **Photon Fusion 2** (Shared mode; needs a new Fusion App ID from the creator's Photon dashboard and the Fusion SDK import).
    - Menu **WRECKED → Set Up Project** configures URP, Quest player settings, OpenXR and the main scene.
-   - `ProjectSettings/ProjectVersion.txt` was a placeholder (`6000.0.47f1`); the creator opened it with their own installed Unity 6 — keep whatever version Unity writes there.
+   - The creator's Unity is **6000.6.9f1** (Unity 6.6, Android module installed) at `C:\Program Files\Unity\Hub\Editor\6000.6.9f1\Editor\Unity.exe`; keep whatever version Unity writes in `ProjectSettings/ProjectVersion.txt`.
+   - Open the project from this repo (`ape-rumble\WRECKED-Unity`), not from a downloaded zip copy, so changes can be committed.
    - Desktop test mode (WASD/mouse, click slap, hold right-click grab) runs automatically in Play mode without a headset.
 
 ## Checking Unity yourself
 
-- While the Editor is open, its log is at `%LOCALAPPDATA%\Unity\Editor\Editor.log` — read it for compile errors and Debug.Log output instead of asking the creator to copy errors.
+- While the Editor is open, Unity 6.6 writes its log to the project: `WRECKED-Unity\Logs\Editor.log` (`%LOCALAPPDATA%\Unity\Editor\Editor.log` only has the first few startup lines). Read it for compile errors and Debug.Log output instead of asking the creator to copy errors.
+- To open Unity straight into Play mode yourself: `Unity.exe -projectPath WRECKED-Unity -executeMethod Wrecked.EditorTools.WreckedSetup.PlayMain` (also on the menu as WRECKED → Play Main Scene). Without a headset, the `XR_ERROR_RUNTIME_UNAVAILABLE` lines in the log are expected; the game falls back to desktop mode.
+- Headless setup also works: add `-batchmode -quit -executeMethod Wrecked.EditorTools.WreckedSetup.SetUp -logFile <file>` (Editor must not have this project open).
 - After editing scripts, Unity recompiles when its window regains focus; if needed, ask the creator to click into Unity (one sentence), then read the log.
 - With the Editor closed you can compile-check headless: `"<Unity.exe path>" -batchmode -nographics -quit -projectPath WRECKED-Unity -logFile -` (find Unity.exe under `C:\Program Files\Unity\Hub\Editor\<version>\Editor\`).
 - Building to the Quest (needs developer mode + USB): `File → Build Profiles → Android → Build And Run`; can also be scripted with `-executeMethod` later.

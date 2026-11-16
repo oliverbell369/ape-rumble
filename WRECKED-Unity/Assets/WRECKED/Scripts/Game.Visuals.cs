@@ -125,7 +125,7 @@ namespace Wrecked
             worldRoot = new GameObject("World").transform;
 
             // camera rig (any camera already in the scene is switched off)
-            foreach (var c in FindObjectsByType<Camera>(FindObjectsSortMode.None)) c.gameObject.SetActive(false);
+            foreach (var c in FindObjectsByType<Camera>()) c.gameObject.SetActive(false);
             rig = new GameObject("Rig").transform;
             var camGO = new GameObject("Head Camera");
             camGO.tag = "MainCamera";
