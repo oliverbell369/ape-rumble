@@ -4,8 +4,8 @@ A VR ape brawler prototype for Meta Quest (WebXR). Move by pushing the world wit
 
 **Play:** https://oliverbell369.github.io/ape-rumble/ — open it in the Meta Quest Browser and press **Enter VR**. It also runs in a desktop browser (WASD, mouse, click to slap, hold right-click to grab).
 
-Grabbed or dizzy? Shake your arms hard (or mash keys on a computer) to break free, or slap the ape holding you.
+Grabbed? Keep slapping the ape holding you until it lets go (3 slaps, or 2 hard ones). Dizzy? Shake your arms hard (or mash keys on a computer) to snap out of it.
 
 **Online:** every game is online. Leave the room code empty for Quick Play, or type the same code as your friends to play together (up to 6 players; bots fill empty seats). Multiplayer runs on Photon Realtime; the room's first player hosts the bots and the round clock.
 
-Prototype 0.3.
+Prototype 0.4.

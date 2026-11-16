@@ -93,7 +93,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 
 <main id="menu">
   <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.3</p>
+    <p class="kicker">VR ape brawler · prototype 0.4</p>
     <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
@@ -117,7 +117,8 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
       <ul>
         <li>Push floors, walls and logs with your hands to move. Fling your arms to jump.</li>
         <li>Swing your hand fast into an ape to slap it. Faster swings hit harder.</li>
-        <li>Enough slaps make an ape dizzy and floppy. Hold grip near it to pick it up, then swing and let go to throw.</li>
+        <li>Enough slaps make an ape dizzy and floppy. Hold grip near an ape to pick it up, then swing and let go to throw.</li>
+        <li>Grabbed? Keep slapping the ape holding you until it lets go. Dizzy? Shake your arms hard to snap out of it.</li>
         <li>Hold grip on a ledge or beam to hang on. Right stick turns.</li>
         <li>Fall into the ravine and you're out until the next round. Watch out for the swinging log.</li>
       </ul>
@@ -148,8 +149,8 @@ const LOCO = {
   flingMin: 0.4, flingMul: 1.2, flingCap: 7.5,
 };
 const FIGHT = {
-  slapMin: 2.2, slapMul: 0.75, slapCap: 9, slapUp: 1.6, dizzyPerSpeed: 8, koTime: 3.5,
-  throwMul: 0.9, throwCap: 7, awakeThrow: 0.6, holdAwake: 0.7, reach: 0.5,
+  slapMin: 2.2, slapMul: 0.75, slapCap: 9, slapUp: 1.6, dizzyPerSpeed: 3.2, koTime: 3.5,
+  throwMul: 0.9, throwCap: 7, awakeThrow: 0.6, gripBreak: 3, holdMax: 8, reach: 0.5,
 };
 const HUMAN_SPH = [{ dy: 0, r: 0.2 }, { dy: -0.38, r: 0.28 }];
 const BOT_SPH = [{ dy: 0, r: 0.3 }, { dy: -0.27, r: 0.28 }];
@@ -983,7 +984,7 @@ function updateGame(dt) {
     if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
     else if (a === human && a.out && human.head.y < FALL_Y) placeHuman(OUT_LEDGE, Math.PI);
     if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
-    else if (now - a.lastHit > 1.5) a.dizzy = Math.max(0, a.dizzy - 14 * dt);
+    else if (now - a.lastHit > 2.5) a.dizzy = Math.max(0, a.dizzy - 6 * dt);
     if (a.thrownT > 0) a.thrownT -= dt;
     // wobble spring
     a.tiltV.x += (-a.tilt.x * 60 - a.tiltV.x * 7) * dt; a.tiltV.y += (-a.tilt.y * 60 - a.tiltV.y * 7) * dt;
@@ -1005,7 +1006,6 @@ function hit(attacker, target, hv, speed, from) {
     sfx(speed > 6 ? 'bonk' : 'slap', target.pos, 0.6 + Math.min(speed, 9) * 0.06);
     return;
   }
-  if (target === human) for (const h of human.hands) if (h.holding) release(h.holding, null);
   const s = Math.min(speed, FIGHT.slapCap);
   _v.copy(hv).setLength(s * FIGHT.slapMul); _v.y = Math.max(_v.y, 0) + FIGHT.slapUp * (s / 6);
   push(target, _v);
@@ -1013,13 +1013,24 @@ function hit(attacker, target, hv, speed, from) {
   target.lastHit = now;
   target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
   if (target.heldBy && target.heldBy !== attacker) release(target, null);
-  if (target.isBot && target.holding) release(target.holding, null);
   if (target === human) { pulseAll(Math.min(1, 0.3 + s * 0.08), 80); flash = 0.25; }
   if (attacker === human) pulseHand(from, Math.min(1, 0.3 + s * 0.1), 50);
   sfx(s > 6 ? 'bonk' : 'slap', target === human ? null : target.pos, 0.6 + s * 0.06);
   // an ape holding you lets go when you slap it
-  if (attacker === human && target.holding === human) release(human, null);
-  if (target.dizzy >= 100 && target.ko <= 0) { target.ko = FIGHT.koTime; feed(`${target.name === 'You' ? 'You are' : target.name + ' is'} dizzy!`); sfx('ko', target === human ? null : target.pos); }
+  if (isHolding(target)) {
+    target.gripHits = (target.gripHits || 0) + (s > 6 ? 2 : 1);
+    if (target.gripHits >= FIGHT.gripBreak) { dropAll(target); feed(`${target === human ? 'You' : target.name} lost their grip!`); }
+  }
+  if (target.dizzy >= 100 && target.ko <= 0) {
+    target.ko = FIGHT.koTime; dropAll(target);
+    feed(`${target.name === 'You' ? 'You are' : target.name + ' is'} dizzy!`); sfx('ko', target === human ? null : target.pos);
+  }
+}
+const isHolding = (a) => (a === human ? human.hands.some((h) => h.holding) : !!a.holding);
+function dropAll(a) {
+  if (a === human) { for (const h of human.hands) dropHeld(h); }
+  else if (a.holding) release(a.holding, null);
+  a.gripHits = 0;
 }
 function push(a, v) {
   if (a === human) {
@@ -1033,12 +1044,12 @@ function grab(holder, handRef, target) {
   if (target.remote) {
     const k = holder === human ? handRef.k : Math.max(0, holder.hands.indexOf(handRef));
     netSendTo(slotOwnerNr(target.i), EV.GRAB, { to: target.i, from: holder.i, k });
-    target.heldBy = holder; target.heldHand = handRef; target.heldT = 0;
+    target.heldBy = holder; target.heldHand = handRef; target.heldT = 0; holder.gripHits = 0;
     if (holder === human) handRef.holding = target; else holder.holding = target;
     sfx('grab', target.pos);
     return true;
   }
-  target.heldBy = holder; target.heldHand = handRef; target.heldT = 0;
+  target.heldBy = holder; target.heldHand = handRef; target.heldT = 0; holder.gripHits = 0;
   if (holder === human) handRef.holding = target; else holder.holding = target;
   sfx('grab', target === human ? null : target.pos);
   if (target === human) { for (const h of human.hands) h.anchored = false; human.hist.length = 0; }
@@ -1082,7 +1093,7 @@ function updateHeld(dt) {
     if (a.heldBy.remote && (!actors.includes(a.heldBy) || now - a.heldBy.snapT > 1)) { release(a, null); continue; }
     setHeldPos(a, _t2);
     // an awake ape wriggles free after a moment
-    if (a.ko <= 0 && a.heldT > FIGHT.holdAwake) { _t3.copy(a.heldHand.vel).multiplyScalar(0.3); _t3.y += 2; release(a, _t3); }
+    if (a.heldT > FIGHT.holdMax) { _t3.copy(a.heldHand.vel).multiplyScalar(0.3); _t3.y += 2; release(a, _t3); }
   }
 }
 function bodyBump() {
@@ -1144,7 +1155,7 @@ function updateLog(dt) {
       a.hitCD.set(-1, now + 0.6);
       _v.copy(LOG.v).multiplyScalar(1.25); _v.y = Math.max(_v.y, 0) + 3;
       push(a, _v);
-      a.dizzy += 45; a.lastHit = now; a.tiltV.x += LOG.v.x; a.tiltV.y += LOG.v.z;
+      a.dizzy += 30; a.lastHit = now; a.tiltV.x += LOG.v.x; a.tiltV.y += LOG.v.z;
       if (a.dizzy >= 100 && a.ko <= 0) { a.ko = FIGHT.koTime; sfx('ko', a.pos); }
       sfx('bonk', a === human ? null : a.pos, 1.2);
       if (a === human) { pulseAll(1, 150); flash = 0.3; }
@@ -1197,7 +1208,7 @@ function vrStep(dt, inp) {
     h.L.copy(s.pos); h.q.copy(s.q); h.trigger = s.trigger; h.gripWas = h.grip; h.grip = s.grip; h.gamepad = s.gamepad;
   }
   // shaking your arms hard breaks a grab or shakes off dizziness
-  if (H.heldBy || H.ko > 0) addStruggle(Math.max(0, flail - 2) * 0.15 * dt); else H.struggle = 0;
+  if (H.ko > 0) addStruggle(Math.max(0, flail - 2) * 0.15 * dt); else H.struggle = 0;
   if (Math.abs(inp.stickX) > 0.7 && !H.snapLatch) {
     H.snapLatch = true;
     headWorld(_t1);
@@ -1281,19 +1292,12 @@ function vrGrabs() {
 }
 function addStruggle(v) {
   const H = human;
-  if (!(H.heldBy || H.ko > 0) || H.out || G.state !== 'fight') return;
+  if (!(H.ko > 0) || H.out || G.state !== 'fight') return;
   H.struggle += v;
   if (H.struggle < 1) return;
   H.struggle = 0;
-  if (H.heldBy) {
-    const holder = H.heldBy;
-    _t3.subVectors(H.pos, holder.pos).setY(0); if (_t3.lengthSq() < 1e-4) _t3.set(0, 0, 1);
-    _t3.setLength(2.5).setY(2.5);
-    release(H, _t3);
-    holder.tiltV.x -= _t3.x * 2; holder.tiltV.y -= _t3.z * 2;
-  }
-  if (H.ko > 0) { H.ko = 0; H.dizzy = 30; }
-  feed('You broke free!'); sfx('grab'); pulseAll(0.8, 120);
+  H.ko = 0; H.dizzy = 30;
+  feed('You shook it off!'); sfx('grab'); pulseAll(0.8, 120);
 }
 function pulseHand(k, v, ms) { try { human.hands[k]?.gamepad?.hapticActuators?.[0]?.pulse(v, ms); } catch (e) { /* no haptics */ } }
 function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
@@ -1408,7 +1412,13 @@ function updateBot(b, dt) {
   b.think -= dt; b.hopCD -= dt; b.slapCD -= dt; b.blocked -= dt;
   const live = G.state === 'fight';
   for (const h of b.hands) h.prev.copy(h.pos);
-  if (b.heldBy) { b.grounded = false; b.hang = false; animBot(b, dt); return; }
+  if (b.heldBy) {
+    b.grounded = false; b.hang = false;
+    if (b.ko <= 0 && G.state === 'fight' && b.slapT < 0 && b.slapCD <= 0) {
+      b.slapT = 0; b.slapHand = 0; b.slapDir.subVectors(b.heldBy.pos, b.pos).normalize(); b.slapCD = rand(0.45, 0.8) / b.skill;
+    }
+    animBot(b, dt); return;
+  }
   b.hangCool -= dt;
   if (b.hang) {
     b.hangT -= dt;
@@ -1488,7 +1498,7 @@ function animBot(b, dt) {
   for (let k = 0; k < 2; k++) {
     const side = k === 0 ? -1 : 1, h = b.hands[k];
     rotY(_t3.set(side * 0.27, -0.06, -0.02), b.yaw, _t2).add(b.pos);
-    if (b.ko > 0 || b.heldBy) {
+    if (b.ko > 0 || (b.heldBy && !(b.slapT >= 0 && k === b.slapHand))) {
       rotY(_t3.set(side * 0.6, -0.35 + Math.sin(now * 5 + k) * 0.05, 0.1), b.yaw, _t1); h.pos.copy(b.pos).add(_t1);
     } else if (b.slapT >= 0 && k === b.slapHand) {
       const t = b.slapT / 0.24;
@@ -1589,7 +1599,7 @@ function banner() {
   if (G.state === 'fight' && G.timeLeft > ROUND_TIME - 1) return 'RUMBLE!';
   if (G.state === 'end') return G.winner ? (G.winner === human ? 'You win!' : `${G.winner.name} wins!`) : 'Nobody wins!';
   if (human.out && human.kind !== 'none') return 'You fell! Next round soon';
-  if (human.heldBy) return human.kind === 'pc' ? 'Grabbed! Mash keys or slap to escape' : 'Grabbed! Shake your arms or slap!';
+  if (human.heldBy) return human.kind === 'pc' ? 'Grabbed! Click to slap them till they let go' : 'Grabbed! Slap them till they let go!';
   if (human.ko > 0) return human.kind === 'pc' ? 'Dizzy! Mash keys to shake it off' : 'Dizzy! Shake your arms!';
   return '';
 }
@@ -1623,8 +1633,8 @@ function drawWrist() {
   ctx.clearRect(0, 0, 256, 128);
   ctx.fillStyle = 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, 256, 128, 22); ctx.fill();
   ctx.fillStyle = '#f3ead8'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left';
-  const stuck = H.heldBy || H.ko > 0;
-  ctx.fillText(H.out ? 'OUT' : stuck ? 'SHAKE!' : fmtTime(G.timeLeft), 16, 50);
+  const stuck = H.ko > 0;
+  ctx.fillText(H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
   ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(`${alive().length} left`, 240, 50);
   ctx.fillStyle = 'rgba(255,255,255,0.15)'; rr(ctx, 16, 80, 224, 22, 11); ctx.fill();
   ctx.fillStyle = stuck ? '#ffc23a' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, stuck ? H.struggle : H.dizzy / 100)), 22, 11); ctx.fill();
@@ -1639,7 +1649,7 @@ function drawHtmlHud() {
   $('hnet').textContent = net.on ? (net.code ? `Room ${net.code}` : 'Online') : net.connecting ? 'Connecting…' : 'Offline';
   $('hround').textContent = G.round; $('halive').textContent = alive().length; $('htime').textContent = fmtTime(G.timeLeft);
   $('hmsg').textContent = banner() || (G.feedT > 0 ? G.feed[0] : '');
-  const stuck = human.heldBy || human.ko > 0;
+  const stuck = human.ko > 0;
   $('hbarlabel').textContent = stuck ? 'Break free' : 'Dizzy';
   $('hdizzy').style.width = `${Math.min(100, stuck ? human.struggle * 100 : human.dizzy)}%`;
   $('hko').hidden = !(human.ko > 0);
@@ -1916,7 +1926,7 @@ function update(dt, frame) {
   if (G.state === 'fight') {
     if (human.kind === 'vr') vrGrabs();
     if (human.active && !human.out && human.ko <= 0) handHits(human, human.hands);
-    for (const b of bots) if (b.active && !b.out && b.ko <= 0 && !b.heldBy) handHits(b, b.hands);
+    for (const b of bots) if (b.active && !b.out && b.ko <= 0) handHits(b, b.hands);
   }
   updateHeld(dt);
   bodyBump();
@@ -1966,7 +1976,7 @@ if (document.fonts) document.fonts.ready.then(drawBoard);
 goMenu();
 setNetStatus('');
 
-window.AR = { net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
