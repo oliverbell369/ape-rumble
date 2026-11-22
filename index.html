@@ -1078,7 +1078,7 @@ function startRound() {
   G.round++; if (!G.demo) G.matchRound++;
   G.state = 'countdown'; G.countdown = 3.2; G.lastCount = 4; G.timeLeft = ROUND_TIME; G.winner = null; G.feed = [];
   setupSlots();
-  clearItems(false); crateT = 4;
+  clearItems(false); crateT = 2.5;
   flash = 0.25;
   const order = actors.map((a, i) => i).sort(() => Math.random() - 0.5);
   actors.forEach((a, k) => {
@@ -1453,8 +1453,8 @@ function vrStep(dt, inp) {
     handTarget(h, h.T);
     _rel.subVectors(h.T, h.A);
     const out = _rel.dot(h.n), dist = _rel.length();
-    if (stunned || dist > LOCO.unstick || (out > LOCO.releaseEps && !h.grip)) { h.anchored = false; continue; }
-    _rel.addScaledVector(h.n, -out); h.A.addScaledVector(_rel, h.grip ? 0 : 0.02);
+    if (stunned || dist > LOCO.unstick || (out > LOCO.releaseEps && !(h.grip && !h.tool))) { h.anchored = false; continue; }
+    _rel.addScaledVector(h.n, -out); h.A.addScaledVector(_rel, h.grip && !h.tool ? 0 : 0.02);
     if (h.dyn) boxToLocal(h.dyn, h.A, h.lA);
     _D.add(h.A).sub(h.T); n1++;
   }
@@ -1470,7 +1470,7 @@ function vrStep(dt, inp) {
   for (const h of H.hands) {
     if (!h.ok || h.anchored) continue;
     handTarget(h, h.T);
-    const hit2 = h.holding || h.tool || stunned || H.noGrab > 0 ? null : sweepSphere(h.pos, h.T, LOCO.handR);
+    const hit2 = h.holding || stunned || H.noGrab > 0 ? null : sweepSphere(h.pos, h.T, LOCO.handR);
     if (hit2) {
       h.anchored = true; h.A.copy(hit2.p); h.n.copy(hit2.n);
       h.dyn = hit2.box.dyn ? hit2.box : null;
@@ -1512,7 +1512,8 @@ function vrGrabs() {
       continue;
     }
     h.trigWas = h.trigger;
-    if (h.grip && !h.gripWas && !h.anchored && !h.holding && tryPickTool(H, h, 0.35)) { pulseHand(h.k, 0.5, 40); continue; }
+    if (h.grip && !h.gripWas && !h.holding && tryPickTool(H, h, 0.35)) { pulseHand(h.k, 0.5, 40); continue; }
+    if (h.grip && !h.gripWas) { const cr = items.find((it) => it.type === 'crate' && it.p.distanceTo(h.pos) < 0.55); if (cr) { openCrate(cr); pulseHand(h.k, 0.7, 60); continue; } }
     if (h.grip && !h.gripWas && !h.anchored && !h.holding) {
       let best = null, bd = FIGHT.reach;
       for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = h.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
@@ -2323,6 +2324,9 @@ const deadIM = { ape: inst(apeGeo, 8), band: inst(bandGeo, 8), arms: inst(armGeo
   ]), 8) };
 for (const im of Object.values(deadIM)) im.count = 0;
 const _bq = new THREE.Quaternion(), _bu = new THREE.Vector3();
+const beamIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.3, 6, 10, 1, true).translate(0, 3, 0),
+  new THREE.MeshBasicMaterial({ color: 0xffc23a, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }), 8);
+beamIM.frustumCulled = false; beamIM.count = 0; scene.add(beamIM);
 const gloveIM = inst(mergeParts([{ geo: ico(0.11, 1), c: [0.9, 0.12, 0.1] }, { geo: cyl(0.06, 0.07, 0.08, 8), c: [0.95, 0.95, 0.95], m: M(0, 0, 0.1, Math.PI / 2, 0, 0) }]), 8);
 const springIM = inst(mergeParts([{ geo: cyl(0.02, 0.02, 1, 5).translate(0, 0.5, 0), c: [0.7, 0.7, 0.75] }]), 8);
 gloveIM.count = springIM.count = 0;
@@ -2449,7 +2453,7 @@ function botTools(b, t) {
   if (!R.tool && !b.holding) {
     for (const it of items) {
       const d = it.p.distanceTo(b.pos);
-      if (it.type === 'crate' && d < 0.9 && it.v.lengthSq() < 1) { openCrate(it); break; }
+      if (it.type === 'crate' && d < 0.9 && (it.groundT || 0) > 3) { openCrate(it); break; }
       if (it.st === 1 && TOOLS[it.type] && d < (it.type === 'corpse' ? 1.3 : 1.0) && Math.random() < 0.5) { tryPickTool(b, R, 1.2); break; }
     }
     return;
@@ -2503,7 +2507,11 @@ function itemsTick(dt) {
     _ip.copy(it.p).addScaledVector(it.v, dt);
     RES.reset(); pushSphere(_ip, it.type === 'crate' ? 0.3 : 0.12, RES, it.v);
     it.p.copy(_ip);
-    if (RES.ground) { const f = Math.exp(-6 * dt); it.v.x *= f; it.v.z *= f; }
+    if (RES.ground) {
+      const f = Math.exp(-6 * dt); it.v.x *= f; it.v.z *= f;
+      if (it.type === 'crate' && !it.landed) { it.landed = true; sfx('bonk', it.p, 1.3); spawnFx('splinters', pack3(it.p), null, null, false); }
+      it.groundT = (it.groundT || 0) + dt;
+    }
     if (it.thrownT > 0) it.thrownT -= dt;
     if (!auth) continue;
     const floor = inLobby() ? LB.y - 6 : FALL_Y;
@@ -2527,8 +2535,12 @@ function itemsTick(dt) {
     crateT -= dt;
     const onMap = items.filter((it) => it.st !== 2).length;
     if (crateT <= 0) {
-      crateT = rand(9, 15);
-      if (onMap < 4) { const [x, y, z] = CRATE_SPOTS[Math.floor(Math.random() * CRATE_SPOTS.length)](); mkItem('crate', _ip.set(x, y + 9, z), null, 0); }
+      crateT = rand(7, 11);
+      if (onMap < 5) {
+        const [x, y, z] = CRATE_SPOTS[Math.floor(Math.random() * CRATE_SPOTS.length)]();
+        mkItem('crate', _ip.set(x, y + 9, z), null, 0);
+        feed('Crate incoming!'); if (net.on) netSendAll(EV.FEED, { m: 'Crate incoming!' });
+      }
     }
   }
   // the Yard's tool rack refills
@@ -2657,6 +2669,9 @@ function renderItems() {
     }
   }
   for (const t of [...CRATE_TOOLS, 'crate']) { toolIM[t].count = counts[t]; toolIM[t].instanceMatrix.needsUpdate = true; }
+  let bn = 0;
+  for (const it of items) if (it.type === 'crate' && bn < 8) { const pulse = 1 + Math.sin(now * 5 + it.id) * 0.15; beamIM.setMatrixAt(bn++, _mm.compose(it.p, _q.identity(), _s.set(pulse, 1, pulse))); }
+  beamIM.count = bn; beamIM.instanceMatrix.needsUpdate = true;
   deadIM.ape.count = deadIM.band.count = deadIM.xs.count = dn; deadIM.arms.count = deadIM.hands.count = dn * 2;
   for (const im of Object.values(deadIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   gloves.forEach((g, i) => {
@@ -2803,12 +2818,12 @@ function yardTick(dt) {
 function renderMirror() {
   if (!inLobby() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
   if ((yard.mirrorN = (yard.mirrorN + 1) % 3) !== 0) return;
-  const xr = renderer.xr.enabled;
+  const xr = renderer.xr.enabled, prevTarget = renderer.getRenderTarget();
   renderer.xr.enabled = false;
   renderer.setRenderTarget(mirrorRT);
   renderer.render(scene, mirrorCam);
-  renderer.setRenderTarget(null);
   renderer.xr.enabled = xr;
+  renderer.setRenderTarget(prevTarget);
 }
 yardLabels(); drawKeypad(); drawPadPanel(); drawBagPanel();
 
