@@ -93,7 +93,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 
 <main id="menu">
   <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.5</p>
+    <p class="kicker">VR ape brawler · prototype 0.6</p>
     <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
@@ -118,6 +118,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
         <li>Push floors, walls and logs with your hands to move. Fling your arms to jump.</li>
         <li>Swing your hand fast into an ape to slap it. Faster swings hit harder.</li>
         <li>Enough slaps make an ape dizzy and floppy. Hold grip near an ape to pick it up, then swing and let go to throw.</li>
+        <li>Your fingers follow the controller: the trigger curls your pointing finger, grip curls the rest (and grabs), and your thumb drops when it rests on the buttons.</li>
         <li>Grabbed? Keep slapping the ape holding you until it lets go. Dizzy? Shake your arms hard to snap out of it.</li>
         <li>Hold grip on a ledge or beam to hang on. Right stick turns.</li>
         <li>Fall into the ravine and you're out until the next round. Watch out for the swinging log.</li>
@@ -159,7 +160,7 @@ const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8
 const LIGHT_DIR = new THREE.Vector3(0.45, 0.8, 0.35).normalize();
 // online play (Photon Realtime)
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
-const PHOTON_VERSION = 'wrecked-0.5';
+const PHOTON_VERSION = 'wrecked-0.6';
 const PHOTON_REGION = 'us';
 const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9 };
 const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
@@ -791,7 +792,7 @@ const apeGeo = mergeParts([
 const bandGeo = mergeParts([{ geo: cyl(0.195, 0.195, 0.055, 12), c: F, tint: true, m: M(0, 0.245, -0.1, -0.12, 0, 0) },
   { geo: new THREE.BoxGeometry(0.05, 0.1, 0.04), c: F, tint: true, m: M(0.05, 0.2, 0.09, 0.3, 0, 0.3) }]);
 const armGeo = mergeParts([{ geo: cyl(0.055, 0.045, 1, 6).translate(0, 0.5, 0), c: F, layer: 'fur', tint: true }]);
-const handGeo = mergeParts([{ geo: ico(0.075, 1), c: SKIN, m: M(0, 0, 0, 0, 0, 0, 1, 0.8, 1.15) }, { geo: ico(0.035, 0), c: SKIN, m: M(0.06, 0.01, -0.03) }]);
+const handGeo = mergeParts([{ geo: ico(0.055, 1), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.72, 0.95, 1.0) }]);
 const starGeo = mergeParts([{ geo: new THREE.OctahedronGeometry(0.05, 0), c: [1, 0.86, 0.25] }]);
 const MAXA = 8;
 function inst(geo, n) {
@@ -807,10 +808,53 @@ const shadowIM = new THREE.InstancedMesh(new THREE.CircleGeometry(0.34, 12).rota
 shadowIM.frustumCulled = false; shadowIM.count = 0; scene.add(shadowIM);
 // your own hands (VR and computer)
 const myHandsIM = inst(mergeParts([
-  { geo: ico(0.06, 1), c: SKIN, m: M(0, 0, 0, 0, 0, 0, 1, 0.8, 1.2) },
-  { geo: ico(0.028, 0), c: SKIN, m: M(0.05, 0.01, -0.03) },
-  { geo: cyl(0.04, 0.045, 0.1, 7), c: F, layer: 'fur', tint: true, m: M(0, 0, 0.085, Math.PI / 2, 0, 0) },
+  { geo: ico(0.055, 1), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.72, 0.95, 1.0) },
+  { geo: cyl(0.04, 0.045, 0.1, 7), c: F, layer: 'fur', tint: true, m: M(0, 0, 0.09, Math.PI / 2, 0, 0) },
 ]), 2);
+// three chunky ape fingers per hand: index (trigger), the rest (grip) and thumb (resting on the buttons)
+const fingerIM = inst(mergeParts([{ geo: cyl(0.017, 0.015, 1, 6).translate(0, 0.5, 0), c: SKIN }]), 120);
+const tipIM = inst(mergeParts([{ geo: ico(0.018, 1), c: [0.78, 0.6, 0.47] }]), 60);
+const FING = {
+  base: [[0.012, 0.022, -0.04], [0.012, -0.022, -0.04], [0.03, 0.034, -0.004]],
+  len: [[0.042, 0.036], [0.044, 0.038], [0.036, 0.03]],
+  thick: [1, 1.35, 1.1],
+};
+const _fq = new THREE.Quaternion(), _fp = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], _fd = new THREE.Vector3(), _fm = new THREE.Matrix4();
+const _fx = new THREE.Vector3(), _fy = new THREE.Vector3(), _fz = new THREE.Vector3();
+let fingN = 0, tipN = 0;
+// side: +1 right hand, -1 left. Hand space: fingers point -Z, palm faces -side*X. curls: [index, grip, thumb] 0..1
+function drawFingers(pos, quat, side, c) {
+  for (let f = 0; f < 3; f++) {
+    const b = FING.base[f];
+    _fp[0].set(-side * b[0], b[1], b[2]);
+    let prev = _fp[0];
+    for (let seg = 0; seg < 2; seg++) {
+      if (f < 2) { const th = c[f] * (seg === 0 ? 1.35 : 2.85); _fd.set(-side * Math.sin(th), 0, -Math.cos(th)); }
+      else {
+        const t = c[2] + seg * 0.25;
+        _fd.set(-side * (0.15 + 0.45 * t), 0.85 - 0.8 * t, -0.5 - 0.35 * t).normalize();
+      }
+      _fp[seg + 1].copy(prev).addScaledVector(_fd, FING.len[f][seg]);
+      prev = _fp[seg + 1];
+    }
+    for (let i = 0; i < 3; i++) _fp[i].applyQuaternion(quat).add(pos);
+    for (let seg = 0; seg < 2 && fingN < 120; seg++) {
+      _a.subVectors(_fp[seg + 1], _fp[seg]);
+      const len = Math.max(0.005, _a.length());
+      _fq.setFromUnitVectors(_yAxis, _a.multiplyScalar(1 / len));
+      fingerIM.setMatrixAt(fingN++, _fm.compose(_fp[seg], _fq, _s.set(FING.thick[f], len, FING.thick[f])));
+    }
+    if (tipN < 60) tipIM.setMatrixAt(tipN++, _fm.compose(_fp[2], _fq, _s.set(FING.thick[f], 1, FING.thick[f])));
+  }
+}
+// orientation for hands we only know the position of (bots, other players): fingers point down the arm
+function guessHandQuat(shoulder, hand, yaw, out) {
+  _fz.subVectors(hand, shoulder).normalize().multiplyScalar(0.6).add(_fd.set(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(0.4)).normalize().negate();
+  _fy.set(0, 1, 0).addScaledVector(_fz, -_fz.y).normalize();
+  _fx.crossVectors(_fy, _fz);
+  return out.setFromRotationMatrix(_fm.makeBasis(_fx, _fy, _fz));
+}
+const curlTo = (cur, tgt, dt) => { for (let i = 0; i < 3; i++) cur[i] += (tgt[i] - cur[i]) * Math.min(1, 18 * dt); };
 
 // ================= swinging log =================
 const LOG = { pivot: new THREE.Vector3(0, 9.9, 0), L: 9, A: 1.0, w: 1.15, theta: 0, c: new THREE.Vector3(), v: new THREE.Vector3(), half: [2.3, 0.42, 0.42] };
@@ -938,7 +982,8 @@ function baseActor(i) {
   const d = APES[i];
   return { i, name: d.name, fur: raw(...d.fur), band: raw(...d.band), css: d.css, active: false, out: false, wins: 0,
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, dizzy: 0, lastHit: -9, ko: 0, heldBy: null, heldHand: null, heldT: 0, thrownT: 0,
-    tilt: new THREE.Vector2(), tiltV: new THREE.Vector2(), hitCD: new Map(), grounded: false };
+    tilt: new THREE.Vector2(), tiltV: new THREE.Vector2(), hitCD: new Map(), grounded: false,
+    fing: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], fingT: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]] };
 }
 const human = Object.assign(baseActor(0), {
   isHuman: true, kind: 'none', P: new THREE.Vector3(), V: new THREE.Vector3(), pitch: 0,
@@ -1684,8 +1729,25 @@ function setSeg(im, i, from, to) {
   _q.setFromUnitVectors(_yAxis, _a.multiplyScalar(1 / len));
   im.setMatrixAt(i, _mm.compose(from, _q, _s.set(1, len, 1)));
 }
+function fingerTargets(a, dt) {
+  for (let k = 0; k < 2; k++) {
+    const t = a.fingT[k];
+    if (a.remote) { /* comes from the network */ }
+    else if (a === human) {
+      const h = human.hands[k], src = xrIn.hands[k];
+      if (human.kind === 'vr') { t[0] = src.trigV ?? 0; t[1] = Math.max(src.gripV ?? 0, h.holding ? 1 : 0); t[2] = src.thumb ? 1 : 0; }
+      else { const fist = h.punchT > 0 || (k === 1 && (mouse.right || h.holding)); t[0] = fist ? 1 : 0.25; t[1] = fist ? 1 : 0.3; t[2] = fist ? 1 : 0.5; }
+    } else {
+      const fist = (a.slapT >= 0 && k === a.slapHand) || (a.holding && k === 1) || a.hang;
+      const limp = a.ko > 0;
+      t[0] = fist ? 1 : limp ? 0.1 : 0.35; t[1] = fist ? 1 : limp ? 0.1 : 0.45; t[2] = fist ? 1 : limp ? 0.2 : 0.6;
+    }
+    curlTo(a.fing[k], t, dt);
+  }
+}
 function updateVisuals(dt) {
   let ai = 0, hi = 0, si = 0, sti = 0, armI = 0;
+  fingN = 0; tipN = 0;
   for (const a of actors) {
     if (!a.active) continue;
     const isMe = a === human && human.kind !== 'none';
@@ -1700,10 +1762,13 @@ function updateVisuals(dt) {
       bandsIM.setMatrixAt(ai, _mm); bandsIM.setColorAt(ai, a.band);
       ai++;
       const hands = a.isBot ? a.hands : human.hands;
+      fingerTargets(a, dt);
       for (let k = 0; k < 2; k++) {
         rotY(_t3.set(k === 0 ? -0.27 : 0.27, -0.06, -0.02), a.yaw, _t2).add(a.pos);
         setSeg(armsIM, armI, _t2, hands[k].pos); armsIM.setColorAt(armI, a.fur); armI++;
-        handsIM.setMatrixAt(hi++, _mm.compose(hands[k].pos, _q.setFromAxisAngle(_yAxis, a.yaw), _s.set(1, 1, 1)));
+        guessHandQuat(_t2, hands[k].pos, a.yaw, _q);
+        handsIM.setMatrixAt(hi++, _mm.compose(hands[k].pos, _q, _s.set(1, 1, 1)));
+        drawFingers(hands[k].pos, _q, k === 0 ? -1 : 1, a.fing[k]);
       }
       if (a.ko > 0) for (let k = 0; k < 3; k++) {
         const an = now * 4 + k * 2.09;
@@ -1719,19 +1784,24 @@ function updateVisuals(dt) {
     }
   }
   apesIM.count = bandsIM.count = ai; armsIM.count = armI; handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
+  // (fingers for your own hands are added below; counts are set at the end)
   for (const im of [apesIM, bandsIM, armsIM, handsIM, starsIM, shadowIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   // your hands
   const show = human.kind !== 'none';
   myHandsIM.count = show ? 2 : 0;
   if (show) {
+    fingerTargets(human, dt);
     _q2.setFromAxisAngle(_yAxis, human.yaw);
     for (let k = 0; k < 2; k++) {
       const h = human.hands[k];
       if (human.kind === 'vr') _q.copy(_q2).multiply(h.q); else _q.setFromEuler(_e.set(human.pitch, human.yaw, 0, 'YXZ'));
       myHandsIM.setMatrixAt(k, _mm.compose(h.pos, _q, _s.set(1, 1, 1))); myHandsIM.setColorAt(k, human.fur);
+      drawFingers(h.pos, _q, k === 0 ? -1 : 1, human.fing[k]);
     }
     myHandsIM.instanceMatrix.needsUpdate = true; myHandsIM.instanceColor.needsUpdate = true;
   }
+  fingerIM.count = fingN; tipIM.count = tipN;
+  fingerIM.instanceMatrix.needsUpdate = true; tipIM.instanceMatrix.needsUpdate = true;
   // wrist display + board
   wrist.mesh.visible = human.kind === 'vr' && human.hands[0].ok;
   if (wrist.mesh.visible) { wrist.mesh.position.copy(human.hands[0].pos).y += 0.1; wrist.mesh.lookAt(human.head); }
@@ -1851,6 +1921,8 @@ function readXR(frame) {
     const pad = src.gamepad;
     h.gamepad = pad || null;
     h.trigger = !!pad?.buttons[0]?.pressed; h.grip = !!pad?.buttons[1]?.pressed;
+    h.trigV = pad?.buttons[0]?.value ?? (h.trigger ? 1 : 0); h.gripV = pad?.buttons[1]?.value ?? (h.grip ? 1 : 0);
+    h.thumb = !!pad && [3, 4, 5].some((i) => pad.buttons[i] && (pad.buttons[i].touched || pad.buttons[i].pressed));
     if (k === 1 && pad) xrIn.stickX = pad.axes[2] ?? pad.axes[0] ?? 0;
   }
   return true;
@@ -1949,7 +2021,14 @@ function snap(b, p, v, yaw, h, f) {
 }
 function onNetEvent(code, d, nr) {
   switch (code) {
-    case EV.POSE: { const b = allBots[d.s]; if (b && b.player && slotOwnerNr(d.s) === nr) snap(b, d.p, d.v, d.y, d.h, d.f); break; }
+    case EV.POSE: {
+      const b = allBots[d.s];
+      if (b && b.player && slotOwnerNr(d.s) === nr) {
+        snap(b, d.p, d.v, d.y, d.h, d.f);
+        if (Array.isArray(d.c) && d.c.length === 6) for (let i = 0; i < 6; i++) b.fingT[i < 3 ? 0 : 1][i % 3] = d.c[i];
+      }
+      break;
+    }
     case EV.BOTS: if (!net.host) for (const e of d) { const b = allBots[e[0]]; if (b && !b.player) snap(b, e.slice(1, 4), e.slice(4, 7), e[7], e.slice(8, 14), e[14]); } break;
     case EV.STATE: if (!net.host) applyState(d); break;
     case EV.HIT: { const t = slotActor(d.to), a = slotActor(d.from); if (t && !t.remote && a) hit(a, t, new THREE.Vector3(d.v[0], d.v[1], d.v[2]), d.sp, d.k); break; }
@@ -1996,7 +2075,8 @@ function netTick(dt) {
     net.poseT = 0.1;
     if (mySlot >= 0 && human.active) {
       netSendAll(EV.POSE, { s: mySlot, p: pack3(human.pos), v: pack3(human.V), y: r2(humanFacing()),
-        h: [...pack3(human.hands[0].pos), ...pack3(human.hands[1].pos)], f: flagsOf(human) });
+        h: [...pack3(human.hands[0].pos), ...pack3(human.hands[1].pos)], f: flagsOf(human),
+        c: [...human.fing[0], ...human.fing[1]].map((v) => Math.round(v * 10) / 10) });
     }
     const liveBots = bots.filter((b) => b.active);
     if (net.host && liveBots.length) {

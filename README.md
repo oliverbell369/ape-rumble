@@ -10,4 +10,6 @@ Grabbed? Keep slapping the ape holding you until it lets go (3 slaps, or 2 hard 
 
 **The Yard:** everyone arrives in the Yard, a lobby on the canyon rim. Mess around, punch the punching bag, check yourself in the mirror, slap in a room code on the keypad, then stand on the START pad (or slap the red button) to begin a best-of-3 match. After the match everyone returns to the Yard.
 
-Prototype 0.5.
+Hands have three moving fingers: the trigger curls your pointing finger, grip curls the rest (and grabs), and your thumb drops when it rests on the buttons. Other players see your fingers move.
+
+Prototype 0.6.
