@@ -14,4 +14,6 @@ Hands have three moving fingers: the trigger curls your pointing finger, grip cu
 
 **Crates and tools:** crates drop in during fights; slap one open for a mallet (squashes apes flat), frying pan, plunger (sticks and drags), rubber chicken, knife (stab them and they bleed), boxing-glove launcher (trigger) or banana peel. Hold grip to hold a tool, swing to hit, let go to throw. There is a tool rack in the Yard to try them, and a Blood effects switch on the menu.
 
-Prototype 0.7.
+**Finishing moves:** stab an ape while it is dizzy and it is wrecked: out for the round, with its body left on the map. Grab a body with grip to swing it at people like a floppy club, or throw it.
+
+Prototype 0.8.

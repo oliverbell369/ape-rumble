@@ -95,7 +95,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 
 <main id="menu">
   <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.7</p>
+    <p class="kicker">VR ape brawler · prototype 0.8</p>
     <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
@@ -121,6 +121,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
         <li>Push floors, walls and logs with your hands to move. Fling your arms to jump.</li>
         <li>Swing your hand fast into an ape to slap it. Faster swings hit harder.</li>
         <li>Enough slaps make an ape dizzy and floppy. Hold grip near an ape to pick it up, then swing and let go to throw.</li>
+        <li>Stab an ape while it's dizzy and it's wrecked: out for the round, and its body stays on the map. Grab a body with grip and swing it at people, or throw it.</li>
         <li>Smash crates that drop in to find tools: mallet, frying pan, plunger, rubber chicken, knife, boxing-glove launcher and banana peels. Hold grip to hold a tool, swing to hit, let go to throw. Trigger fires the glove launcher.</li>
         <li>Your fingers follow the controller: the trigger curls your pointing finger, grip curls the rest (and grabs), and your thumb drops when it rests on the buttons.</li>
         <li>Grabbed? Keep slapping the ape holding you until it lets go. Dizzy? Shake your arms hard to snap out of it.</li>
@@ -997,7 +998,7 @@ function baseActor(i) {
   return { i, name: d.name, fur: raw(...d.fur), band: raw(...d.band), css: d.css, active: false, out: false, wins: 0,
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, dizzy: 0, lastHit: -9, ko: 0, heldBy: null, heldHand: null, heldT: 0, thrownT: 0,
     tilt: new THREE.Vector2(), tiltV: new THREE.Vector2(), hitCD: new Map(), grounded: false,
-    fing: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], fingT: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], squashT: 0, bleedT: 0, dripT: 0 };
+    fing: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], fingT: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], squashT: 0, bleedT: 0, dripT: 0, dead: false };
 }
 const human = Object.assign(baseActor(0), {
   isHuman: true, kind: 'none', P: new THREE.Vector3(), V: new THREE.Vector3(), pitch: 0,
@@ -1063,7 +1064,7 @@ function placeHuman(floorPt, yaw) {
   }
 }
 function resetActor(a, i, pts = SPAWNS) {
-  a.out = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
+  a.out = false; a.dead = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.bleedT = 0; a.squashT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
   const sp = pts[(i < 0 ? 0 : i) % pts.length];
   const cx = pts === SPAWNS ? 0 : LB.x, cz = pts === SPAWNS ? 0 : LB.z + 1;
   const yaw = Math.atan2(sp.x - cx, sp.z - cz);
@@ -1219,6 +1220,7 @@ function hit(attacker, target, hv, speed, from, tool) {
     if (!tool) sfx(speed > 6 ? 'bonk' : 'slap', target.pos, 0.6 + Math.min(speed, 9) * 0.06);
     return true;
   }
+  const wasDizzy = target.ko > 0;
   const TM = TOOL_FX[(tool || '').split(':')[0]] || null;
   const s = Math.min(speed, FIGHT.slapCap);
   _v.copy(hv).setLength(s * FIGHT.slapMul * (TM ? TM.k : 1)); _v.y = Math.max(_v.y, 0) + FIGHT.slapUp * (s / 6);
@@ -1229,6 +1231,7 @@ function hit(attacker, target, hv, speed, from, tool) {
   if (!lobbyHit) target.dizzy += s * FIGHT.dizzyPerSpeed * (TM ? TM.d : 1) * (target.ko > 0 ? 0.3 : 1) + (TM ? TM.flat : 0);
   if (tool === 'mallet') target.squashT = 2.5;
   if (tool === 'knife') target.bleedT = 3;
+  if (!lobbyHit && G.state === 'fight' && tool === 'knife' && wasDizzy) { die(target); return true; }
   if (tool === 'slip' && !lobbyHit && target.ko <= 0) { target.ko = 1.2; target.tiltV.x += 30; }
   target.lastHit = now;
   target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
@@ -1872,7 +1875,7 @@ function banner() {
   if (G.state === 'countdown') return G.countdown > 0.2 ? String(Math.ceil(G.countdown)) : 'RUMBLE!';
   if (G.state === 'fight' && G.timeLeft > ROUND_TIME - 1) return 'RUMBLE!';
   if (G.state === 'end') return G.winner ? (G.winner === human ? 'You win!' : `${G.winner.name} wins!`) : 'Nobody wins!';
-  if (human.out && human.kind !== 'none') return 'You fell! Next round soon';
+  if (human.out && human.kind !== 'none') return human.dead ? 'You got wrecked! Next round soon' : 'You fell! Next round soon';
   if (human.heldBy) return human.kind === 'pc' ? 'Grabbed! Click to slap them till they let go' : 'Grabbed! Slap them till they let go!';
   if (human.ko > 0) return human.kind === 'pc' ? 'Dizzy! Mash keys to shake it off' : 'Dizzy! Shake your arms!';
   return '';
@@ -1894,7 +1897,7 @@ function drawBoard() {
     ctx.fillStyle = a.css; rr(ctx, x, y, 56, 56, 14); ctx.fill();
     ctx.fillStyle = '#f3ead8'; ctx.font = `52px ${FD}`; ctx.fillText(a.name, x + 76, y + 46);
     ctx.font = `600 34px ${FB}`; ctx.fillStyle = '#b9ad94'; ctx.textAlign = 'right';
-    ctx.fillText(lob ? (a === human ? 'you' : 'here') : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
+    ctx.fillText(lob ? (a === human ? 'you' : 'here') : a.dead ? 'wrecked' : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
     ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   });
   if (lob && G.state === 'lobby') {
@@ -2225,13 +2228,30 @@ const TOOLS = {
   knife:    { tip: 0.28, r: 0.13, minSp: 2.0, uses: 6, snd: 'stab' },
   launcher: { tip: 0.27, r: 0, minSp: 99, uses: 5, snd: 'boing' },
   banana:   { tip: 0.1, r: 0, minSp: 99, uses: 1, snd: 'slip' },
+  corpse:   { tip: 0.6, r: 0.42, minSp: 2.0, uses: 99999, snd: 'bonk' },
 };
 const TOOL_TYPES = Object.keys(TOOLS);
+const CRATE_TOOLS = TOOL_TYPES.filter((t) => t !== 'corpse');
+// stabbed while dizzy: out for the round, but the body stays on the map
+function die(a) {
+  if (a.out) return;
+  const p = a.pos.clone();
+  a.out = true; a.dead = true; a.ko = 0; a.bleedT = 0;
+  if (a.heldBy) release(a, null);
+  for (const h of a.hands) if (h.tool) dropTool(a, h, _v.set(0, 1, 0));
+  feed(`${a === human ? 'You' : a.name} got wrecked!`);
+  if (net.on) netSendAll(EV.FEED, { m: `${a === human ? net.nick : a.name} got wrecked!` });
+  sfx('ko', a === human ? null : p); sfx('big', a === human ? null : p, 0.6);
+  fxAt('blood', p, _w.set(0, 1, 0), a.css); fxAt('blood', p, _w.set(0, -1, 0), a.css);
+  reqItem('corpse', { s: actorSlot(a), p: pack3(p), y: r2(a.yaw), id: 0 });
+  if (a === human) { for (const h of human.hands) dropHeld(h); placeHuman(OUT_LEDGE, Math.PI); }
+  else { if (a.holding) release(a.holding, null); a.holding = null; a.pos.set(0, -60, 0); a.vel.set(0, 0, 0); }
+}
 // how each tool changes a hit: knockback x, dizziness x, extra dizziness
 const TOOL_FX = {
   mallet: { k: 1.6, d: 1.5, flat: 0 }, pan: { k: 1.3, d: 2.0, flat: 0 }, plunger: { k: 0.3, d: 0.3, flat: 0 },
   chicken: { k: 0.8, d: 0.4, flat: 0 }, knife: { k: 0.45, d: 0.3, flat: 35 }, launcher: { k: 1, d: 0, flat: 10 },
-  throw: { k: 1, d: 1, flat: 0 }, slip: { k: 0, d: 0, flat: 0 },
+  throw: { k: 1, d: 1, flat: 0 }, slip: { k: 0, d: 0, flat: 0 }, corpse: { k: 1.8, d: 1.2, flat: 0 },
 };
 const WORLD = { i: 7, name: 'Banana', isBot: false };
 let items = [], nextItemId = 1, itemsDirty = false, crateT = 4, rackT = 0;
@@ -2292,7 +2312,17 @@ const TOOL_GEO = {
   ]),
 };
 const toolIM = {};
-for (const t of [...TOOL_TYPES, 'crate']) { toolIM[t] = inst(TOOL_GEO[t], 16); toolIM[t].count = 0; }
+for (const t of [...CRATE_TOOLS, 'crate']) { toolIM[t] = inst(TOOL_GEO[t], 16); toolIM[t].count = 0; }
+// wrecked apes: a body with X'd-out eyes and limp arms
+const deadIM = { ape: inst(apeGeo, 8), band: inst(bandGeo, 8), arms: inst(armGeo, 16), hands: inst(handGeo, 16),
+  xs: inst(mergeParts([
+    { geo: new THREE.BoxGeometry(0.09, 0.016, 0.02), c: [0.08, 0.05, 0.05], m: M(0.06, 0.205, -0.32, 0, 0, 0.785) },
+    { geo: new THREE.BoxGeometry(0.09, 0.016, 0.02), c: [0.08, 0.05, 0.05], m: M(0.06, 0.205, -0.32, 0, 0, -0.785) },
+    { geo: new THREE.BoxGeometry(0.09, 0.016, 0.02), c: [0.08, 0.05, 0.05], m: M(-0.06, 0.205, -0.32, 0, 0, 0.785) },
+    { geo: new THREE.BoxGeometry(0.09, 0.016, 0.02), c: [0.08, 0.05, 0.05], m: M(-0.06, 0.205, -0.32, 0, 0, -0.785) },
+  ]), 8) };
+for (const im of Object.values(deadIM)) im.count = 0;
+const _bq = new THREE.Quaternion(), _bu = new THREE.Vector3();
 const gloveIM = inst(mergeParts([{ geo: ico(0.11, 1), c: [0.9, 0.12, 0.1] }, { geo: cyl(0.06, 0.07, 0.08, 8), c: [0.95, 0.95, 0.95], m: M(0, 0, 0.1, Math.PI / 2, 0, 0) }]), 8);
 const springIM = inst(mergeParts([{ geo: cyl(0.02, 0.02, 1, 5).translate(0, 0.5, 0), c: [0.7, 0.7, 0.75] }]), 8);
 gloveIM.count = springIM.count = 0;
@@ -2334,6 +2364,14 @@ function updateTips(dt) {
       h.tipPrev.copy(h.tip);
       h.tip.set(0, 0, -(T ? T.tip : 0.1)).applyQuaternion(h.hq).add(h.pos);
       h.tipVel.subVectors(h.tip, h.tipPrev).multiplyScalar(1 / Math.max(dt, 1e-3));
+      const body = h.tool && itemById(h.tool);
+      if (body && body.type === 'corpse') {
+        body.v.y -= GRAV * dt; body.v.multiplyScalar(Math.exp(-1.2 * dt));
+        body.p.addScaledVector(body.v, dt);
+        _t1.subVectors(body.p, h.pos); const L = _t1.length();
+        if (L > 0.55) { _t1.multiplyScalar(1 / L); body.p.copy(h.pos).addScaledVector(_t1, 0.55); const vr = body.v.dot(_t1); if (vr > 0) body.v.addScaledVector(_t1, -vr); }
+        h.tip.copy(body.p); h.tipVel.copy(body.v);
+      }
       if (h.plungeT > 0) { h.plungeT -= dt; const held = a === human ? h.holding : a.holding; if (h.plungeT <= 0 && held) release(held, _v.copy(h.vel).multiplyScalar(0.6)); }
     }
   }
@@ -2375,10 +2413,11 @@ function crateSlap(attacker, h) {
 function openCrate(it) { sfx('pop', it.p); fxAt('splinters', it.p, null); reqItem('open', { id: it.id }); }
 function tryPickTool(a, h, reach) {
   let best = null, bd = reach;
-  for (const it of items) { if (it.st !== 1 || !TOOLS[it.type]) continue; const d = it.p.distanceTo(h.pos); if (d < bd) { bd = d; best = it; } }
+  for (const it of items) { if (it.st !== 1 || !TOOLS[it.type]) continue; const d = it.p.distanceTo(h.pos) - (it.type === 'corpse' ? 0.35 : 0); if (d < bd) { bd = d; best = it; } }
   if (!best) return false;
   const k = a.hands.indexOf(h);
   best.st = 2; best.s = actorSlot(a); best.h = k; pendingPick.set(best.id, now + 0.6);
+  if (best.type === 'corpse') best.v.set(0, 0, 0);
   h.tool = best.id;
   sfx('grab', a === human ? null : best.p);
   reqItem('pick', { id: best.id, s: actorSlot(a), h: k });
@@ -2387,6 +2426,7 @@ function tryPickTool(a, h, reach) {
 function dropTool(a, h, vel) {
   const it = itemById(h.tool); h.tool = 0;
   if (!it) return;
+  if (it.type === 'corpse') vel = _ip.copy(it.v).multiplyScalar(1.15).addScaledVector(vel, 0.3);
   reqItem('drop', { id: it.id, p: pack3(h.tip), v: pack3(vel), s: actorSlot(a) });
   it.st = 1; it.p.copy(h.tip); it.v.copy(vel); it.thrower = actorSlot(a); it.thrownT = 0.8;
   pendingPick.delete(it.id);
@@ -2410,7 +2450,7 @@ function botTools(b, t) {
     for (const it of items) {
       const d = it.p.distanceTo(b.pos);
       if (it.type === 'crate' && d < 0.9 && it.v.lengthSq() < 1) { openCrate(it); break; }
-      if (it.st === 1 && TOOLS[it.type] && d < 1.0 && Math.random() < 0.5) { tryPickTool(b, R, 1.2); break; }
+      if (it.st === 1 && TOOLS[it.type] && d < (it.type === 'corpse' ? 1.3 : 1.0) && Math.random() < 0.5) { tryPickTool(b, R, 1.2); break; }
     }
     return;
   }
@@ -2426,12 +2466,13 @@ function reqItem(op, d) {
   else netSendTo(net.lbc.myRoomMasterActorNr(), EV.ITEMREQ, { op, ...d });
 }
 function hostItemOp(op, d) {
+  if (op === 'corpse') { const c = mkItem('corpse', new THREE.Vector3(d.p[0], d.p[1], d.p[2]), new THREE.Vector3(0, 1.5, 0)); c.c = d.s; c.yw = d.y; return; }
   const it = itemById(d.id);
   if (!it) return;
   if (op === 'pick' && (it.st === 1 || (it.st === 2 && it.s === d.s))) { it.st = 2; it.s = d.s; it.h = d.h; }
   else if (op === 'drop' && it.st === 2) { it.st = 1; it.p.set(...d.p); it.v.set(...d.v); it.thrower = d.s; it.thrownT = 0.8; }
   else if (op === 'open' && it.type === 'crate') {
-    it.type = TOOL_TYPES[Math.floor(Math.random() * TOOL_TYPES.length)]; it.u = TOOLS[it.type].uses; it.st = 1;
+    it.type = CRATE_TOOLS[Math.floor(Math.random() * CRATE_TOOLS.length)]; it.u = TOOLS[it.type].uses; it.st = 1;
     it.v.set(rand(-1, 1), 4, rand(-1, 1));
   } else if (op === 'use') { it.u--; if (it.u <= 0) { removeItem(it); fxAt('splinters', it.p, null); } }
   else return;
@@ -2442,7 +2483,7 @@ function clearItems(lobby) {
   if (net.on && !net.host) return;
   items = []; itemsDirty = true; rackT = 0;
   for (const h of [...human.hands, ...allBots.flatMap((b) => b.hands)]) { h.tool = 0; h.plungeT = 0; }
-  if (lobby) for (const [i, type] of TOOL_TYPES.entries()) { const it = mkItem(type, rackSpot(i), null); it.rack = true; }
+  if (lobby) for (const [i, type] of CRATE_TOOLS.entries()) { const it = mkItem(type, rackSpot(i), null); it.rack = true; }
 }
 const rackSpot = (i) => new THREE.Vector3(LB.x - 8.6 + i * 0.62, LB.y + 0.95, LB.z + 9.55);
 const CRATE_SPOTS = [() => [rand(-4.5, 4.5), 0, rand(-4.5, 4.5)], () => [rand(-4.5, 4.5), 0, rand(-4.5, 4.5)], () => [rand(12, 17), 1.2, rand(-3, 3)], () => [rand(-17, -12), 1.5, rand(-2, 2)], () => [rand(-1, 1), 4.6, rand(-12.5, -9.5)]];
@@ -2454,7 +2495,7 @@ function itemsTick(dt) {
     if (it.st === 2) {
       if (pendingPick.has(it.id) && pendingPick.get(it.id) < now) pendingPick.delete(it.id);
       const a = it.s === mySlot ? human : allBots[it.s];
-      if (a && a.hands[it.h]) it.p.copy(a.hands[it.h].pos);
+      if (a && a.hands[it.h] && it.type !== 'corpse') it.p.copy(a.hands[it.h].pos);
       continue;
     }
     // falling, bouncing, sliding (everyone simulates; the host's copy wins)
@@ -2495,25 +2536,27 @@ function itemsTick(dt) {
     rackT -= dt;
     if (rackT <= 0) {
       rackT = 4;
-      TOOL_TYPES.forEach((type, i) => { if (!items.some((it) => it.rack && it.type === type)) { const it = mkItem(type, rackSpot(i), null); it.rack = true; } });
-      for (const it of items) if (it.rack && it.st !== 2 && it.p.distanceTo(rackSpot(TOOL_TYPES.indexOf(it.type))) > 1.5) it.rack = false;
+      CRATE_TOOLS.forEach((type, i) => { if (!items.some((it) => it.rack && it.type === type)) { const it = mkItem(type, rackSpot(i), null); it.rack = true; } });
+      for (const it of items) if (it.rack && it.st !== 2 && it.p.distanceTo(rackSpot(CRATE_TOOLS.indexOf(it.type))) > 1.5) it.rack = false;
     }
   }
 }
 function sendItems() {
   net.itemT = 0.25; itemsDirty = false;
-  netSendAll(EV.ITEMS, items.map((it) => [it.id, it.type === 'crate' ? -1 : TOOL_TYPES.indexOf(it.type), it.st, r2(it.p.x), r2(it.p.y), r2(it.p.z), it.s, it.h, it.u, r2(it.v.x), r2(it.v.y), r2(it.v.z)]));
+  netSendAll(EV.ITEMS, items.map((it) => [it.id, it.type === 'crate' ? -1 : TOOL_TYPES.indexOf(it.type), it.st, r2(it.p.x), r2(it.p.y), r2(it.p.z), it.s, it.h, it.u, r2(it.v.x), r2(it.v.y), r2(it.v.z), it.c ?? -1, it.yw ?? 0]));
 }
 function applyItems(list) {
   const old = new Map(items.map((it) => [it.id, it]));
   items = list.map((e) => {
-    const [id, ti, st, x, y, z, sl, h, u, vx, vy, vz] = e;
+    const [id, ti, st, x, y, z, sl, h, u, vx, vy, vz, cs, yw] = e;
     let it = old.get(id);
     if (!it) it = { id, spin: rand(0, 6), p: new THREE.Vector3(x, y, z), v: new THREE.Vector3(), thrownT: 0, rack: false };
-    it.type = ti < 0 ? 'crate' : TOOL_TYPES[ti]; it.u = u;
+    it.type = ti < 0 ? 'crate' : TOOL_TYPES[ti]; it.u = u; it.c = cs; it.yw = yw;
     // keep our own quick pickup until the host has caught up
     if (pendingPick.has(id) && st === 1) return it;
+    const holdingHere = it.st === 2 && st === 2 && it.type === 'corpse';
     it.st = st; it.s = sl; it.h = h;
+    if (holdingHere) return it;
     if (st !== 2) { if (it.p.distanceToSquared(_ip.set(x, y, z)) > 0.3) it.p.set(x, y, z); it.v.set(vx, vy, vz); }
     return it;
   });
@@ -2571,10 +2614,36 @@ function fxTick(dt) {
   for (let i = gloves.length - 1; i >= 0; i--) { gloves[i].t += dt; if (gloves[i].t > 0.4) gloves.splice(i, 1); }
   renderItems();
 }
+function drawBody(it, n) {
+  const d = APES[it.c] || APES[0], fur = raw(...d.fur), band = raw(...d.band);
+  if (it.st === 2) {
+    // hanging from someone's hand: head toward the hand
+    const a = it.s === mySlot ? human : allBots[it.s];
+    const hp = a && a.hands[it.h] ? a.hands[it.h].pos : it.p;
+    _bu.subVectors(hp, it.p).normalize();
+    _bq.setFromUnitVectors(_yAxis, _bu);
+  } else {
+    // lying on its back
+    _bq.setFromAxisAngle(_yAxis, it.yw || 0); _q2.setFromAxisAngle(_t1.set(1, 0, 0), -1.35); _bq.multiply(_q2);
+  }
+  _mm.compose(it.p, _bq, _s.set(1, 1, 1));
+  deadIM.ape.setMatrixAt(n, _mm); deadIM.ape.setColorAt(n, fur);
+  deadIM.band.setMatrixAt(n, _mm); deadIM.band.setColorAt(n, band);
+  deadIM.xs.setMatrixAt(n, _mm);
+  for (let k = 0; k < 2; k++) {
+    const side = k ? 1 : -1;
+    _t2.set(side * 0.27, -0.06, -0.02).applyQuaternion(_bq).add(it.p);
+    _t3.set(side * 0.62, -0.25, 0.05).applyQuaternion(_bq).add(it.p);
+    setSeg(deadIM.arms, n * 2 + k, _t2, _t3); deadIM.arms.setColorAt(n * 2 + k, fur);
+    deadIM.hands.setMatrixAt(n * 2 + k, _mm.compose(_t3, _bq, _s.set(1, 1, 1)));
+  }
+}
 function renderItems() {
   const counts = {};
-  for (const t of [...TOOL_TYPES, 'crate']) counts[t] = 0;
+  for (const t of [...CRATE_TOOLS, 'crate']) counts[t] = 0;
+  let dn = 0;
   for (const it of items) {
+    if (it.type === 'corpse') { if (dn < 8) drawBody(it, dn++); continue; }
     const im = toolIM[it.type]; if (!im || counts[it.type] >= 16) continue;
     if (it.st === 2) {
       const a = it.s === mySlot ? human : allBots[it.s];
@@ -2587,7 +2656,9 @@ function renderItems() {
       im.setMatrixAt(counts[it.type]++, _mm.compose(_p, _q, _s.set(1, 1, 1)));
     }
   }
-  for (const t of [...TOOL_TYPES, 'crate']) { toolIM[t].count = counts[t]; toolIM[t].instanceMatrix.needsUpdate = true; }
+  for (const t of [...CRATE_TOOLS, 'crate']) { toolIM[t].count = counts[t]; toolIM[t].instanceMatrix.needsUpdate = true; }
+  deadIM.ape.count = deadIM.band.count = deadIM.xs.count = dn; deadIM.arms.count = deadIM.hands.count = dn * 2;
+  for (const im of Object.values(deadIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   gloves.forEach((g, i) => {
     const e = Math.sin(Math.min(1, g.t / 0.4) * Math.PI) * 1.7;
     _p.copy(g.p).addScaledVector(g.d, e);
@@ -2816,7 +2887,7 @@ if (document.fonts) document.fonts.ready.then(drawBoard);
 goMenu();
 setNetStatus('');
 
-window.AR = { get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
