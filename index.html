@@ -56,6 +56,8 @@ legend { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; col
 #room { text-transform: uppercase; }
 #room::placeholder { text-transform: none; }
 .fields input:focus-visible { outline: 2px solid var(--banana); outline-offset: 1px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.check input { accent-color: var(--banana); width: 16px; height: 16px; margin: 0; }
 .status { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
 details { font-size: 13px; line-height: 1.5; color: var(--muted); }
 summary { cursor: pointer; color: var(--ink); font-weight: 600; }
@@ -86,19 +88,20 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
   <div id="xhair"></div>
   <div id="hko" hidden></div>
   <div id="hmsg"></div>
-  <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab, let go to throw · Enter starts a match in the Yard · Esc frees the mouse</div>
+  <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab apes or tools, let go to throw · Click swings a tool · Enter starts a match in the Yard</div>
   <div class="hud-bot"><span id="hbarlabel">Dizzy</span><div class="bar"><i id="hdizzy"></i></div></div>
   <button id="hmenu" type="button">Menu</button>
 </div>
 
 <main id="menu">
   <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.6</p>
+    <p class="kicker">VR ape brawler · prototype 0.7</p>
     <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
     <fieldset class="netpick">
       <legend>Play</legend>
+      <label class="check" for="blood"><input type="checkbox" id="blood" checked> Blood effects</label>
       <div class="fields">
         <label for="nick">Your name<input id="nick" maxlength="12" autocomplete="off" spellcheck="false"></label>
         <label for="room">Room code<input id="room" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Empty = Quick Play"></label>
@@ -118,6 +121,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
         <li>Push floors, walls and logs with your hands to move. Fling your arms to jump.</li>
         <li>Swing your hand fast into an ape to slap it. Faster swings hit harder.</li>
         <li>Enough slaps make an ape dizzy and floppy. Hold grip near an ape to pick it up, then swing and let go to throw.</li>
+        <li>Smash crates that drop in to find tools: mallet, frying pan, plunger, rubber chicken, knife, boxing-glove launcher and banana peels. Hold grip to hold a tool, swing to hit, let go to throw. Trigger fires the glove launcher.</li>
         <li>Your fingers follow the controller: the trigger curls your pointing finger, grip curls the rest (and grabs), and your thumb drops when it rests on the buttons.</li>
         <li>Grabbed? Keep slapping the ape holding you until it lets go. Dizzy? Shake your arms hard to snap out of it.</li>
         <li>Hold grip on a ledge or beam to hang on. Right stick turns.</li>
@@ -160,9 +164,9 @@ const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8
 const LIGHT_DIR = new THREE.Vector3(0.45, 0.8, 0.35).normalize();
 // online play (Photon Realtime)
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
-const PHOTON_VERSION = 'wrecked-0.6';
+const PHOTON_VERSION = 'wrecked-0.7';
 const PHOTON_REGION = 'eu';
-const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9 };
+const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12 };
 const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
@@ -391,6 +395,8 @@ function buildLevel() {
   blk(X + 1.5, Y, Z + 9.6, 3.6, 1.0, 0.8, { mat: 'planks' });
   for (const dx of [-0.3, 3.3]) blk(X + dx, Y, Z + 10.2, 0.25, 2.7, 0.25, { mat: 'bark' });
   box(X + 1.5, Y + 2.85, Z + 9.7, 4.4, 0.2, 2.2, { rx: 0.3, mat: 'planks' });
+  // tool rack
+  blk(X - 6.75, Y, Z + 9.6, 4.8, 0.8, 0.7, { top: 'planks', side: 'darkwood' });
   // punching bag frame
   for (const dx of [-1.25, 1.25]) blk(BAG_PIVOT.x + dx, Y, BAG_PIVOT.z, 0.3, 3.15, 0.3, { mat: 'bark' });
   blk(BAG_PIVOT.x, Y + 3.15, BAG_PIVOT.z, 2.8, 0.3, 0.3, { mat: 'bark' });
@@ -889,6 +895,7 @@ const padPanel = panelAt(512, 256, 1.6, 0.8, new THREE.Vector3(START_BTN.x + 0.1
 const bagPanel = panelAt(512, 160, 1.6, 0.5, new THREE.Vector3(BAG_PIVOT.x, LB.y + 3.75, BAG_PIVOT.z), 0);
 const shopPanel = panelAt(512, 200, 2.2, 0.86, new THREE.Vector3(LB.x + 1.5, LB.y + 1.75, LB.z + 9.15), Math.PI);
 const mirrorPanel = panelAt(512, 96, 1.6, 0.3, new THREE.Vector3(MIRROR.x, LB.y + 3.15, MIRROR.z), 0);
+const rackPanel = panelAt(512, 170, 2.2, 0.73, new THREE.Vector3(LB.x - 6.75, LB.y + 1.85, LB.z + 10.7), Math.PI);
 // the mirror: a small camera renders the Yard (and your own ape) onto a screen, flipped like a real mirror
 const mirrorRT = new THREE.WebGLRenderTarget(320, 240);
 mirrorRT.texture.colorSpace = THREE.SRGBColorSpace;
@@ -912,6 +919,7 @@ const yardLabels = () => {
   };
   draw(shopPanel, [['SHOP', `80px ${FD}`, '#ffc23a', 92], ['Coming soon: hats, gloves and more', `600 28px ${FB}`, '#f3ead8', 150]]);
   draw(mirrorPanel, [['MIRROR', `60px ${FD}`, '#f3ead8', 70]]);
+  draw(rackPanel, [['TRY THE TOOLS', `64px ${FD}`, '#ffc23a', 82], ['Grab one with grip and hit the punching bag', `600 26px ${FB}`, '#f3ead8', 140]]);
 };
 
 // ================= text panels =================
@@ -961,6 +969,12 @@ function sfx(type, at, vol = 1) {
     case 'tap': env(0.05, 0.04); noise(0.04, 1400, 2); break;
     case 'beep': env(0.2, 0.2); tone(660, 660, 0.16); break;
     case 'go': env(0.25, 0.4); tone(990, 990, 0.36); break;
+    case 'clang': env(0.35, 0.7); tone(1240, 1180, 0.6, 'square'); tone(1870, 1800, 0.45, 'triangle'); break;
+    case 'squeak': env(0.3, 0.35); tone(900, 1800, 0.12, 'square'); tone(1800, 700, 0.2, 'square', 0.12); break;
+    case 'stab': env(0.35, 0.18); noise(0.12, 300, 0.7, 'lowpass'); tone(140, 60, 0.14, 'triangle'); break;
+    case 'pop': env(0.35, 0.3); noise(0.25, 900, 0.6); tone(220, 110, 0.2, 'triangle'); break;
+    case 'boing': env(0.3, 0.5); tone(180, 620, 0.12, 'triangle'); tone(620, 240, 0.3, 'triangle', 0.12); break;
+    case 'slip': env(0.3, 0.5); noise(0.45, 1500, 0.5); tone(500, 150, 0.4, 'sine'); break;
     case 'win': env(0.25, 0.9); [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.18, 'triangle', i * 0.13)); break;
   }
 }
@@ -976,14 +990,14 @@ const APES = [
 ];
 function mkHand(k) {
   return { k, L: new THREE.Vector3(), q: new THREE.Quaternion(), T: new THREE.Vector3(), pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(),
-    anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), Lp: new THREE.Vector3(), dyn: null, lA: new THREE.Vector3(), ln: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
+    anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), Lp: new THREE.Vector3(), dyn: null, tool: 0, tip: new THREE.Vector3(), tipPrev: new THREE.Vector3(), tipVel: new THREE.Vector3(), hq: new THREE.Quaternion(), plungeT: 0, trigWas: false, lA: new THREE.Vector3(), ln: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
 }
 function baseActor(i) {
   const d = APES[i];
   return { i, name: d.name, fur: raw(...d.fur), band: raw(...d.band), css: d.css, active: false, out: false, wins: 0,
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, dizzy: 0, lastHit: -9, ko: 0, heldBy: null, heldHand: null, heldT: 0, thrownT: 0,
     tilt: new THREE.Vector2(), tiltV: new THREE.Vector2(), hitCD: new Map(), grounded: false,
-    fing: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], fingT: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]] };
+    fing: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], fingT: [[0.2, 0.3, 0.5], [0.2, 0.3, 0.5]], squashT: 0, bleedT: 0, dripT: 0 };
 }
 const human = Object.assign(baseActor(0), {
   isHuman: true, kind: 'none', P: new THREE.Vector3(), V: new THREE.Vector3(), pitch: 0,
@@ -992,7 +1006,7 @@ const human = Object.assign(baseActor(0), {
 human.vel = human.V; human.name = 'You';
 function mkBot(i) {
   return Object.assign(baseActor(i), { isBot: true, think: 0, hopCD: 0, slapCD: 0, slapT: -1, slapHand: 1, goal: null, target: null, holding: null, holdT: 0, blocked: 0,
-    skill: rand(0.8, 1.05), grudge: [], grudgeT: 0, hang: false, hangT: 0, hangCool: 0, mayHang: true, hangPos: new THREE.Vector3(), hangDir: new THREE.Vector3(), hangLedge: new THREE.Vector3(), hands: [0, 1].map(() => ({ pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3() })), slapDir: new THREE.Vector3(),
+    skill: rand(0.8, 1.05), grudge: [], grudgeT: 0, hang: false, hangT: 0, hangCool: 0, mayHang: true, hangPos: new THREE.Vector3(), hangDir: new THREE.Vector3(), hangLedge: new THREE.Vector3(), hands: [0, 1].map(() => ({ pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(), tool: 0, tip: new THREE.Vector3(), tipPrev: new THREE.Vector3(), tipVel: new THREE.Vector3(), hq: new THREE.Quaternion(), plungeT: 0 })), slapDir: new THREE.Vector3(),
     remote: false, player: false, snapP: new THREE.Vector3(), snapV: new THREE.Vector3(), snapYaw: 0, snapH: [new THREE.Vector3(), new THREE.Vector3()], snapT: 0, overrideT: 0 });
 }
 // six seats; in each round a seat is you, a bot simulated here, or a copy of someone else's ape
@@ -1063,6 +1077,7 @@ function startRound() {
   G.round++; if (!G.demo) G.matchRound++;
   G.state = 'countdown'; G.countdown = 3.2; G.lastCount = 4; G.timeLeft = ROUND_TIME; G.winner = null; G.feed = [];
   setupSlots();
+  clearItems(false); crateT = 4;
   flash = 0.25;
   const order = actors.map((a, i) => i).sort(() => Math.random() - 0.5);
   actors.forEach((a, k) => {
@@ -1090,6 +1105,7 @@ function goLobby() {
   if (net.on) buildMap();
   setupSlots();
   human.active = human.kind !== 'none';
+  clearItems(true);
   placeInLobby();
   if (net.on) sendState();
 }
@@ -1182,6 +1198,7 @@ function updateGame(dt) {
     if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
     else if (now - a.lastHit > 2.5) a.dizzy = Math.max(0, a.dizzy - 6 * dt);
     if (a.thrownT > 0) a.thrownT -= dt;
+    if (a.bleedT > 0 && !inLobby()) a.dizzy += 4 * dt;
     // wobble spring
     a.tiltV.x += (-a.tilt.x * 60 - a.tiltV.x * 7) * dt; a.tiltV.y += (-a.tilt.y * 60 - a.tiltV.y * 7) * dt;
     a.tilt.x += a.tiltV.x * dt; a.tilt.y += a.tiltV.y * dt;
@@ -1189,24 +1206,30 @@ function updateGame(dt) {
 }
 
 // ================= fighting =================
-function hit(attacker, target, hv, speed, from) {
-  if (!target.active || target.out || target === attacker) return;
+function hit(attacker, target, hv, speed, from, tool) {
+  if (!target.active || target.out || target === attacker) return false;
   const key = attacker.i * 10 + (from ?? 0);
-  if ((target.hitCD.get(key) || 0) > now) return;
-  target.hitCD.set(key, now + 0.35);
+  if ((target.hitCD.get(key) || 0) > now) return false;
+  target.hitCD.set(key, now + (tool === 'launcher' || tool === 'slip' ? 0.6 : 0.35));
   if (target.remote) {
     // someone else's game owns this ape: tell it, show the hit here
-    netSendTo(slotOwnerNr(target.i), EV.HIT, { to: target.i, from: attacker.i, k: from ?? 0, v: pack3(hv), sp: r2(speed) });
+    netSendTo(slotOwnerNr(target.i), EV.HIT, { to: target.i, from: attacker.i, k: from ?? 0, v: pack3(hv), sp: r2(speed), tl: tool || '' });
     target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
     if (attacker === human) pulseHand(from, Math.min(1, 0.3 + speed * 0.1), 50);
-    sfx(speed > 6 ? 'bonk' : 'slap', target.pos, 0.6 + Math.min(speed, 9) * 0.06);
-    return;
+    if (!tool) sfx(speed > 6 ? 'bonk' : 'slap', target.pos, 0.6 + Math.min(speed, 9) * 0.06);
+    return true;
   }
+  const TM = TOOL_FX[(tool || '').split(':')[0]] || null;
   const s = Math.min(speed, FIGHT.slapCap);
-  _v.copy(hv).setLength(s * FIGHT.slapMul); _v.y = Math.max(_v.y, 0) + FIGHT.slapUp * (s / 6);
+  _v.copy(hv).setLength(s * FIGHT.slapMul * (TM ? TM.k : 1)); _v.y = Math.max(_v.y, 0) + FIGHT.slapUp * (s / 6);
+  if (tool === 'launcher') { _v.copy(hv).setLength(10); _v.y = Math.max(_v.y, 0) + 3; }
+  if (tool === 'slip') { const a = rand(0, Math.PI * 2); _v.set(Math.cos(a) * 3, 4.5, Math.sin(a) * 3); }
   push(target, _v);
   const lobbyHit = inLobby();
-  if (!lobbyHit) target.dizzy += s * FIGHT.dizzyPerSpeed * (target.ko > 0 ? 0.3 : 1);
+  if (!lobbyHit) target.dizzy += s * FIGHT.dizzyPerSpeed * (TM ? TM.d : 1) * (target.ko > 0 ? 0.3 : 1) + (TM ? TM.flat : 0);
+  if (tool === 'mallet') target.squashT = 2.5;
+  if (tool === 'knife') target.bleedT = 3;
+  if (tool === 'slip' && !lobbyHit && target.ko <= 0) { target.ko = 1.2; target.tiltV.x += 30; }
   target.lastHit = now;
   target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
   if (target.heldBy && target.heldBy !== attacker) release(target, null);
@@ -1222,6 +1245,7 @@ function hit(attacker, target, hv, speed, from) {
     target.ko = FIGHT.koTime; dropAll(target);
     feed(`${target.name === 'You' ? 'You are' : target.name + ' is'} dizzy!`); sfx('ko', target === human ? null : target.pos);
   }
+  return true;
 }
 const isHolding = (a) => (a === human ? human.hands.some((h) => h.holding) : !!a.holding);
 function dropAll(a) {
@@ -1311,10 +1335,12 @@ function bodyBump() {
 function handHits(attacker, handList) {
   for (let k = 0; k < handList.length; k++) {
     const h = handList[k];
-    if (h.holding) continue;
     // on a computer only a thrown punch counts; bots only hit with the hand that's slapping
     if (attacker === human && human.kind === 'pc' && h.punchT <= 0) continue;
     if (attacker.isBot && (k !== attacker.slapHand || attacker.slapT < 0.08)) continue;
+    if (h.tool) { toolHits(attacker, h, k); continue; }
+    if (h.holding) continue;
+    crateSlap(attacker, h);
     const sp = h.vel.length() * (attacker.isBot ? 0.5 : 1);
     if (sp < FIGHT.slapMin) continue;
     for (const t of actors) {
@@ -1441,7 +1467,7 @@ function vrStep(dt, inp) {
   for (const h of H.hands) {
     if (!h.ok || h.anchored) continue;
     handTarget(h, h.T);
-    const hit2 = h.holding || stunned || H.noGrab > 0 ? null : sweepSphere(h.pos, h.T, LOCO.handR);
+    const hit2 = h.holding || h.tool || stunned || H.noGrab > 0 ? null : sweepSphere(h.pos, h.T, LOCO.handR);
     if (hit2) {
       h.anchored = true; h.A.copy(hit2.p); h.n.copy(hit2.n);
       h.dyn = hit2.box.dyn ? hit2.box : null;
@@ -1475,6 +1501,15 @@ function vrGrabs() {
   if (H.ko > 0 || H.heldBy || H.out) { for (const h of H.hands) dropHeld(h); return; }
   for (const h of H.hands) {
     if (!h.ok) continue;
+    if (h.tool) {
+      if (!h.grip) dropTool(H, h, _v.copy(h.vel).multiplyScalar(1.1));
+      else if (h.trigger && !h.trigWas) useTrigger(H, h);
+      h.trigWas = h.trigger;
+      if (h.holding && !h.grip) release(h.holding, null);
+      continue;
+    }
+    h.trigWas = h.trigger;
+    if (h.grip && !h.gripWas && !h.anchored && !h.holding && tryPickTool(H, h, 0.35)) { pulseHand(h.k, 0.5, 40); continue; }
     if (h.grip && !h.gripWas && !h.anchored && !h.holding) {
       let best = null, bd = FIGHT.reach;
       for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = h.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
@@ -1510,7 +1545,11 @@ canvas.addEventListener('mousedown', (e) => {
   initAudio();
   if (!document.pointerLockElement) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* drag to look */ } }
   addStruggle(0.12);
-  if (e.button === 0) { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
+  if (e.button === 0) {
+    const R = human.hands[1];
+    if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
+    else { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
+  }
   if (e.button === 2) mouse.right = true;
   mouse.drag = true; mouse.lx = e.clientX; mouse.ly = e.clientY;
 });
@@ -1528,6 +1567,7 @@ function pcHandPos(k, out) {
   const h = human.hands[k], side = k === 0 ? -1 : 1;
   let x = side * 0.24, y = -0.22, z = -0.38;
   if (h.punchT > 0) { const t = 1 - h.punchT / 0.32; const f = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7; x = side * (0.24 - 0.16 * f); y = -0.22 + 0.12 * f; z = -0.38 - 0.62 * f; }
+  else if (h.tool) { x = side * 0.22; y = -0.18; z = -0.42; }
   else if (mouse.right || h.holding) { x = side * 0.14; y = -0.12; z = -0.72; }
   _e.set(human.pitch, human.yaw, 0, 'YXZ');
   out.set(x, y, z).applyQuaternion(_qq.setFromEuler(_e)).add(human.head);
@@ -1558,6 +1598,12 @@ function pcStep(dt) {
   for (let k = 0; k < 2; k++) { const h = H.hands[k]; h.ok = true; if (h.punchT > 0) h.punchT -= dt; pcHandPos(k, h.pos); }
   // grab with right mouse, throw where you look on release
   const R = H.hands[1];
+  if (R.tool) {
+    if (!mouse.right) { _e.set(human.pitch + 0.2, human.yaw, 0, 'YXZ'); dropTool(H, R, _v.set(0, 0, -1).applyQuaternion(_qq.setFromEuler(_e)).multiplyScalar(8)); }
+    return;
+  }
+  if (mouse.right && !mouse.rightWas && !R.holding && H.ko <= 0 && !H.out && tryPickTool(H, R, 1.3)) { mouse.rightWas = true; return; }
+  mouse.rightWas = mouse.right;
   if (mouse.right && !R.holding && H.ko <= 0 && !H.out) {
     let best = null, bd = 1.0;
     for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = R.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
@@ -1639,7 +1685,7 @@ function updateBot(b, dt) {
       _v.set(dx, 0, dz).normalize().multiplyScalar(6); _v.y = 3;
       release(b.holding, _v); b.slapCD = 0.8;
     } else if (b.grounded && b.hopCD <= 0 && dh > (b.holding ? 0.5 : 1.0)) {
-      let sp = Math.min(5.6, 1.8 + dh * 0.45) * b.skill * (b.holding ? 0.7 : 1);
+      let sp = Math.min(5.6, 1.8 + dh * 0.45) * b.skill * (b.holding ? 0.7 : 1) * (b.squashT > 0 ? 0.4 : 1);
       let vy = clamp(3.2 + Math.max(0, dy) * 1.5 + (b.blocked > 0 ? 3.5 : 0), 3, 9);
       let vx = (dx / dh) * sp, vz = (dz / dh) * sp;
       if (!safeHop(b, vx, vy, vz)) { vx *= 0.4; vz *= 0.4; vy = Math.min(vy, 4); if (!safeHop(b, vx, vy, vz)) { vx = vz = 0; vy = 0; } }
@@ -1647,12 +1693,13 @@ function updateBot(b, dt) {
       else b.hopCD = 0.3;
     }
     const t = b.target;
+    botTools(b, t);
     if (t && !b.holding) {
       const d = t.pos.distanceTo(b.pos);
       if (t.ko > 0 && d < 1.1) { grab(b, b.hands[1], t); b.think = 0; }
       else if (d < 1.25 && b.slapCD <= 0 && b.slapT < 0) {
         if (Math.random() < 0.12 && d < 0.95) { grab(b, b.hands[1], t); b.holdT = 0; b.think = 0; }
-        else { b.slapT = 0; b.slapHand = 1 - b.slapHand; b.slapDir.subVectors(t.pos, b.pos).normalize(); b.slapCD = rand(0.45, 0.95) / b.skill; }
+        else { b.slapT = 0; b.slapHand = b.hands[1].tool ? 1 : 1 - b.slapHand; b.slapDir.subVectors(t.pos, b.pos).normalize(); b.slapCD = rand(0.45, 0.95) / b.skill; }
       }
     }
   }
@@ -1758,7 +1805,8 @@ function updateVisuals(dt) {
       const tx = clamp(a.tilt.y * 0.12, -0.7, 0.7) + (ko ? -1.25 : 0), tz = clamp(-a.tilt.x * 0.12, -0.7, 0.7);
       _q2.setFromEuler(_e.set(tx, 0, tz, 'XYZ'));
       _q.premultiply(_q2);
-      apesIM.setMatrixAt(ai, _mm.compose(a.pos, _q, _s.set(1, 1, 1))); apesIM.setColorAt(ai, a.fur);
+      const sq = a.squashT > 0 ? 1 : 0;
+      apesIM.setMatrixAt(ai, _mm.compose(sq ? _p.copy(a.pos).setY(a.pos.y - 0.18) : a.pos, _q, sq ? _s.set(1.4, 0.4, 1.4) : _s.set(1, 1, 1))); apesIM.setColorAt(ai, a.fur);
       bandsIM.setMatrixAt(ai, _mm); bandsIM.setColorAt(ai, a.band);
       ai++;
       const hands = a.isBot ? a.hands : human.hands;
@@ -1949,7 +1997,7 @@ async function enterVR() {
 // else's ape are sent to the game that owns that ape, which applies them.
 const r2 = (v) => Math.round(v * 100) / 100;
 const pack3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
-const flagsOf = (a) => (a.ko > 0 ? 1 : 0) | (a.out ? 2 : 0) | (a.dizzy > 60 ? 4 : 0) | (a.hang ? 8 : 0);
+const flagsOf = (a) => (a.ko > 0 ? 1 : 0) | (a.out ? 2 : 0) | (a.dizzy > 60 ? 4 : 0) | (a.hang ? 8 : 0) | (a.squashT > 0 ? 16 : 0) | (a.bleedT > 0 ? 32 : 0);
 function setNetStatus(msg) { net.status = msg; const el = $('netstatus'); el.textContent = msg; el.hidden = !msg; }
 function slotOwnerNr(k) {
   if (net.map) for (const nr in net.map) if (net.map[nr] === k) return +nr;
@@ -2018,6 +2066,7 @@ function snap(b, p, v, yaw, h, f) {
   if (!b.snapT) { b.pos.copy(b.snapP); b.yaw = yaw; b.hands[0].pos.copy(b.snapH[0]); b.hands[1].pos.copy(b.snapH[1]); }
   b.snapT = now;
   b.ko = f & 1 ? 1 : 0; b.out = !!(f & 2); b.dizzy = f & 4 ? 80 : 0; b.hang = !!(f & 8);
+  b.squashT = f & 16 ? 0.3 : 0; b.bleedT = f & 32 ? 0.3 : 0;
 }
 function onNetEvent(code, d, nr) {
   switch (code) {
@@ -2031,7 +2080,10 @@ function onNetEvent(code, d, nr) {
     }
     case EV.BOTS: if (!net.host) for (const e of d) { const b = allBots[e[0]]; if (b && !b.player) snap(b, e.slice(1, 4), e.slice(4, 7), e[7], e.slice(8, 14), e[14]); } break;
     case EV.STATE: if (!net.host) applyState(d); break;
-    case EV.HIT: { const t = slotActor(d.to), a = slotActor(d.from); if (t && !t.remote && a) hit(a, t, new THREE.Vector3(d.v[0], d.v[1], d.v[2]), d.sp, d.k); break; }
+    case EV.HIT: { const t = slotActor(d.to), a = d.from === WORLD.i ? WORLD : slotActor(d.from); if (t && !t.remote && a) hit(a, t, new THREE.Vector3(d.v[0], d.v[1], d.v[2]), d.sp, d.k, d.tl || undefined); break; }
+    case EV.ITEMS: if (!net.host) applyItems(d); break;
+    case EV.ITEMREQ: if (net.host) hostItemOp(d.op, d); break;
+    case EV.FX: if (d && typeof d.k === 'string') spawnFx(d.k, d.p, d.d, d.c, false); break;
     case EV.GRAB: { const t = slotActor(d.to), a = slotActor(d.from); if (t && !t.remote && a && !grab(a, a.hands[d.k] || a.hands[1], t)) netSendAll(EV.FREED, { s: d.to }); break; }
     case EV.RELEASE: { const t = slotActor(d.to); if (t && !t.remote && t.heldBy) release(t, d.v ? new THREE.Vector3(d.v[0], d.v[1], d.v[2]) : null); break; }
     case EV.FREED: { const t = slotActor(d.s); if (t && t.remote) clearHold(t); break; }
@@ -2084,6 +2136,7 @@ function netTick(dt) {
     }
   }
   if (net.host && net.stateT <= 0) sendState();
+  if (net.host) { net.itemT = (net.itemT || 0) - dt; if (net.itemT <= 0 || itemsDirty) sendItems(); }
 }
 function netLeave() {
   const l = net.lbc;
@@ -2160,6 +2213,400 @@ function connectOnline() {
   try { lbc.connectToRegionMaster(PHOTON_REGION); } catch (e) { netDrop("Couldn't reach online play, so you are playing offline with bots."); }
 }
 
+
+// ================= crates, tools and blood =================
+// Crates drop onto the map during a fight; slap one open to get a tool. Hold grip to hold it,
+// swing to hit, let go to throw. The host owns every item; others ask it to pick up / drop / open.
+const TOOLS = {
+  mallet:   { tip: 0.55, r: 0.28, minSp: 2.3, uses: 6, snd: 'bonk' },
+  pan:      { tip: 0.42, r: 0.24, minSp: 2.2, uses: 8, snd: 'clang' },
+  plunger:  { tip: 0.5, r: 0.2, minSp: 2.0, uses: 4, snd: 'pop' },
+  chicken:  { tip: 0.42, r: 0.22, minSp: 1.8, uses: 40, snd: 'squeak' },
+  knife:    { tip: 0.28, r: 0.13, minSp: 2.0, uses: 6, snd: 'stab' },
+  launcher: { tip: 0.27, r: 0, minSp: 99, uses: 5, snd: 'boing' },
+  banana:   { tip: 0.1, r: 0, minSp: 99, uses: 1, snd: 'slip' },
+};
+const TOOL_TYPES = Object.keys(TOOLS);
+// how each tool changes a hit: knockback x, dizziness x, extra dizziness
+const TOOL_FX = {
+  mallet: { k: 1.6, d: 1.5, flat: 0 }, pan: { k: 1.3, d: 2.0, flat: 0 }, plunger: { k: 0.3, d: 0.3, flat: 0 },
+  chicken: { k: 0.8, d: 0.4, flat: 0 }, knife: { k: 0.45, d: 0.3, flat: 35 }, launcher: { k: 1, d: 0, flat: 10 },
+  throw: { k: 1, d: 1, flat: 0 }, slip: { k: 0, d: 0, flat: 0 },
+};
+const WORLD = { i: 7, name: 'Banana', isBot: false };
+let items = [], nextItemId = 1, itemsDirty = false, crateT = 4, rackT = 0;
+const pendingPick = new Map();
+let bloodOn = true;
+try { const v = localStorage.getItem('wrecked-blood'); if (v !== null) bloodOn = v === '1'; } catch (e) { /* storage blocked */ }
+$('blood').checked = bloodOn;
+$('blood').addEventListener('change', () => { bloodOn = $('blood').checked; try { localStorage.setItem('wrecked-blood', bloodOn ? '1' : '0'); } catch (e) { /* storage blocked */ } });
+const itemById = (id) => items.find((it) => it.id === id);
+const toolType = (id) => itemById(id)?.type;
+const mkItem = (type, p, v, st = 1) => { const it = { id: nextItemId++, type, st, p: p.clone(), v: v ? v.clone() : new THREE.Vector3(), s: -1, h: 0, u: TOOLS[type] ? TOOLS[type].uses : 0, rack: false, thrower: -1, thrownT: 0, spin: rand(0, 6) }; items.push(it); itemsDirty = true; return it; };
+const actorSlot = (a) => (a === human ? mySlot : a.i);
+
+// ----- meshes -----
+const TOOL_GEO = {
+  mallet: mergeParts([
+    { geo: cyl(0.024, 0.024, 0.5, 6), c: [0.72, 0.52, 0.32], layer: 'bark', m: M(0, 0, -0.2, Math.PI / 2, 0, 0) },
+    { geo: cyl(0.12, 0.12, 0.32, 10), c: [0.62, 0.42, 0.24], layer: 'planks', m: M(0, 0, -0.55, 0, 0, Math.PI / 2) },
+  ]),
+  pan: mergeParts([
+    { geo: new THREE.BoxGeometry(0.035, 0.03, 0.28), c: [0.14, 0.1, 0.08], m: M(0, 0, -0.12) },
+    { geo: cyl(0.17, 0.15, 0.05, 14), c: [0.32, 0.32, 0.35], m: M(0, 0, -0.42, 0, 0, Math.PI / 2) },
+  ]),
+  plunger: mergeParts([
+    { geo: cyl(0.018, 0.018, 0.42, 6), c: [0.82, 0.62, 0.36], m: M(0, 0, -0.18, Math.PI / 2, 0, 0) },
+    { geo: cyl(0.06, 0.12, 0.11, 10), c: [0.85, 0.12, 0.12], m: M(0, 0, -0.45, -Math.PI / 2, 0, 0) },
+  ]),
+  chicken: mergeParts([
+    { geo: ico(0.07, 1), c: [0.98, 0.86, 0.3], m: M(0, 0, -0.28, 0, 0, 0, 0.75, 0.85, 1.7) },
+    { geo: ico(0.05, 1), c: [0.98, 0.86, 0.3], m: M(0, 0.04, -0.47) },
+    { geo: new THREE.ConeGeometry(0.02, 0.06, 5), c: [0.95, 0.45, 0.1], m: M(0, 0.04, -0.53, -Math.PI / 2, 0, 0) },
+    { geo: ico(0.02, 0), c: [0.9, 0.1, 0.1], m: M(0, 0.09, -0.47) },
+    { geo: cyl(0.01, 0.01, 0.1, 4), c: [0.95, 0.6, 0.2], m: M(0.02, -0.02, -0.08, Math.PI / 2, 0, 0) },
+    { geo: cyl(0.01, 0.01, 0.1, 4), c: [0.95, 0.6, 0.2], m: M(-0.02, -0.02, -0.08, Math.PI / 2, 0, 0) },
+  ]),
+  knife: mergeParts([
+    { geo: new THREE.BoxGeometry(0.035, 0.04, 0.12), c: [0.22, 0.14, 0.09], m: M(0, 0, -0.02) },
+    { geo: new THREE.BoxGeometry(0.06, 0.05, 0.02), c: [0.45, 0.45, 0.48], m: M(0, 0, -0.085) },
+    { geo: new THREE.BoxGeometry(0.012, 0.045, 0.19), c: [0.85, 0.87, 0.9], m: M(0, 0.004, -0.18) },
+    { geo: new THREE.ConeGeometry(0.023, 0.05, 4), c: [0.85, 0.87, 0.9], m: M(0, 0.004, -0.3, -Math.PI / 2, 0, 0, 0.3, 1, 1) },
+  ]),
+  launcher: mergeParts([
+    { geo: cyl(0.05, 0.055, 0.26, 10), c: [0.2, 0.45, 0.9], m: M(0, 0, -0.12, Math.PI / 2, 0, 0) },
+    { geo: new THREE.BoxGeometry(0.03, 0.09, 0.05), c: [0.15, 0.15, 0.18], m: M(0, -0.06, -0.02) },
+    { geo: ico(0.06, 1), c: [0.9, 0.12, 0.1], m: M(0, 0, -0.28) },
+  ]),
+  banana: mergeParts([
+    { geo: cyl(0.025, 0.03, 0.12, 6), c: [0.98, 0.85, 0.2], m: M(0, 0.02, -0.04, Math.PI / 2 - 0.5, 0, 0) },
+    { geo: cyl(0.03, 0.03, 0.1, 6), c: [0.98, 0.85, 0.2], m: M(0, 0.03, -0.14, Math.PI / 2, 0, 0) },
+    { geo: cyl(0.03, 0.022, 0.12, 6), c: [0.98, 0.85, 0.2], m: M(0, 0.01, -0.24, Math.PI / 2 + 0.5, 0, 0) },
+    { geo: ico(0.018, 0), c: [0.35, 0.22, 0.1], m: M(0, 0.06, 0.02) },
+  ]),
+  crate: mergeParts([
+    { geo: new THREE.BoxGeometry(0.6, 0.6, 0.6), c: [1, 1, 1], layer: 'darkwood' },
+    { geo: new THREE.BoxGeometry(0.64, 0.08, 0.64), c: [0.85, 0.72, 0.5], m: M(0, 0.2, 0) },
+    { geo: new THREE.BoxGeometry(0.64, 0.08, 0.64), c: [0.85, 0.72, 0.5], m: M(0, -0.2, 0) },
+    { geo: ico(0.09, 1), c: [1, 0.76, 0.23], m: M(0, 0, 0.31, 0, 0, 0, 1, 1, 0.3) },
+  ]),
+};
+const toolIM = {};
+for (const t of [...TOOL_TYPES, 'crate']) { toolIM[t] = inst(TOOL_GEO[t], 16); toolIM[t].count = 0; }
+const gloveIM = inst(mergeParts([{ geo: ico(0.11, 1), c: [0.9, 0.12, 0.1] }, { geo: cyl(0.06, 0.07, 0.08, 8), c: [0.95, 0.95, 0.95], m: M(0, 0, 0.1, Math.PI / 2, 0, 0) }]), 8);
+const springIM = inst(mergeParts([{ geo: cyl(0.02, 0.02, 1, 5).translate(0, 0.5, 0), c: [0.7, 0.7, 0.75] }]), 8);
+gloveIM.count = springIM.count = 0;
+// particles (pixel-chunky cubes) and splats left on the floor
+const PMAX = 320;
+const partIM = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), PMAX);
+const splatIM = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 7), new THREE.MeshBasicMaterial({ polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), 90);
+for (const im of [partIM, splatIM]) { im.frustumCulled = false; im.count = 0; scene.add(im); }
+for (let i = 0; i < PMAX; i++) partIM.setColorAt(i, new THREE.Color(0xffffff));
+for (let i = 0; i < 90; i++) splatIM.setColorAt(i, new THREE.Color(0x6e0b0b));
+const parts = [], splats = [], gloves = [];
+const BLOOD_COL = [new THREE.Color(0x8e0e0e), new THREE.Color(0xb3191a), new THREE.Color(0x6e0909)];
+
+// ----- hands that hold tools -----
+function syncHandTools() {
+  for (const a of [human, ...allBots]) for (const h of a.hands) h.tool = 0;
+  for (const it of items) {
+    if (it.st !== 2) continue;
+    const a = it.s === mySlot ? human : allBots[it.s];
+    if (a && a.hands[it.h] && a.active) a.hands[it.h].tool = it.id;
+  }
+}
+function handQuat(a, k, out) {
+  const h = a.hands[k];
+  if (a === human) {
+    if (human.kind === 'vr') return out.setFromAxisAngle(_yAxis, human.yaw).multiply(h.q);
+    return out.setFromEuler(_e.set(human.pitch, human.yaw, 0, 'YXZ'));
+  }
+  rotY(_t3.set(k === 0 ? -0.27 : 0.27, -0.06, -0.02), a.yaw, _t2).add(a.pos);
+  return guessHandQuat(_t2, h.pos, a.yaw, out);
+}
+function updateTips(dt) {
+  for (const a of actors) {
+    if (!a.active) continue;
+    for (let k = 0; k < 2; k++) {
+      const h = a.hands[k];
+      handQuat(a, k, h.hq);
+      const T = h.tool && TOOLS[toolType(h.tool)];
+      h.tipPrev.copy(h.tip);
+      h.tip.set(0, 0, -(T ? T.tip : 0.1)).applyQuaternion(h.hq).add(h.pos);
+      h.tipVel.subVectors(h.tip, h.tipPrev).multiplyScalar(1 / Math.max(dt, 1e-3));
+      if (h.plungeT > 0) { h.plungeT -= dt; const held = a === human ? h.holding : a.holding; if (h.plungeT <= 0 && held) release(held, _v.copy(h.vel).multiplyScalar(0.6)); }
+    }
+  }
+}
+const _seg = new THREE.Vector3(), _cp = new THREE.Vector3();
+function segSphere(a, b, c, r) {
+  _seg.subVectors(b, a);
+  const l2 = _seg.lengthSq();
+  const t = l2 > 0 ? clamp(_cp.subVectors(c, a).dot(_seg) / l2, 0, 1) : 0;
+  _cp.copy(a).addScaledVector(_seg, t);
+  return _cp.distanceToSquared(c) < r * r ? t : -1;
+}
+function fxAt(kind, p, d, c) { spawnFx(kind, pack3(p), d ? pack3(d) : null, c, true); }
+function toolHits(attacker, h, k) {
+  const it = itemById(h.tool); if (!it) return;
+  const T = TOOLS[it.type]; if (!T.r) return;
+  const sp = h.tipVel.length() * (attacker.isBot ? 0.6 : 1);
+  if (sp < T.minSp) return;
+  for (const t of actors) {
+    if (t === attacker || !t.active || t.out || t.heldBy === attacker) continue;
+    if (h.tip.distanceToSquared(t.pos) > (T.r + 0.3) * (T.r + 0.3)) continue;
+    if (!hit(attacker, t, h.tipVel, sp, k, it.type)) continue;
+    sfx(T.snd, t === human ? null : t.pos, 1);
+    _w.subVectors(h.tip, t.pos).normalize();
+    _p.copy(t.pos).addScaledVector(_w, 0.25);
+    if (it.type === 'knife') fxAt('blood', _p, h.tipVel.clone().normalize(), t.css);
+    else if (it.type === 'chicken') fxAt('feathers', _p, null);
+    else fxAt('stars', _p, null);
+    if (it.type === 'plunger' && !h.holding && attacker !== WORLD && grab(attacker, h, t)) h.plungeT = 1.5;
+    if (attacker === human) pulseHand(k, Math.min(1, 0.4 + sp * 0.08), 60);
+    reqItem('use', { id: it.id });
+    break;
+  }
+}
+function crateSlap(attacker, h) {
+  if (h.vel.length() < 2) return;
+  for (const it of items) if (it.type === 'crate' && it.p.distanceToSquared(h.pos) < 0.5 * 0.5) { openCrate(it); return; }
+}
+function openCrate(it) { sfx('pop', it.p); fxAt('splinters', it.p, null); reqItem('open', { id: it.id }); }
+function tryPickTool(a, h, reach) {
+  let best = null, bd = reach;
+  for (const it of items) { if (it.st !== 1 || !TOOLS[it.type]) continue; const d = it.p.distanceTo(h.pos); if (d < bd) { bd = d; best = it; } }
+  if (!best) return false;
+  const k = a.hands.indexOf(h);
+  best.st = 2; best.s = actorSlot(a); best.h = k; pendingPick.set(best.id, now + 0.6);
+  h.tool = best.id;
+  sfx('grab', a === human ? null : best.p);
+  reqItem('pick', { id: best.id, s: actorSlot(a), h: k });
+  return true;
+}
+function dropTool(a, h, vel) {
+  const it = itemById(h.tool); h.tool = 0;
+  if (!it) return;
+  reqItem('drop', { id: it.id, p: pack3(h.tip), v: pack3(vel), s: actorSlot(a) });
+  it.st = 1; it.p.copy(h.tip); it.v.copy(vel); it.thrower = actorSlot(a); it.thrownT = 0.8;
+  pendingPick.delete(it.id);
+}
+function useTrigger(a, h) {
+  const it = itemById(h.tool); if (!it || it.type !== 'launcher') return;
+  const k = a.hands.indexOf(h);
+  _w.set(0, 0, -1).applyQuaternion(h.hq);
+  fxAt('glove', h.tip, _w);
+  sfx('boing', a === human ? null : h.tip);
+  _t1.copy(h.tip).addScaledVector(_w, 1.8);
+  let best = null, bt = 2;
+  for (const t of actors) { if (t === a || !t.active || t.out) continue; const tt = segSphere(h.tip, _t1, t.pos, 0.45); if (tt >= 0 && tt < bt) { bt = tt; best = t; } }
+  if (best && hit(a, best, _w.clone().multiplyScalar(10), 10, k, 'launcher')) { _p.copy(h.tip).addScaledVector(_w, 1.8 * bt); fxAt('stars', _p, null); }
+  if (a === human) pulseHand(k, 0.7, 80);
+  reqItem('use', { id: it.id });
+}
+function botTools(b, t) {
+  const R = b.hands[1];
+  if (!R.tool && !b.holding) {
+    for (const it of items) {
+      const d = it.p.distanceTo(b.pos);
+      if (it.type === 'crate' && d < 0.9 && it.v.lengthSq() < 1) { openCrate(it); break; }
+      if (it.st === 1 && TOOLS[it.type] && d < 1.0 && Math.random() < 0.5) { tryPickTool(b, R, 1.2); break; }
+    }
+    return;
+  }
+  if (!R.tool || !t) return;
+  const type = toolType(R.tool), d = t.pos.distanceTo(b.pos);
+  if (type === 'launcher' && d < 1.8 && b.slapCD <= 0) { useTrigger(b, R); b.slapCD = rand(0.9, 1.5); }
+  if (type === 'banana' && d < 2.2) { dropTool(b, R, _v.subVectors(t.pos, b.pos).setY(0).setLength(2)); }
+}
+
+// ----- the host runs the items -----
+function reqItem(op, d) {
+  if (!net.on || net.host) hostItemOp(op, d);
+  else netSendTo(net.lbc.myRoomMasterActorNr(), EV.ITEMREQ, { op, ...d });
+}
+function hostItemOp(op, d) {
+  const it = itemById(d.id);
+  if (!it) return;
+  if (op === 'pick' && (it.st === 1 || (it.st === 2 && it.s === d.s))) { it.st = 2; it.s = d.s; it.h = d.h; }
+  else if (op === 'drop' && it.st === 2) { it.st = 1; it.p.set(...d.p); it.v.set(...d.v); it.thrower = d.s; it.thrownT = 0.8; }
+  else if (op === 'open' && it.type === 'crate') {
+    it.type = TOOL_TYPES[Math.floor(Math.random() * TOOL_TYPES.length)]; it.u = TOOLS[it.type].uses; it.st = 1;
+    it.v.set(rand(-1, 1), 4, rand(-1, 1));
+  } else if (op === 'use') { it.u--; if (it.u <= 0) { removeItem(it); fxAt('splinters', it.p, null); } }
+  else return;
+  itemsDirty = true;
+}
+function removeItem(it) { items = items.filter((x) => x !== it); itemsDirty = true; }
+function clearItems(lobby) {
+  if (net.on && !net.host) return;
+  items = []; itemsDirty = true; rackT = 0;
+  for (const h of [...human.hands, ...allBots.flatMap((b) => b.hands)]) { h.tool = 0; h.plungeT = 0; }
+  if (lobby) for (const [i, type] of TOOL_TYPES.entries()) { const it = mkItem(type, rackSpot(i), null); it.rack = true; }
+}
+const rackSpot = (i) => new THREE.Vector3(LB.x - 8.6 + i * 0.62, LB.y + 0.95, LB.z + 9.55);
+const CRATE_SPOTS = [() => [rand(-4.5, 4.5), 0, rand(-4.5, 4.5)], () => [rand(-4.5, 4.5), 0, rand(-4.5, 4.5)], () => [rand(12, 17), 1.2, rand(-3, 3)], () => [rand(-17, -12), 1.5, rand(-2, 2)], () => [rand(-1, 1), 4.6, rand(-12.5, -9.5)]];
+const _ip = new THREE.Vector3();
+function itemsTick(dt) {
+  const auth = !net.on || net.host;
+  for (const it of items) {
+    it.spin += dt * 1.5;
+    if (it.st === 2) {
+      if (pendingPick.has(it.id) && pendingPick.get(it.id) < now) pendingPick.delete(it.id);
+      const a = it.s === mySlot ? human : allBots[it.s];
+      if (a && a.hands[it.h]) it.p.copy(a.hands[it.h].pos);
+      continue;
+    }
+    // falling, bouncing, sliding (everyone simulates; the host's copy wins)
+    it.v.y -= GRAV * dt;
+    _ip.copy(it.p).addScaledVector(it.v, dt);
+    RES.reset(); pushSphere(_ip, it.type === 'crate' ? 0.3 : 0.12, RES, it.v);
+    it.p.copy(_ip);
+    if (RES.ground) { const f = Math.exp(-6 * dt); it.v.x *= f; it.v.z *= f; }
+    if (it.thrownT > 0) it.thrownT -= dt;
+    if (!auth) continue;
+    const floor = inLobby() ? LB.y - 6 : FALL_Y;
+    if (it.p.y < floor) { removeItem(it); continue; }
+    // thrown tools bonk apes; banana peels on the floor trip them
+    const speed = it.v.length();
+    for (const t of actors) {
+      if (!t.active || t.out || t.heldBy) continue;
+      const d2 = t.pos.distanceToSquared(it.p);
+      if (it.thrownT > 0 && speed > 4.5 && t.i !== it.thrower && d2 < 0.45 * 0.45) {
+        const by = it.thrower === mySlot ? human : allBots[it.thrower] || WORLD;
+        if (hit(by, t, it.v, speed, 0, it.type === 'banana' ? 'slip' : 'throw:' + it.type)) { it.v.multiplyScalar(-0.3); it.thrownT = 0; fxAt('stars', it.p, null); sfx(TOOLS[it.type]?.snd || 'bonk', it.p); }
+      } else if (it.type === 'banana' && it.st === 1 && it.thrownT <= 0 && speed < 1 && d2 < 0.5 * 0.5 && Math.abs(t.pos.y - 0.5 - it.p.y) < 0.6) {
+        if (hit(WORLD, t, _v.set(0, 1, 0), 3, 0, 'slip')) { sfx('slip', it.p); removeItem(it); break; }
+      }
+    }
+  }
+  if (!auth) return;
+  // new crates during a fight
+  if (G.state === 'fight' && !G.demo) {
+    crateT -= dt;
+    const onMap = items.filter((it) => it.st !== 2).length;
+    if (crateT <= 0) {
+      crateT = rand(9, 15);
+      if (onMap < 4) { const [x, y, z] = CRATE_SPOTS[Math.floor(Math.random() * CRATE_SPOTS.length)](); mkItem('crate', _ip.set(x, y + 9, z), null, 0); }
+    }
+  }
+  // the Yard's tool rack refills
+  if (inLobby()) {
+    rackT -= dt;
+    if (rackT <= 0) {
+      rackT = 4;
+      TOOL_TYPES.forEach((type, i) => { if (!items.some((it) => it.rack && it.type === type)) { const it = mkItem(type, rackSpot(i), null); it.rack = true; } });
+      for (const it of items) if (it.rack && it.st !== 2 && it.p.distanceTo(rackSpot(TOOL_TYPES.indexOf(it.type))) > 1.5) it.rack = false;
+    }
+  }
+}
+function sendItems() {
+  net.itemT = 0.25; itemsDirty = false;
+  netSendAll(EV.ITEMS, items.map((it) => [it.id, it.type === 'crate' ? -1 : TOOL_TYPES.indexOf(it.type), it.st, r2(it.p.x), r2(it.p.y), r2(it.p.z), it.s, it.h, it.u, r2(it.v.x), r2(it.v.y), r2(it.v.z)]));
+}
+function applyItems(list) {
+  const old = new Map(items.map((it) => [it.id, it]));
+  items = list.map((e) => {
+    const [id, ti, st, x, y, z, sl, h, u, vx, vy, vz] = e;
+    let it = old.get(id);
+    if (!it) it = { id, spin: rand(0, 6), p: new THREE.Vector3(x, y, z), v: new THREE.Vector3(), thrownT: 0, rack: false };
+    it.type = ti < 0 ? 'crate' : TOOL_TYPES[ti]; it.u = u;
+    // keep our own quick pickup until the host has caught up
+    if (pendingPick.has(id) && st === 1) return it;
+    it.st = st; it.s = sl; it.h = h;
+    if (st !== 2) { if (it.p.distanceToSquared(_ip.set(x, y, z)) > 0.3) it.p.set(x, y, z); it.v.set(vx, vy, vz); }
+    return it;
+  });
+}
+
+// ----- effects -----
+function spawnFx(kind, p, d, c, broadcast) {
+  if (!p) return;
+  if (broadcast && net.on) netSendAll(EV.FX, { k: kind, p, d, c });
+  _p.set(p[0], p[1], p[2]);
+  const dir = d ? _w.set(d[0], d[1], d[2]) : _w.set(0, 1, 0);
+  if (kind === 'glove') { if (gloves.length < 8) gloves.push({ p: _p.clone(), d: dir.clone().normalize(), t: 0 }); return; }
+  const n = kind === 'blood' ? 16 : kind === 'feathers' ? 12 : kind === 'splinters' ? 12 : 8;
+  for (let i = 0; i < n && parts.length < PMAX; i++) {
+    const blood = kind === 'blood' && bloodOn;
+    const col = blood ? BLOOD_COL[i % 3] : kind === 'blood' ? new THREE.Color(c || '#d8c8b0') : kind === 'feathers' ? new THREE.Color(0xfff6e0) : kind === 'splinters' ? new THREE.Color(0x8a5a30) : new THREE.Color(0xffd23a);
+    const v = new THREE.Vector3(rand(-1, 1), rand(0.2, 1.4), rand(-1, 1)).multiplyScalar(kind === 'feathers' ? 1.6 : 2.4);
+    if (kind === 'blood') v.addScaledVector(dir, 2.2);
+    parts.push({ p: _p.clone(), v, col, life: kind === 'feathers' ? rand(1.2, 2) : rand(0.6, 1.1), size: blood ? rand(0.03, 0.055) : kind === 'feathers' ? rand(0.03, 0.05) : rand(0.025, 0.045),
+      g: kind === 'feathers' ? 1.2 : GRAV * 0.8, blood, drag: kind === 'feathers' ? 2.5 : 0.3 });
+  }
+}
+const _pp = new THREE.Vector3(), _sn = new THREE.Vector3(0, 0, 1);
+function fxTick(dt) {
+  // bleeding apes drip
+  for (const a of actors) {
+    if (!a.active || a.out) continue;
+    if (a.squashT > 0) a.squashT -= dt;
+    if (a.bleedT > 0) {
+      a.bleedT -= dt; a.dripT -= dt;
+      if (a.dripT <= 0 && parts.length < PMAX) {
+        a.dripT = 0.14;
+        if (bloodOn) parts.push({ p: a.pos.clone().add(_pp.set(rand(-0.15, 0.15), rand(-0.2, 0.1), rand(-0.15, 0.15))), v: new THREE.Vector3(rand(-0.3, 0.3), -0.5, rand(-0.3, 0.3)), col: BLOOD_COL[Math.floor(Math.random() * 3)], life: 1.5, size: rand(0.025, 0.04), g: GRAV * 0.8, blood: true, drag: 0.3 });
+      }
+    }
+  }
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const q = parts[i];
+    q.life -= dt;
+    q.v.y -= q.g * dt; q.v.multiplyScalar(Math.exp(-q.drag * dt));
+    _pp.copy(q.p).addScaledVector(q.v, dt);
+    if (q.blood) {
+      const h = sweepSphere(q.p, _pp, 0.01, true);
+      if (h) {
+        // a splat where it lands
+        if (splats.length >= 90) splats.shift();
+        splats.push({ p: h.p.clone().addScaledVector(h.n, 0.012), n: h.n.clone(), r: rand(0.05, 0.14) * (q.size / 0.04), t: 25, rot: rand(0, 6.28) });
+        parts.splice(i, 1); continue;
+      }
+    }
+    q.p.copy(_pp);
+    if (q.life <= 0) parts.splice(i, 1);
+  }
+  for (let i = splats.length - 1; i >= 0; i--) { splats[i].t -= dt; if (splats[i].t <= 0) splats.splice(i, 1); }
+  for (let i = gloves.length - 1; i >= 0; i--) { gloves[i].t += dt; if (gloves[i].t > 0.4) gloves.splice(i, 1); }
+  renderItems();
+}
+function renderItems() {
+  const counts = {};
+  for (const t of [...TOOL_TYPES, 'crate']) counts[t] = 0;
+  for (const it of items) {
+    const im = toolIM[it.type]; if (!im || counts[it.type] >= 16) continue;
+    if (it.st === 2) {
+      const a = it.s === mySlot ? human : allBots[it.s];
+      if (!a || !a.active || !a.hands[it.h]) continue;
+      im.setMatrixAt(counts[it.type]++, _mm.compose(a.hands[it.h].pos, a.hands[it.h].hq, _s.set(1, 1, 1)));
+    } else {
+      const grounded = it.v.lengthSq() < 0.5;
+      _q.setFromEuler(_e.set(it.type === 'crate' ? 0 : Math.PI / 2, it.spin, 0, 'YXZ'));
+      _p.copy(it.p); if (grounded && it.type !== 'crate') _p.y += 0.12 + Math.sin(it.spin * 2) * 0.03;
+      im.setMatrixAt(counts[it.type]++, _mm.compose(_p, _q, _s.set(1, 1, 1)));
+    }
+  }
+  for (const t of [...TOOL_TYPES, 'crate']) { toolIM[t].count = counts[t]; toolIM[t].instanceMatrix.needsUpdate = true; }
+  gloves.forEach((g, i) => {
+    const e = Math.sin(Math.min(1, g.t / 0.4) * Math.PI) * 1.7;
+    _p.copy(g.p).addScaledVector(g.d, e);
+    gloveIM.setMatrixAt(i, _mm.compose(_p, _q.setFromUnitVectors(_sn, _w.copy(g.d).negate()), _s.set(1, 1, 1)));
+    setSeg(springIM, i, g.p, _p);
+  });
+  gloveIM.count = springIM.count = gloves.length; gloveIM.instanceMatrix.needsUpdate = true; springIM.instanceMatrix.needsUpdate = true;
+  parts.forEach((q, i) => {
+    const sz = q.size * Math.min(1, q.life * 3 + 0.2);
+    partIM.setMatrixAt(i, _mm.compose(q.p, _q.identity(), _s.set(sz, sz, sz))); partIM.setColorAt(i, q.col);
+  });
+  partIM.count = parts.length; partIM.instanceMatrix.needsUpdate = true; if (partIM.instanceColor) partIM.instanceColor.needsUpdate = true;
+  splats.forEach((sp, i) => {
+    const r = sp.r * Math.min(1, sp.t / 2);
+    _q.setFromUnitVectors(_sn, sp.n); _q2.setFromAxisAngle(_sn, sp.rot); _q.multiply(_q2);
+    splatIM.setMatrixAt(i, _mm.compose(sp.p, _q, _s.set(r, r, r)));
+  });
+  splatIM.count = bloodOn ? splats.length : 0; splatIM.instanceMatrix.needsUpdate = true;
+}
 
 // ================= the Yard: pad, keypad, punching bag, mirror =================
 const yard = { typed: '', padT: 0, bagO: new THREE.Vector2(), bagV: new THREE.Vector2(), last: 0, best: 0, btnCD: 0, mirrorN: 0, bagC: new THREE.Vector3(), status: '' };
@@ -2310,11 +2757,15 @@ function update(dt, frame) {
   updateGame(dt);
   for (const b of bots) updateBot(b, dt);
   for (const a of actors) if (a.remote) updateProxy(a, dt);
+  syncHandTools();
+  updateTips(dt);
   if (G.state === 'fight' || inLobby()) {
     if (human.kind === 'vr') vrGrabs();
     if (human.active && !human.out && human.ko <= 0) handHits(human, human.hands);
     for (const b of bots) if (b.active && !b.out && b.ko <= 0) handHits(b, b.hands);
   }
+  itemsTick(dt);
+  fxTick(dt);
   updateHeld(dt);
   bodyBump();
   updateLog(dt);
@@ -2365,7 +2816,7 @@ if (document.fonts) document.fonts.ready.then(drawBoard);
 goMenu();
 setNetStatus('');
 
-window.AR = { handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>

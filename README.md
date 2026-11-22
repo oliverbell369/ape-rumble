@@ -12,4 +12,6 @@ Grabbed? Keep slapping the ape holding you until it lets go (3 slaps, or 2 hard 
 
 Hands have three moving fingers: the trigger curls your pointing finger, grip curls the rest (and grabs), and your thumb drops when it rests on the buttons. Other players see your fingers move.
 
-Prototype 0.6.
+**Crates and tools:** crates drop in during fights; slap one open for a mallet (squashes apes flat), frying pan, plunger (sticks and drags), rubber chicken, knife (stab them and they bleed), boxing-glove launcher (trigger) or banana peel. Hold grip to hold a tool, swing to hit, let go to throw. There is a tool rack in the Yard to try them, and a Blood effects switch on the menu.
+
+Prototype 0.7.
