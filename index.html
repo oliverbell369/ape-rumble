@@ -10,7 +10,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Distressed&family=Rubik+Wet+Paint&family=Barlow+Condensed:wght@500;600;700&family=VT323&display=swap">
 <style>
 /* Layout: the live ravine fight fills the screen; one left-docked menu card over it; a slim HUD while playing. */
 :root {
@@ -21,8 +21,9 @@
   --line: rgba(243, 234, 216, 0.14);
   --banana: #ffc23a;
   --danger: #ff6a3d;
-  --font-display: "Lilita One", "Arial Black", "Trebuchet MS", system-ui, sans-serif;
-  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Rubik Distressed", "Arial Black", "Trebuchet MS", system-ui, sans-serif;
+  --font-logo: "Rubik Wet Paint", "Rubik Distressed", "Arial Black", sans-serif;
+  --font-body: "Barlow Condensed", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
 [hidden] { display: none !important; }
@@ -38,31 +39,31 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-body); 
   pointer-events: auto; width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--line);
   border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 16px; backdrop-filter: blur(6px);
 }
-.kicker { margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(52px, 14vw, 76px); line-height: 0.9; color: var(--banana); text-wrap: balance; text-shadow: 0 4px 0 #6b3d12; }
-.lede { margin: 0; font-size: 15px; line-height: 1.5; max-width: 36ch; }
+.kicker { margin: 0; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font-family: var(--font-logo); font-weight: 400; font-size: clamp(56px, 15vw, 84px); line-height: 1; padding-bottom: 6px; color: #e3342b; text-wrap: balance; text-shadow: 0 4px 0 #3d0707; }
+.lede { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.5; max-width: 36ch; }
 .facts { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.facts li { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.facts li { font-size: 14px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
-button { font: 600 15px var(--font-body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 11px 18px; cursor: pointer; }
+button { font: 700 18px var(--font-body); letter-spacing: 0.02em; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 11px 18px; cursor: pointer; }
 button.primary { background: var(--banana); border-color: var(--banana); color: #2a1a05; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-legend { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; padding: 0; }
+legend { font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; padding: 0; }
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
-.fields input { font: 500 15px var(--font-body); color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; box-sizing: border-box; text-transform: none; }
+.fields label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); min-width: 0; }
+.fields input { font: 600 18px var(--font-body); color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; box-sizing: border-box; text-transform: none; }
 #room { text-transform: uppercase; }
 #room::placeholder { text-transform: none; }
 .fields input:focus-visible { outline: 2px solid var(--banana); outline-offset: 1px; }
-.check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 16px; cursor: pointer; }
 .check input { accent-color: var(--banana); width: 16px; height: 16px; margin: 0; }
-.status { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
-details { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.status { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); }
+details { font-size: 15px; line-height: 1.5; color: var(--muted); }
 summary { cursor: pointer; color: var(--ink); font-weight: 600; }
 details ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
-details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+details h3 { margin: 10px 0 0; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 .hud-top {
   position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
@@ -73,12 +74,12 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 #xhair { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; border: 2px solid var(--ink); }
 #hmsg { position: absolute; left: 0; right: 0; top: 28%; text-align: center; font-family: var(--font-display); font-size: clamp(34px, 8vw, 70px); color: var(--banana); text-shadow: 0 4px 0 #6b3d12; padding-inline: 16px; }
 .hud-bot { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); width: min(320px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; align-items: center; }
-.hud-bot span { font-size: 12px; color: var(--ink); text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
+.hud-bot span { font-size: 14px; color: var(--ink); text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
 .bar { width: 100%; height: 12px; border-radius: 999px; background: rgba(0,0,0,0.45); overflow: hidden; border: 1px solid var(--line); }
 .bar i { display: block; height: 100%; width: 0%; background: var(--danger); }
 #hmenu { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: auto; background: var(--panel); }
 #hko { position: absolute; inset: 0; background: rgba(20, 10, 0, 0.45); }
-#hhint { position: absolute; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); padding-inline: 16px; }
+#hhint { position: absolute; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); padding-inline: 16px; }
 @media (max-width: 520px) { #menu { align-items: flex-end; } .panel { max-width: none; } .hud-top { font-size: 16px; gap: 10px; } }
 </style>
 
@@ -95,7 +96,7 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 
 <main id="menu">
   <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.8</p>
+    <p class="kicker">VR ape brawler · prototype 0.9</p>
     <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
@@ -127,9 +128,10 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
         <li>Grabbed? Keep slapping the ape holding you until it lets go. Dizzy? Shake your arms hard to snap out of it.</li>
         <li>Hold grip on a ledge or beam to hang on. Right stick turns.</li>
         <li>Fall into the ravine and you're out until the next round. Watch out for the swinging log.</li>
+        <li>In the Yard, use the computer on the desk: tap its keys to join a room with a code, change your name and fur colour, redeem promo codes and switch blood or shadows on and off.</li>
       </ul>
       <h3>On a computer</h3>
-      <ul><li>WASD to move, Space to hop, mouse to look, click to slap, hold right-click to grab and release to throw.</li></ul>
+      <ul><li>WASD to move, Space to hop, mouse to look, click to slap, hold right-click to grab and release to throw. Look at a key on the Yard computer and click to press it.</li></ul>
     </details>
   </section>
 </main>
@@ -162,13 +164,13 @@ const HUMAN_SPH = [{ dy: 0, r: 0.2 }, { dy: -0.38, r: 0.28 }];
 const BOT_SPH = [{ dy: 0, r: 0.3 }, { dy: -0.27, r: 0.28 }];
 const raw = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace);
 const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
-const LIGHT_DIR = new THREE.Vector3(0.45, 0.8, 0.35).normalize();
+const LIGHT_DIR = new THREE.Vector3(0.55, 0.66, 0.42).normalize();
 // online play (Photon Realtime)
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
 const PHOTON_VERSION = 'wrecked-0.7';
 const PHOTON_REGION = 'eu';
-const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12 };
-const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
+const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13 };
+const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, looks: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
 // ================= renderer / scene =================
@@ -309,6 +311,33 @@ const NOISE_GLSL = `
     vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y);
   }`;
+// ----- sun shadows: each frame the world is drawn from the sun's point of view into a depth map
+// around the player; the shaders then check whether each spot can "see" the sun.
+const SHADOW = { size: 2048, half: 22, on: true };
+try { if (localStorage.getItem('wrecked-shadows') === '0') SHADOW.on = false; } catch (e) { /* storage blocked */ }
+const shadowRT = new THREE.WebGLRenderTarget(SHADOW.size, SHADOW.size);
+shadowRT.depthTexture = new THREE.DepthTexture(SHADOW.size, SHADOW.size, THREE.UnsignedIntType);
+const SUN = { sunTex: { value: shadowRT.depthTexture }, sunMat: { value: new THREE.Matrix4() }, sunOn: { value: SHADOW.on ? 1 : 0 } };
+const SUN_GLSL = `
+  uniform highp sampler2D sunTex; uniform mat4 sunMat; uniform float sunOn;
+  float sunShadow(vec3 w, vec3 n) {
+    if (sunOn < 0.5) return 1.0;
+    vec3 c = (sunMat * vec4(w + n * 0.045, 1.0)).xyz;
+    vec2 e = min(c.xy, 1.0 - c.xy);
+    if (min(e.x, e.y) <= 0.0 || c.z >= 1.0) return 1.0;
+    float z = c.z - 0.0008, t = 1.0 / ${SHADOW.size}.0, sh = 0.0;
+    sh += step(z, texture(sunTex, c.xy).r);
+    sh += step(z, texture(sunTex, c.xy + vec2(t, t)).r);
+    sh += step(z, texture(sunTex, c.xy + vec2(-t, t)).r);
+    sh += step(z, texture(sunTex, c.xy + vec2(t, -t)).r);
+    sh += step(z, texture(sunTex, c.xy + vec2(-t, -t)).r);
+    return mix(1.0, sh * 0.2, smoothstep(0.0, 0.06, min(e.x, e.y)));
+  }
+  // warm sunlight, cool sky light in the shade
+  vec3 sunLight(vec3 n, vec3 L, float sh, float amb) {
+    float ndl = max(dot(n, L), 0.0);
+    return vec3(0.86, 0.93, 1.05) * (amb + 0.17 * (0.5 + 0.5 * n.y)) + vec3(1.08, 1.0, 0.86) * 0.56 * ndl * sh;
+  }`;
 
 // ================= world boxes =================
 const boxes = [];
@@ -336,7 +365,8 @@ const LOBBY_BOARD = new THREE.Vector3(LB.x + 4, LB.y + 3.3, LB.z - 10), MATCH_BO
 const MIRROR = new THREE.Vector3(LB.x - 2.5, LB.y + 1.45, LB.z - 9.56);
 const PAD = new THREE.Vector3(LB.x + 7.2, LB.y, LB.z);
 const START_BTN = new THREE.Vector3(LB.x + 9.35, LB.y + 1.15, LB.z);
-const KEYPAD = new THREE.Vector3(LB.x - 10.2, LB.y + 1.6, LB.z + 2);
+// the computer on the west side of the Yard: COMP is the middle of the keyboard, top = key tops
+const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
 const BAG_PIVOT = new THREE.Vector3(LB.x + 7, LB.y + 3.0, LB.z - 6);
 const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
 function buildLevel() {
@@ -388,8 +418,10 @@ function buildLevel() {
   blk(X - 6.2, Y, Z - 7.5, 1.0, 1.2, 1.0, { mat: 'darkwood' });
   // mirror backing board
   blk(MIRROR.x, Y, MIRROR.z - 0.2, 3.9, 2.95, 0.25, { mat: 'darkwood' });
-  // keypad board on the west fence
-  blk(KEYPAD.x - 0.2, Y + 0.2, KEYPAD.z, 0.2, 2.7, 1.9, { mat: 'darkwood' });
+  // computer desk against the west fence; the monitor and keyboard are solid too
+  blk(X - 10.2, Y, COMP.z, 1.3, 0.42, 2.0, { top: 'planks', side: 'darkwood' });
+  blk(X - 10.47, Y + 0.42, COMP.z, 0.65, 1.1, 1.45, { hidden: true });
+  blk(COMP.x, Y + 0.42, COMP.z, 0.55, COMP.top - Y - 0.42, 1.12, { hidden: true });
   // start button post
   blk(START_BTN.x + 0.15, Y, Z, 0.35, 0.95, 0.35, { mat: 'darkwood' });
   // shop stall (closed for now)
@@ -568,7 +600,7 @@ function buildLevelMesh() {
   g.setIndex(idx);
   const mat = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    uniforms: { texArr: { value: texArr }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR } },
+    uniforms: { texArr: { value: texArr }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR }, ...SUN },
     vertexShader: `
       in vec3 aCol; in vec2 aTile; in float aLayer;
       out vec2 vTile; out vec3 vCol; out vec3 vN; out vec3 vW; out float vDepth; flat out float vLayer;
@@ -584,6 +616,7 @@ function buildLevelMesh() {
       uniform sampler2DArray texArr; uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
       in vec2 vTile; in vec3 vCol; in vec3 vN; in vec3 vW; in float vDepth; flat in float vLayer;
       ${NOISE_GLSL}
+      ${SUN_GLSL}
       void main() {
         vec3 tex = texture(texArr, vec3(vTile, vLayer)).rgb;
         if (vLayer < 0.5) {
@@ -591,8 +624,7 @@ function buildLevelMesh() {
           float n = vnoise(q * 0.3) * 0.7 + vnoise(q * 0.9) * 0.3;
           tex = mix(tex, texture(texArr, vec3(vTile, 1.0)).rgb, step(0.62, n));
         }
-        float ndl = max(dot(vN, lightDir), 0.0);
-        float light = 0.5 + 0.42 * ndl + 0.16 * (0.5 + 0.5 * vN.y);
+        vec3 light = sunLight(vN, lightDir, sunShadow(vW, vN), 0.42);
         light *= mix(0.55, 1.0, clamp((vW.y + 20.0) / 22.0, 0.0, 1.0));
         float f = smoothstep(fogNear, fogFar, vDepth);
         outColor = vec4(mix(tex * vCol * light, fogColor, f), 1.0);
@@ -673,7 +705,7 @@ function buildScenery() {
   g.setAttribute('aEmit', new THREE.Float32BufferAttribute(emit, 1));
   const mat = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    uniforms: { texArr: { value: texArr }, layerScale: { value: LAYER_SCALE }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR } },
+    uniforms: { texArr: { value: texArr }, layerScale: { value: LAYER_SCALE }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR }, ...SUN },
     vertexShader: `
       in vec3 aCol; in float aLayer; in float aEmit;
       out vec3 vCol; out vec3 vN; out vec3 vW; out float vDepth; flat out float vLayer; flat out float vEmit;
@@ -689,6 +721,7 @@ function buildScenery() {
       uniform sampler2DArray texArr; uniform float layerScale[10];
       uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
       in vec3 vCol; in vec3 vN; in vec3 vW; in float vDepth; flat in float vLayer; flat in float vEmit;
+      ${SUN_GLSL}
       void main() {
         vec3 an = abs(vN);
         vec2 uv = an.y > max(an.x, an.z) ? vW.xz : (an.x > an.z ? vW.zy : vW.xy);
@@ -697,8 +730,7 @@ function buildScenery() {
         vec3 col;
         if (vEmit > 0.5) { col = vCol * (0.55 + 0.7 * tex.r) + vec3(0.08); f *= 0.45; }
         else {
-          float ndl = max(dot(vN, lightDir), 0.0);
-          col = tex * vCol * (0.48 + 0.44 * ndl + 0.16 * (0.5 + 0.5 * vN.y));
+          col = tex * vCol * sunLight(vN, lightDir, sunShadow(vW, vN), 0.4);
           col *= mix(0.45, 1.0, clamp((vW.y + 40.0) / 50.0, 0.0, 1.0));
         }
         outColor = vec4(mix(col, fogColor, f), 1.0);
@@ -722,13 +754,13 @@ scene.add(sky);
 // ================= apes (instanced, pixel fur) =================
 const apeMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3,
-  uniforms: { texArr: { value: texArr }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR } },
+  uniforms: { texArr: { value: texArr }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR }, ...SUN },
   vertexShader: `
     in vec3 aCol; in float aLayer; in float aTint;
-    out vec3 vCol; out vec3 vN; out vec3 vLP; out vec3 vON; out float vDepth; flat out float vLayer;
+    out vec3 vCol; out vec3 vN; out vec3 vLP; out vec3 vON; out vec3 vW; out float vDepth; flat out float vLayer;
     void main() {
       mat4 im = instanceMatrix;
-      vec4 wp = modelMatrix * im * vec4(position, 1.0);
+      vec4 wp = modelMatrix * im * vec4(position, 1.0); vW = wp.xyz;
       vN = normalize(mat3(modelMatrix * im) * normal);
       vON = normal; vLP = position; vLayer = aLayer;
       vCol = aTint > 0.5 ? aCol * instanceColor : aCol;
@@ -739,7 +771,8 @@ const apeMat = new THREE.ShaderMaterial({
     precision highp sampler2DArray;
       out vec4 outColor;
     uniform sampler2DArray texArr; uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
-    in vec3 vCol; in vec3 vN; in vec3 vLP; in vec3 vON; in float vDepth; flat in float vLayer;
+    in vec3 vCol; in vec3 vN; in vec3 vLP; in vec3 vON; in vec3 vW; in float vDepth; flat in float vLayer;
+    ${SUN_GLSL}
     void main() {
       vec3 base = vCol;
       if (vLayer > -0.5) {
@@ -747,8 +780,8 @@ const apeMat = new THREE.ShaderMaterial({
         vec2 uv = an.y > max(an.x, an.z) ? vLP.xz : (an.x > an.z ? vLP.zy : vLP.xy);
         base *= texture(texArr, vec3(uv * 2.2, vLayer)).rgb;
       }
-      float ndl = max(dot(normalize(vN), lightDir), 0.0);
-      vec3 col = base * (0.55 + 0.42 * ndl + 0.15 * (0.5 + 0.5 * vN.y));
+      vec3 n = normalize(vN);
+      vec3 col = base * sunLight(n, lightDir, sunShadow(vW, n), 0.5);
       outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), 1.0);
     }`,
 });
@@ -876,22 +909,46 @@ logIM.count = 1; ropeIM.count = 2;
 // ----- Yard props -----
 const padIM = inst(mergeParts([{ geo: cyl(1.3, 1.3, 0.05, 24), c: F, tint: true }, { geo: cyl(1.45, 1.45, 0.03, 24), c: [0.2, 0.16, 0.12], m: M(0, -0.01, 0) }]), 1);
 const startBtnIM = inst(mergeParts([{ geo: ico(0.2, 1), c: F, tint: true, m: M(0, 0, 0, 0, 0, 0, 1, 0.7, 1) }]), 1);
-const keysIM = inst(mergeParts([{ geo: new THREE.BoxGeometry(0.07, 0.26, 0.32), c: F, tint: true }]), 13);
 const bagIM = inst(mergeParts([
   { geo: cyl(0.27, 0.3, 0.95, 10), c: [0.55, 0.3, 0.18] },
   { geo: cyl(0.285, 0.285, 0.06, 10), c: [0.25, 0.16, 0.1], m: M(0, 0.3, 0) },
   { geo: cyl(0.305, 0.305, 0.06, 10), c: [0.25, 0.16, 0.1], m: M(0, -0.3, 0) },
 ]), 1);
 const bagRopeIM = inst(mergeParts([{ geo: cyl(0.03, 0.03, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 1);
-padIM.count = 1; startBtnIM.count = 1; keysIM.count = 0; bagIM.count = 1; bagRopeIM.count = 1;
+padIM.count = 1; startBtnIM.count = 1; bagIM.count = 1; bagRopeIM.count = 1;
 padIM.setMatrixAt(0, M(PAD.x, PAD.y + 0.03, PAD.z));
 startBtnIM.setMatrixAt(0, M(START_BTN.x, START_BTN.y, START_BTN.z)); startBtnIM.setColorAt(0, raw(0.9, 0.15, 0.1));
-// keypad layout: u runs left->right as seen from inside the Yard (world -z), v is up
-const KEYS = [['1', -0.42, 0.4], ['2', 0, 0.4], ['3', 0.42, 0.4], ['4', -0.42, 0.05], ['5', 0, 0.05], ['6', 0.42, 0.05], ['7', -0.42, -0.3], ['8', 0, -0.3], ['9', 0.42, -0.3],
-  ['DEL', -0.42, -0.65], ['0', 0, -0.65], ['JOIN', 0.42, -0.65], ['QUICK', 0, -1.0]].map(([label, u, v]) => ({ label, u, v, pos: new THREE.Vector3(KEYPAD.x + 0.05, KEYPAD.y + v, KEYPAD.z - u), cd: 0, flash: 0 }));
-KEYS.forEach((k, i) => keysIM.setMatrixAt(i, M(k.pos.x, k.pos.y, k.pos.z, 0, 0, 0, 1, 1, k.label === 'QUICK' ? 2.8 : 1)));
+// ----- the computer: an old beige terminal with a full keyboard -----
+// Keyboard layout in the keyboard's own frame: lx runs left -> right as you face the screen
+// (world -z), ly runs from the near edge to the far edge (world -x); 10 cm per key.
+const KB_ROWS = [
+  [['ROOM', 2], ['NAME', 2], ['COLOR', 2], ['CODE', 2], ['OPTIONS', 2]],
+  [...'1234567890'].map((c) => [c, 1]),
+  [...'QWERTYUIOP'].map((c) => [c, 1]),
+  [...[...'ASDFGHJKL'].map((c) => [c, 1]), ['DEL', 1]],
+  [...[...'ZXCVBNM'].map((c) => [c, 1]), ['ENTER', 3]],
+];
+const KB = [];
+KB_ROWS.forEach((row, r) => { let u = 0; for (const [label, w] of row) { KB.push({ label, w, lx: -0.5 + (u + w / 2) * 0.1, ly: 0.2 - r * 0.1, cd: 0, flash: 0 }); u += w; } });
+const kbWorld = (lx, ly, y, out) => out.set(COMP.x - ly, y, COMP.z - lx);
+const BEIGE = [0.8, 0.76, 0.66], KEYC = [0.24, 0.24, 0.26];
+const computerIM = inst(mergeParts([
+  { geo: new THREE.BoxGeometry(0.65, 1.1, 1.45), c: BEIGE, m: M(LB.x - 10.47, LB.y + 0.97, COMP.z) },
+  { geo: new THREE.BoxGeometry(0.5, 0.5, 1.1), c: [0.72, 0.68, 0.58], m: M(LB.x - 10.75, LB.y + 1.0, COMP.z) },
+  { geo: new THREE.BoxGeometry(0.03, 0.96, 1.3), c: [0.12, 0.12, 0.12], m: M(LB.x - 10.14, LB.y + 0.97, COMP.z) },
+  { geo: new THREE.BoxGeometry(0.55, 0.05, 1.12), c: BEIGE, m: M(COMP.x, LB.y + 0.445, COMP.z) },
+  { geo: new THREE.BoxGeometry(0.03, 0.03, 0.05), c: [0.3, 0.95, 0.4], m: M(LB.x - 10.13, LB.y + 0.5, COMP.z - 0.58) },
+  ...KB.map((k) => ({ geo: new THREE.BoxGeometry(0.088, 0.02, k.w * 0.1 - 0.012), c: KEYC, m: M(COMP.x - k.ly, COMP.top - 0.01, COMP.z - k.lx) })),
+]), 1);
+computerIM.count = 1; computerIM.setMatrixAt(0, new THREE.Matrix4());
 function panelAt(w, h, pw, ph, pos, ry) { const p = makePanel(w, h, pw, ph); p.mesh.position.copy(pos); p.mesh.rotation.y = ry; scene.add(p.mesh); return p; }
-const keyPanel = panelAt(512, 840, 1.4, 2.3, new THREE.Vector3(KEYPAD.x - 0.05, KEYPAD.y - 0.05, KEYPAD.z), Math.PI / 2);
+// the green screen, and the key labels lying on top of the keys
+const screenPanel = panelAt(1024, 736, 1.2, 0.86, new THREE.Vector3(LB.x - 10.12, LB.y + 0.97, COMP.z), Math.PI / 2);
+screenPanel.mesh.material.transparent = false;
+const kbPanel = makePanel(1024, 512, 1.0, 0.5);
+kbPanel.mesh.matrixAutoUpdate = false;
+kbPanel.mesh.matrix.makeBasis(new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0)).setPosition(COMP.x, COMP.top + 0.002, COMP.z);
+scene.add(kbPanel.mesh);
 const padPanel = panelAt(512, 256, 1.6, 0.8, new THREE.Vector3(START_BTN.x + 0.1, LB.y + 2.15, LB.z), -Math.PI / 2);
 const bagPanel = panelAt(512, 160, 1.6, 0.5, new THREE.Vector3(BAG_PIVOT.x, LB.y + 3.75, BAG_PIVOT.z), 0);
 const shopPanel = panelAt(512, 200, 2.2, 0.86, new THREE.Vector3(LB.x + 1.5, LB.y + 1.75, LB.z + 9.15), Math.PI);
@@ -930,7 +987,8 @@ function makePanel(w, h, pw, ph) {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false }));
   return { c, ctx: c.getContext('2d'), tex, mesh };
 }
-const FD = '"Lilita One", "Arial Black", sans-serif', FB = 'Inter, system-ui, sans-serif';
+// fonts: gritty display, dripping logo, condensed body, green-screen terminal
+const FD = '"Rubik Distressed", "Arial Black", sans-serif', FB = '"Barlow Condensed", system-ui, sans-serif', FW = '"Rubik Wet Paint", "Rubik Distressed", sans-serif', FT = 'VT323, monospace';
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 const board = makePanel(1024, 512, 5.6, 2.8);
 board.mesh.position.set(0, 7.2, -14); scene.add(board.mesh);
@@ -989,6 +1047,9 @@ const APES = [
   { name: 'Tango', fur: [0.82, 0.64, 0.34], band: [0.95, 0.35, 0.75], css: '#f259bf' },
   { name: 'Biscuit', fur: [0.88, 0.84, 0.76], band: [0.2, 0.85, 0.9], css: '#33d9e6' },
 ];
+// your own look, set on the computer: fur colour (or a skin from a promo code)
+const look = { rgb: null, skin: '' };
+try { const v = JSON.parse(localStorage.getItem('wrecked-look') || 'null'); if (v && Array.isArray(v.rgb) && v.rgb.length === 3) { look.rgb = v.rgb.map((x) => clamp(+x || 0, 0, 1)); look.skin = String(v.skin || ''); } } catch (e) { /* storage blocked */ }
 function mkHand(k) {
   return { k, L: new THREE.Vector3(), q: new THREE.Quaternion(), T: new THREE.Vector3(), pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(),
     anchored: false, A: new THREE.Vector3(), n: new THREE.Vector3(), Lp: new THREE.Vector3(), dyn: null, tool: 0, tip: new THREE.Vector3(), tipPrev: new THREE.Vector3(), tipVel: new THREE.Vector3(), hq: new THREE.Quaternion(), plungeT: 0, trigWas: false, lA: new THREE.Vector3(), ln: new THREE.Vector3(), trigger: false, grip: false, gripWas: false, gamepad: null, ok: false, holding: null, punchT: 0 };
@@ -1017,7 +1078,7 @@ let bots = allBots.slice(1);
 const slotActor = (k) => (k === mySlot ? human : allBots[k]);
 function skinHuman(k) {
   const d = APES[k] || APES[0];
-  human.i = k; human.fur = raw(...d.fur); human.band = raw(...d.band); human.css = d.css; human.name = 'You';
+  human.i = k; human.fur = look.rgb ? raw(...look.rgb) : raw(...d.fur); human.band = raw(...d.band); human.css = d.css; human.name = 'You';
 }
 function setupSlots() {
   const map = net.on ? net.map || {} : null;
@@ -1031,6 +1092,8 @@ function setupSlots() {
     b.player = seatNr.has(k);
     b.remote = !!map && (b.player || !net.host);
     b.name = b.player ? (net.names[seatNr.get(k)] || 'Player') : APES[k].name;
+    const lk = b.player ? net.looks[seatNr.get(k)] : null;
+    b.fur = lk ? raw(...lk) : raw(...APES[k].fur);
     b.active = !inLobby() || b.player;
     actors.push(b);
     if (!b.remote) bots.push(b);
@@ -1230,7 +1293,12 @@ function hit(attacker, target, hv, speed, from, tool) {
   const lobbyHit = inLobby();
   if (!lobbyHit) target.dizzy += s * FIGHT.dizzyPerSpeed * (TM ? TM.d : 1) * (target.ko > 0 ? 0.3 : 1) + (TM ? TM.flat : 0);
   if (tool === 'mallet') target.squashT = 2.5;
-  if (tool === 'knife') target.bleedT = 3;
+  if (tool === 'knife') {
+    target.bleedT = 3;
+    // remember where the knife went in (in the ape's own frame) so the blood squirts from there
+    rotY(_t1.copy(hv).setY(0).normalize().multiplyScalar(-0.24), -target.yaw, target.woundL || (target.woundL = new THREE.Vector3()));
+    target.woundL.y = rand(-0.15, 0.08);
+  }
   if (!lobbyHit && G.state === 'fight' && tool === 'knife' && wasDizzy) { die(target); return true; }
   if (tool === 'slip' && !lobbyHit && target.ko <= 0) { target.ko = 1.2; target.tiltV.x += 30; }
   target.lastHit = now;
@@ -1552,6 +1620,7 @@ canvas.addEventListener('mousedown', (e) => {
   if (e.button === 0) {
     const R = human.hands[1];
     if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
+    else if (pcClickComputer()) { /* typed on the computer */ }
     else { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
   }
   if (e.button === 2) mouse.right = true;
@@ -2096,6 +2165,14 @@ function onNetEvent(code, d, nr) {
     case EV.FREED: { const t = slotActor(d.s); if (t && t.remote) clearHold(t); break; }
     case EV.FEED: if (typeof d.m === 'string') feed(d.m.slice(0, 40)); break;
     case EV.START: if (net.host) requestStart(); break;
+    case EV.LOOK: {
+      // a player's name and fur colour, sent when they change them (and every few seconds)
+      if (typeof d.n === 'string' && cleanNick(d.n)) net.names[nr] = cleanNick(d.n);
+      if (Array.isArray(d.c) && d.c.length === 3) net.looks[nr] = d.c.map((v) => clamp(+v || 0, 0, 1));
+      const b = allBots[d.s];
+      if (b && b.player && slotOwnerNr(d.s) === nr) { b.name = net.names[nr] || b.name; if (net.looks[nr]) b.fur = raw(...net.looks[nr]); }
+      break;
+    }
   }
 }
 function updateProxy(b, dt) {
@@ -2124,8 +2201,14 @@ function becomeHost() {
   feed('You are now the host');
   sendState();
 }
+function sendLook() {
+  net.lookT = 4;
+  if (!net.on || mySlot < 0) return;
+  netSendAll(EV.LOOK, { s: mySlot, n: net.nick, c: look.rgb ? look.rgb.map(r2) : null });
+}
 function netTick(dt) {
   if (!net.on || !net.lbc) return;
+  if ((net.lookT -= dt) <= 0) sendLook();
   const wasHost = net.host;
   net.host = net.lbc.myRoomMasterActorNr() === net.myNr;
   if (net.host && !wasHost) becomeHost();
@@ -2196,6 +2279,7 @@ function connectOnline() {
     for (const a of [human, ...allBots]) a.wins = 0;
     if (net.host) goLobby();
     else { net.map = {}; G.round = -1; G.lobbyN = -1; G.state = 'lobby'; setupSlots(); human.active = true; placeInLobby(); }
+    net.lookT = 0.5;
     setNetStatus(net.code ? `Online in room ${net.code}. Friends who type ${net.code} join you.` : 'Online in Quick Play.');
   };
   lbc.onActorJoin = (a) => {
@@ -2333,15 +2417,116 @@ beamIM.frustumCulled = false; beamIM.count = 0; scene.add(beamIM);
 const gloveIM = inst(mergeParts([{ geo: ico(0.11, 1), c: [0.9, 0.12, 0.1] }, { geo: cyl(0.06, 0.07, 0.08, 8), c: [0.95, 0.95, 0.95], m: M(0, 0, 0.1, Math.PI / 2, 0, 0) }]), 8);
 const springIM = inst(mergeParts([{ geo: cyl(0.02, 0.02, 1, 5).translate(0, 0.5, 0), c: [0.7, 0.7, 0.75] }]), 8);
 gloveIM.count = springIM.count = 0;
-// particles (pixel-chunky cubes) and splats left on the floor
-const PMAX = 320;
-const partIM = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), PMAX);
-const splatIM = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 7), new THREE.MeshBasicMaterial({ polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), 90);
-for (const im of [partIM, splatIM]) { im.frustumCulled = false; im.count = 0; scene.add(im); }
-for (let i = 0; i < PMAX; i++) partIM.setColorAt(i, new THREE.Color(0xffffff));
-for (let i = 0; i < 90; i++) splatIM.setColorAt(i, new THREE.Color(0x6e0b0b));
-const parts = [], splats = [], gloves = [];
-const BLOOD_COL = [new THREE.Color(0x8e0e0e), new THREE.Color(0xb3191a), new THREE.Color(0x6e0909)];
+// particles: chunky cubes for dust, feathers and splinters; blood is liquid (below)
+const DMAX = 420, SMAX = 220;
+const partIM = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 200);
+partIM.frustumCulled = false; partIM.count = 0; scene.add(partIM);
+for (let i = 0; i < 200; i++) partIM.setColorAt(i, new THREE.Color(0xffffff));
+// liquid blood, part 1: glossy droplets that stretch into streaks as they fly
+const FOG_UNI = () => ({ fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR } });
+const dropIM = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.ShaderMaterial({
+  glslVersion: THREE.GLSL3, uniforms: FOG_UNI(),
+  vertexShader: `
+    out vec3 vN; out vec3 vV; out vec3 vCol; out float vDepth;
+    void main() {
+      mat4 im = modelMatrix * instanceMatrix;
+      vec4 wp = im * vec4(position, 1.0);
+      vN = normalize(mat3(im) * normal); vCol = instanceColor; vV = cameraPosition - wp.xyz;
+      vec4 mv = viewMatrix * wp; vDepth = -mv.z; gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    out vec4 outColor; uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
+    in vec3 vN; in vec3 vV; in vec3 vCol; in float vDepth;
+    void main() {
+      vec3 n = normalize(vN), v = normalize(vV);
+      float ndl = max(dot(n, lightDir), 0.0);
+      float spec = pow(max(dot(n, normalize(lightDir + v)), 0.0), 50.0);
+      float fres = pow(1.0 - max(dot(n, v), 0.0), 2.5);
+      vec3 col = vCol * (0.5 + 0.6 * ndl) + vec3(1.0, 0.8, 0.8) * spec * 1.4 + vec3(0.5, 0.1, 0.1) * fres * 0.5;
+      outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), 1.0);
+    }`,
+}), DMAX);
+dropIM.frustumCulled = false; dropIM.count = 0; dropIM.userData.noCast = true; scene.add(dropIM);
+for (let i = 0; i < DMAX; i++) dropIM.setColorAt(i, new THREE.Color(0x8a0a0a));
+// liquid blood, part 2: pools, splatters and drips. The texture holds 4 shapes made from merged
+// blobs (red = how thick the blood is, alpha = coverage); the shader turns the thickness into a
+// wet, shiny surface that catches the sun.
+function bloodAtlas() {
+  const N = 512, C = 256, data = new Uint8Array(N * N * 4), rnd = mulberry32(77);
+  const cells = [[], [], [], []];
+  const ring = (cell, n, d0, d1, r0, r1) => { for (let i = 0; i < n; i++) { const a = rnd() * 6.28, d = d0 + rnd() * (d1 - d0); cell.push([128 + Math.cos(a) * d, 128 + Math.sin(a) * d, r0 + rnd() * (r1 - r0)]); } };
+  // 0: round pool with lumps and a few flecks
+  cells[0].push([128, 128, 46]); ring(cells[0], 7, 30, 62, 12, 26); ring(cells[0], 9, 78, 112, 2.5, 6);
+  // 1: two-lobed puddle
+  cells[1].push([108, 120, 36], [150, 140, 30]); ring(cells[1], 6, 25, 60, 10, 20); ring(cells[1], 8, 75, 110, 2.5, 6);
+  // 2: splatter star (a hit, sprayed outward)
+  cells[2].push([128, 128, 30]);
+  for (let i = 0; i < 9; i++) { const a = (i / 9) * 6.28 + rnd() * 0.5, len = 40 + rnd() * 65; for (let t = 0.3; t <= 1; t += 0.12) cells[2].push([128 + Math.cos(a) * len * t, 128 + Math.sin(a) * len * t, (1.2 - t) * 13 + 2]); }
+  ring(cells[2], 10, 85, 118, 2, 5);
+  // 3: splash on a wall with drips running down (v grows upward)
+  cells[3].push([128, 196, 34]); ring(cells[3], 5, 18, 40, 10, 18);
+  for (const [x, len] of [[100, 150], [132, 175], [160, 120], [116, 95]]) { for (let y = 190; y > 190 - len; y -= 5) cells[3].push([x + Math.sin(y * 0.05) * 2, y, 6.5]); cells[3].push([x, 190 - len, 9]); }
+  for (let k = 0; k < 4; k++) {
+    const ox = (k % 2) * C, oy = Math.floor(k / 2) * C, blobs = cells[k];
+    for (let y = 0; y < C; y++) for (let x = 0; x < C; x++) {
+      let f = 0;
+      for (const [bx, by, br] of blobs) { const dx = x - bx, dy = y - by; f += (br * br) / (dx * dx + dy * dy + 1); }
+      const edge = Math.min(1, Math.min(x, y, C - 1 - x, C - 1 - y) / 6);
+      const cov = clamp((f - 0.85) / 0.3, 0, 1) * edge, th = Math.sqrt(clamp((f - 1) / 4, 0, 1));
+      const i = ((oy + y) * N + ox + x) * 4;
+      data[i] = th * 255; data[i + 1] = 0; data[i + 2] = 0; data[i + 3] = cov * 255;
+    }
+  }
+  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true;
+  return t;
+}
+const splatGeo = new THREE.PlaneGeometry(2, 2);
+const splatCell = new THREE.InstancedBufferAttribute(new Float32Array(SMAX * 4), 4);
+splatGeo.setAttribute('aCell', splatCell);
+const splatIM = new THREE.InstancedMesh(splatGeo, new THREE.ShaderMaterial({
+  glslVersion: THREE.GLSL3, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+  uniforms: { map: { value: bloodAtlas() }, ...FOG_UNI() },
+  vertexShader: `
+    in vec4 aCell;
+    out vec2 vUv; out float vFade; out vec3 vT; out vec3 vB; out vec3 vN; out vec3 vV; out float vDepth;
+    void main() {
+      mat4 im = modelMatrix * instanceMatrix;
+      vUv = aCell.xy + uv * 0.5; vFade = aCell.z;
+      vT = normalize(mat3(im) * vec3(1.0, 0.0, 0.0)); vB = normalize(mat3(im) * vec3(0.0, 1.0, 0.0)); vN = normalize(cross(vT, vB));
+      vec4 wp = im * vec4(position, 1.0); vV = cameraPosition - wp.xyz;
+      vec4 mv = viewMatrix * wp; vDepth = -mv.z; gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    out vec4 outColor; uniform sampler2D map; uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
+    in vec2 vUv; in float vFade; in vec3 vT; in vec3 vB; in vec3 vN; in vec3 vV; in float vDepth;
+    void main() {
+      vec4 t = texture(map, vUv);
+      float a = t.a * vFade; if (a < 0.03) discard;
+      float e = 1.5 / 512.0;
+      float dx = texture(map, vUv + vec2(e, 0.0)).r - texture(map, vUv - vec2(e, 0.0)).r;
+      float dy = texture(map, vUv + vec2(0.0, e)).r - texture(map, vUv - vec2(0.0, e)).r;
+      vec3 n = normalize(vN - (vT * dx + vB * dy) * 2.2), v = normalize(vV);
+      float spec = pow(max(dot(n, normalize(lightDir + v)), 0.0), 70.0);
+      float sky = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+      vec3 core = vec3(0.26, 0.012, 0.012), rim = vec3(0.55, 0.04, 0.035);
+      vec3 col = mix(rim, core, t.r) * (0.75 + 0.35 * max(dot(n, lightDir), 0.0));
+      col += vec3(1.0, 0.82, 0.8) * spec * 1.3 + vec3(0.55, 0.35, 0.35) * sky * 0.35;
+      outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), a);
+    }`,
+}), SMAX);
+splatIM.frustumCulled = false; splatIM.count = 0; splatIM.userData.noCast = true; splatIM.renderOrder = 2; scene.add(splatIM);
+const parts = [], drops = [], splats = [], gloves = [];
+const BLOOD_COL = [raw(0.42, 0.012, 0.012), raw(0.6, 0.03, 0.025), raw(0.3, 0.008, 0.008)];
+const _bm = new THREE.Matrix4(), _bx = new THREE.Vector3(), _by = new THREE.Vector3();
+// a blood drop in flight (size in metres)
+function addDrop(p, v, size) { if (drops.length < DMAX && bloodOn) drops.push({ p: p.clone(), v: v.clone(), size, col: BLOOD_COL[Math.floor(Math.random() * 3)], life: 2.5 }); }
+// a stain where blood lands: k = shape, grows to r over grow seconds
+function addSplat(p, n, r, k, grow = 0.25, life = 40, item = 0) {
+  if (!bloodOn) return;
+  if (splats.length >= SMAX) { const j = splats.findIndex((x) => !x.item); splats.splice(j < 0 ? 0 : j, 1); }
+  splats.push({ p: p.clone().addScaledVector(n, 0.008 + splats.length * 0.00004), n: n.clone(), r, k, age: 0, grow, t: life, rot: rand(0, 6.28), item });
+}
 
 // ----- hands that hold tools -----
 function syncHandTools() {
@@ -2584,14 +2769,24 @@ function spawnFx(kind, p, d, c, broadcast) {
   _p.set(p[0], p[1], p[2]);
   const dir = d ? _w.set(d[0], d[1], d[2]) : _w.set(0, 1, 0);
   if (kind === 'glove') { if (gloves.length < 8) gloves.push({ p: _p.clone(), d: dir.clone().normalize(), t: 0 }); return; }
+  if (kind === 'blood' && bloodOn) {
+    // a gush: a jet along the hit direction, a spray of smaller drops and a few big globs
+    const dn = _v.copy(dir).normalize();
+    for (let i = 0; i < 60; i++) {
+      const big = i < 6, sp = big ? rand(1, 2.4) : rand(1.5, 5.8);
+      const v = new THREE.Vector3(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).multiplyScalar(i < 38 ? 0.25 : 0.8).addScaledVector(dn, 1).normalize().multiplyScalar(sp);
+      v.y += rand(0.5, 1.5);
+      addDrop(_p, v, big ? rand(0.011, 0.016) : rand(0.0045, 0.009));
+    }
+    return;
+  }
   const n = kind === 'blood' ? 16 : kind === 'feathers' ? 12 : kind === 'splinters' ? 12 : 8;
-  for (let i = 0; i < n && parts.length < PMAX; i++) {
-    const blood = kind === 'blood' && bloodOn;
-    const col = blood ? BLOOD_COL[i % 3] : kind === 'blood' ? new THREE.Color(c || '#d8c8b0') : kind === 'feathers' ? new THREE.Color(0xfff6e0) : kind === 'splinters' ? new THREE.Color(0x8a5a30) : new THREE.Color(0xffd23a);
+  for (let i = 0; i < n && parts.length < 200; i++) {
+    const col = kind === 'blood' ? new THREE.Color(c || '#d8c8b0') : kind === 'feathers' ? new THREE.Color(0xfff6e0) : kind === 'splinters' ? new THREE.Color(0x8a5a30) : new THREE.Color(0xffd23a);
     const v = new THREE.Vector3(rand(-1, 1), rand(0.2, 1.4), rand(-1, 1)).multiplyScalar(kind === 'feathers' ? 1.6 : 2.4);
     if (kind === 'blood') v.addScaledVector(dir, 2.2);
-    parts.push({ p: _p.clone(), v, col, life: kind === 'feathers' ? rand(1.2, 2) : rand(0.6, 1.1), size: blood ? rand(0.03, 0.055) : kind === 'feathers' ? rand(0.03, 0.05) : rand(0.025, 0.045),
-      g: kind === 'feathers' ? 1.2 : GRAV * 0.8, blood, drag: kind === 'feathers' ? 2.5 : 0.3 });
+    parts.push({ p: _p.clone(), v, col, life: kind === 'feathers' ? rand(1.2, 2) : rand(0.6, 1.1), size: kind === 'feathers' ? rand(0.03, 0.05) : rand(0.025, 0.045),
+      g: kind === 'feathers' ? 1.2 : GRAV * 0.8, drag: kind === 'feathers' ? 2.5 : 0.3 });
   }
 }
 const _pp = new THREE.Vector3(), _sn = new THREE.Vector3(0, 0, 1);
@@ -2602,35 +2797,62 @@ function fxTick(dt) {
     if (a.squashT > 0) a.squashT -= dt;
     if (a.bleedT > 0) {
       a.bleedT -= dt; a.dripT -= dt;
-      if (a.dripT <= 0 && parts.length < PMAX) {
-        a.dripT = 0.14;
-        if (bloodOn) parts.push({ p: a.pos.clone().add(_pp.set(rand(-0.15, 0.15), rand(-0.2, 0.1), rand(-0.15, 0.15))), v: new THREE.Vector3(rand(-0.3, 0.3), -0.5, rand(-0.3, 0.3)), col: BLOOD_COL[Math.floor(Math.random() * 3)], life: 1.5, size: rand(0.025, 0.04), g: GRAV * 0.8, blood: true, drag: 0.3 });
+      if (a.dripT <= 0) {
+        // squirts in heartbeat pulses from the wound, plus a steady drip
+        a.dripT = 0.045;
+        const wl = a.woundL || _bx.set(0.12, -0.1, -0.22);
+        rotY(_by.copy(wl), a.yaw, _pp).add(a.pos);
+        const beat = Math.sin(now * 8.5) > 0.35;
+        _bx.copy(wl).setY(0).normalize(); rotY(_bx, a.yaw, _by);
+        if (beat) for (let j = 0; j < 2; j++) addDrop(_pp, _t1.copy(_by).multiplyScalar(rand(1.2, 2.4)).add(_bx.set(rand(-0.3, 0.3), rand(0.4, 1.1), rand(-0.3, 0.3))).add(a.vel), rand(0.006, 0.011));
+        else if (Math.random() < 0.35) addDrop(_pp, _bx.set(rand(-0.2, 0.2), -0.3, rand(-0.2, 0.2)).add(a.vel), rand(0.006, 0.01));
       }
     }
+  }
+  for (let i = drops.length - 1; i >= 0; i--) {
+    const q = drops[i];
+    q.life -= dt;
+    q.v.y -= GRAV * dt; q.v.multiplyScalar(Math.exp(-0.25 * dt));
+    _pp.copy(q.p).addScaledVector(q.v, dt);
+    const h = sweepSphere(q.p, _pp, 0.005, true);
+    if (h) {
+      const wall = Math.abs(h.n.y) < 0.6, big = q.size > 0.0105;
+      addSplat(h.p, h.n, (wall ? 5.5 : big ? 9.5 : 7) * q.size * rand(0.8, 1.3), wall ? 3 : big ? Math.floor(rand(0, 2)) : 2, wall ? 1.5 : 0.18);
+      drops.splice(i, 1); continue;
+    }
+    q.p.copy(_pp);
+    if (q.life <= 0 || q.p.y < -40) drops.splice(i, 1);
   }
   for (let i = parts.length - 1; i >= 0; i--) {
     const q = parts[i];
     q.life -= dt;
     q.v.y -= q.g * dt; q.v.multiplyScalar(Math.exp(-q.drag * dt));
     _pp.copy(q.p).addScaledVector(q.v, dt);
-    if (q.blood) {
-      const h = sweepSphere(q.p, _pp, 0.01, true);
-      if (h) {
-        // a splat where it lands
-        if (splats.length >= 90) splats.shift();
-        splats.push({ p: h.p.clone().addScaledVector(h.n, 0.012), n: h.n.clone(), r: rand(0.05, 0.14) * (q.size / 0.04), t: 25, rot: rand(0, 6.28) });
-        parts.splice(i, 1); continue;
-      }
-    }
     q.p.copy(_pp);
     if (q.life <= 0) parts.splice(i, 1);
   }
-  for (let i = splats.length - 1; i >= 0; i--) { splats[i].t -= dt; if (splats[i].t <= 0) splats.splice(i, 1); }
+  for (let i = splats.length - 1; i >= 0; i--) {
+    const sp = splats[i]; sp.age += dt;
+    if (sp.item) { const it = itemById(sp.item); if (!it) { sp.item = 0; sp.t = Math.min(sp.t, 20); } else if (it.st === 2) {
+      // picked up: the pool stops spreading where it is (a new one starts where the body lands)
+      const g = Math.min(1, sp.age / sp.grow); sp.r *= 0.35 + 0.65 * (1 - (1 - g) * (1 - g)); sp.grow = 0; sp.item = 0;
+    } }
+    sp.t -= dt; if (sp.t <= 0) splats.splice(i, 1);
+  }
+  // wrecked bodies bleed out into a pool, and drip while someone carries them
+  for (const it of items) {
+    if (it.type !== 'corpse' || !bloodOn) continue;
+    if (it.st === 2) { if (Math.random() < dt * 9) addDrop(_pp.copy(it.p).add(_bx.set(rand(-0.15, 0.15), -0.1, rand(-0.15, 0.15))), new THREE.Vector3(rand(-0.3, 0.3), -0.2, rand(-0.3, 0.3)), rand(0.006, 0.011)); }
+    else if (!splats.some((sp) => sp.item === it.id) && it.v.lengthSq() < 0.05) {
+      const g = sweepSphere(_pp.copy(it.p).setY(it.p.y + 0.3), _bx.copy(it.p).setY(it.p.y - 1.5), 0.02, true);
+      if (g && g.n.y > 0.6) addSplat(g.p, g.n, rand(1.7, 2.1), Math.floor(rand(0, 2)), 5, 60, it.id);
+    }
+  }
   for (let i = gloves.length - 1; i >= 0; i--) { gloves[i].t += dt; if (gloves[i].t > 0.4) gloves.splice(i, 1); }
   renderItems();
 }
 function drawBody(it, n) {
-  const d = APES[it.c] || APES[0], fur = raw(...d.fur), band = raw(...d.band);
+  const d = APES[it.c] || APES[0], who = it.c >= 0 && it.c < 6 ? slotActor(it.c) : null, fur = who ? who.fur : raw(...d.fur), band = raw(...d.band);
   if (it.st === 2) {
     // hanging from someone's hand: head toward the hand
     const a = it.s === mySlot ? human : allBots[it.s];
@@ -2689,12 +2911,31 @@ function renderItems() {
     partIM.setMatrixAt(i, _mm.compose(q.p, _q.identity(), _s.set(sz, sz, sz))); partIM.setColorAt(i, q.col);
   });
   partIM.count = parts.length; partIM.instanceMatrix.needsUpdate = true; if (partIM.instanceColor) partIM.instanceColor.needsUpdate = true;
-  splats.forEach((sp, i) => {
-    const r = sp.r * Math.min(1, sp.t / 2);
-    _q.setFromUnitVectors(_sn, sp.n); _q2.setFromAxisAngle(_sn, sp.rot); _q.multiply(_q2);
-    splatIM.setMatrixAt(i, _mm.compose(sp.p, _q, _s.set(r, r, r)));
+  drops.forEach((q, i) => {
+    // stretched along its flight, like a falling drop of liquid
+    const sp = q.v.length(), st = 1 + Math.min(sp * 1.0, 4.5);
+    _q.setFromUnitVectors(_yAxis, sp > 0.01 ? _bx.copy(q.v).multiplyScalar(1 / sp) : _yAxis);
+    dropIM.setMatrixAt(i, _mm.compose(q.p, _q, _s.set(q.size, q.size * st, q.size))); dropIM.setColorAt(i, q.col);
   });
-  splatIM.count = bloodOn ? splats.length : 0; splatIM.instanceMatrix.needsUpdate = true;
+  dropIM.count = bloodOn ? drops.length : 0; dropIM.instanceMatrix.needsUpdate = true; if (dropIM.instanceColor) dropIM.instanceColor.needsUpdate = true;
+  splats.forEach((sp, i) => {
+    const g = sp.grow > 0 ? Math.min(1, sp.age / sp.grow) : 1, spread = 1 - (1 - g) * (1 - g);
+    const r = sp.r * (0.35 + 0.65 * spread), fade = Math.min(1, sp.t / 3);
+    if (sp.k === 3) {
+      // on a wall: the shape's top stays put while the drips run down
+      _bx.set(0, 1, 0).addScaledVector(sp.n, -sp.n.y).normalize(); _by.crossVectors(_bx, sp.n);
+      const ry = sp.r * (0.45 + 0.55 * spread);
+      _t2.copy(sp.p).addScaledVector(_bx, -ry * 0.53);
+      _bm.makeBasis(_by.multiplyScalar(sp.r), _bx.multiplyScalar(ry), _t1.copy(sp.n));
+      _bm.setPosition(_t2);
+      splatIM.setMatrixAt(i, _bm);
+    } else {
+      _q.setFromUnitVectors(_sn, sp.n); _q2.setFromAxisAngle(_sn, sp.rot); _q.multiply(_q2);
+      splatIM.setMatrixAt(i, _mm.compose(sp.p, _q, _s.set(r, r, r)));
+    }
+    splatCell.setXYZW(i, (sp.k % 2) * 0.5, Math.floor(sp.k / 2) * 0.5, fade, 0);
+  });
+  splatIM.count = bloodOn ? splats.length : 0; splatIM.instanceMatrix.needsUpdate = true; splatCell.needsUpdate = true;
 }
 
 // ================= the Yard: pad, keypad, punching bag, mirror =================
@@ -2707,33 +2948,187 @@ function switchRoom(code) {
   feed(code ? `Joining room ${code}…` : 'Joining Quick Play…');
   G.demo = false; goLobby(); connectOnline();
 }
-function pressKey(k) {
-  k.flash = 0.25; yardDrawT = 0; sfx('tap', k.pos, 3);
-  if (/^[0-9]$/.test(k.label)) { if (yard.typed.length < 6) yard.typed += k.label; }
-  else if (k.label === 'DEL') yard.typed = yard.typed.slice(0, -1);
-  else if (k.label === 'JOIN') { if (yard.typed) { const c = yard.typed; yard.typed = ''; switchRoom(c); } }
-  else if (k.label === 'QUICK') { yard.typed = ''; switchRoom(''); }
-  drawKeypad();
+// ----- the computer (like the ones in other ape games): room codes, name, fur colour, promo codes, options
+const TABS = ['ROOM', 'NAME', 'COLOR', 'CODE', 'OPTIONS'];
+const term = { tab: 'ROOM', input: '', ch: 0, msg: '', msg2: '', busy: 0, pending: null };
+// promo codes unlock fur skins; add new ones here for events (like a holiday code)
+const CODES = {
+  WRECKED: { name: 'BLOOD RED FUR', rgb: [0.6, 0.07, 0.06] },
+  BANANA: { name: 'BANANA FUR', rgb: [0.95, 0.8, 0.22] },
+  GHOST: { name: 'GHOST FUR', rgb: [0.93, 0.94, 0.98] },
+  GOLDAPE: { name: 'GOLD FUR', rgb: [0.86, 0.64, 0.16] },
+};
+const redeemed = (() => { try { return (localStorage.getItem('wrecked-codes') || '').split(',').filter((c) => CODES[c]); } catch (e) { return []; } })();
+const lookDigits = () => (look.rgb || [human.fur.r, human.fur.g, human.fur.b]).map((v) => clamp(Math.round(((v - 0.06) / 0.9) * 9), 0, 9));
+function setLook(rgb, skin) {
+  look.rgb = rgb.map((v) => clamp(v, 0, 1)); look.skin = skin || '';
+  try { localStorage.setItem('wrecked-look', JSON.stringify(look)); } catch (e) { /* storage blocked */ }
+  human.fur = raw(...look.rgb);
+  sendLook();
 }
-function drawKeypad() {
-  const { ctx, c } = keyPanel;
-  ctx.clearRect(0, 0, c.width, c.height);
-  ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill();
-  const toPx = (u, v) => [c.width / 2 + (u / 1.4) * c.width, c.height / 2 - ((v + 0.05) / 2.3) * c.height];
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#b9ad94'; ctx.font = `600 30px ${FB}`; ctx.fillText('ROOM CODE', c.width / 2, 60);
-  ctx.fillStyle = 'rgba(255,255,255,0.08)'; rr(ctx, 50, 80, c.width - 100, 90, 18); ctx.fill();
-  ctx.fillStyle = yard.typed ? '#ffc23a' : '#f3ead8'; ctx.font = `64px ${FD}`;
-  ctx.fillText(yard.typed || (net.code ? net.code : (net.on ? 'QUICK PLAY' : '—')), c.width / 2, 148);
-  for (const k of KEYS) {
-    const [x, y] = toPx(k.u, k.v);
-    const w = k.label === 'QUICK' ? 330 : 112, hgt = 84;
-    ctx.fillStyle = k.flash > 0 ? '#ffc23a' : k.label === 'JOIN' ? '#3fa356' : k.label === 'QUICK' ? '#3f7fe0' : k.label === 'DEL' ? '#b3493c' : '#5a4a3a';
-    rr(ctx, x - w / 2, y - hgt / 2, w, hgt, 16); ctx.fill();
-    ctx.fillStyle = '#f3ead8'; ctx.font = k.label.length > 1 ? `34px ${FD}` : `56px ${FD}`;
-    ctx.fillText(k.label === 'QUICK' ? 'QUICK PLAY' : k.label, x, y + (k.label.length > 1 ? 12 : 20));
+function setNick(n) {
+  net.nick = n; $('nick').value = n;
+  try { localStorage.setItem('wrecked-nick', n); } catch (e) { /* storage blocked */ }
+  if (net.lbc && net.on) try { net.lbc.myActor().setName(n); } catch (e) { /* not in a room */ }
+  sendLook();
+}
+function setOption(which) {
+  if (which === 'blood') { bloodOn = !bloodOn; $('blood').checked = bloodOn; try { localStorage.setItem('wrecked-blood', bloodOn ? '1' : '0'); } catch (e) { /* storage blocked */ } }
+  if (which === 'shadows') { SHADOW.on = !SHADOW.on; try { localStorage.setItem('wrecked-shadows', SHADOW.on ? '1' : '0'); } catch (e) { /* storage blocked */ } }
+}
+function termKey(k) {
+  k.flash = 0.25; sfx('tap', kbWorld(k.lx, k.ly, COMP.top, _t1), 3);
+  const L = k.label, T = term;
+  if (TABS.includes(L)) { T.tab = L; T.input = ''; T.msg = ''; T.msg2 = ''; T.pending = null; }
+  else if (L === 'DEL') T.input = T.input.slice(0, -1);
+  else if (T.tab === 'COLOR') {
+    if (L === 'R' || L === 'G' || L === 'B') T.ch = 'RGB'.indexOf(L);
+    else if (/^[0-9]$/.test(L)) { const d = lookDigits(); d[T.ch] = +L; setLook(d.map((v) => 0.06 + (v / 9) * 0.9)); T.ch = (T.ch + 1) % 3; T.msg = 'COLOR SAVED'; }
+    else if (L === 'S' && redeemed.length) { const i = (redeemed.indexOf(look.skin) + 1) % redeemed.length, c = CODES[redeemed[i]]; setLook(c.rgb, redeemed[i]); T.msg = `WEARING ${c.name}`; }
+  } else if (T.tab === 'OPTIONS') {
+    if (L === '1') setOption('blood'); else if (L === '2') setOption('shadows');
+  } else if (L === 'ENTER') {
+    if (T.tab === 'ROOM') { const c = cleanCode(T.input); T.input = ''; T.msg = c ? `JOINING ROOM ${c}...` : 'JOINING QUICK PLAY...'; switchRoom(c); }
+    else if (T.tab === 'NAME') { const n = cleanNick(T.input); if (n) { setNick(n); T.msg = `NAME SET: ${n}`; } else T.msg = 'TYPE A NAME FIRST'; T.input = ''; }
+    else if (T.tab === 'CODE' && T.input && !T.pending) { T.pending = T.input; T.busy = 1.2; T.msg = `REDEEMING CODE "${T.input}"...`; T.msg2 = ''; T.input = ''; }
+  } else if (L.length === 1 && L !== 'ENTER') {
+    const max = T.tab === 'ROOM' ? 10 : T.tab === 'NAME' ? 12 : 16;
+    if (T.input.length < max) T.input += L;
   }
-  keyPanel.tex.needsUpdate = true;
+  kbDirty = true; updateComputerPanels();
+}
+function termTick(dt) {
+  if (term.pending && (term.busy -= dt) <= 0) {
+    const code = term.pending, c = CODES[code]; term.pending = null;
+    if (!c) { term.msg2 = 'FAILED: INVALID CODE'; sfx('beep', screenPanel.mesh.position); }
+    else if (redeemed.includes(code)) term.msg2 = 'FAILED: ALREADY REDEEMED';
+    else {
+      redeemed.push(code);
+      try { localStorage.setItem('wrecked-codes', redeemed.join(',')); } catch (e) { /* storage blocked */ }
+      setLook(c.rgb, code); term.msg2 = `SUCCESS: ${c.name} UNLOCKED!`; sfx('win', screenPanel.mesh.position);
+    }
+    screenSig = '';
+  }
+}
+const KB_PX = 1024;
+function drawKeyboard() {
+  const { ctx, c } = kbPanel;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const k of KB) {
+    const cx = (k.lx + 0.5) * KB_PX, cy = (0.25 - k.ly) * KB_PX, w = k.w * 102.4 - 16, h = 86;
+    const tab = TABS.includes(k.label);
+    ctx.fillStyle = k.flash > 0 ? '#5dff8a' : tab && term.tab === k.label ? '#2f8f4a' : tab ? '#4a4a55' : k.label === 'ENTER' ? '#3a7a4a' : k.label === 'DEL' ? '#8a3a32' : '#3a3a40';
+    rr(ctx, cx - w / 2, cy - h / 2, w, h, 12); ctx.fill();
+    ctx.fillStyle = k.flash > 0 ? '#0b1a10' : '#f3ead8';
+    ctx.font = k.label.length > 1 ? `700 ${k.label.length > 5 ? 30 : 34}px ${FB}` : `700 50px ${FB}`;
+    ctx.fillText(k.label, cx, cy + 2);
+  }
+  ctx.textBaseline = 'alphabetic';
+  kbPanel.tex.needsUpdate = true;
+}
+function drawScreen() {
+  const { ctx, c } = screenPanel, W = c.width, H = c.height, T = term;
+  const g = ctx.createRadialGradient(W / 2, H / 2, 80, W / 2, H / 2, W * 0.7);
+  g.addColorStop(0, '#0b2a16'); g.addColorStop(1, '#020804');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const G1 = '#6dff96', G2 = '#36b862';
+  ctx.shadowColor = G1; ctx.shadowBlur = 10; ctx.textAlign = 'left';
+  ctx.fillStyle = G1; ctx.font = `46px ${FT}`;
+  ctx.fillText('WRECKED OS', 40, 62);
+  ctx.textAlign = 'right'; ctx.fillStyle = G2; ctx.fillText('VER 1.0', W - 40, 62); ctx.textAlign = 'left';
+  // tabs (the top row of keys picks one)
+  let x = 40;
+  ctx.font = `42px ${FT}`;
+  for (const t of TABS) {
+    const w = ctx.measureText(t).width + 24;
+    if (t === T.tab) { ctx.fillStyle = G1; ctx.fillRect(x - 12, 84, w, 46); ctx.fillStyle = '#04140a'; } else ctx.fillStyle = G2;
+    ctx.fillText(t, x, 120); x += w + 18;
+  }
+  ctx.fillStyle = G2; ctx.fillRect(40, 146, W - 80, 3);
+  ctx.font = `44px ${FT}`;
+  let y = 206;
+  const line = (txt, col = G1) => { ctx.fillStyle = col; ctx.fillText(txt, 40, y); y += 50; };
+  const cursor = Math.floor(now * 1.25) % 2 ? '_' : ' ';
+  if (T.tab === 'ROOM') {
+    const n = net.on && net.lbc ? net.lbc.myRoomActorCount() : 1;
+    line(`CURRENT ROOM: ${net.on ? (net.code || 'QUICK PLAY') : net.connecting ? 'CONNECTING...' : 'OFFLINE'}`);
+    line(`PLAYERS IN ROOM: ${n}`, G2);
+    y += 14;
+    line('TYPE A ROOM CODE, THEN PRESS ENTER.', G2);
+    line('FRIENDS WHO TYPE THE SAME CODE JOIN YOU.', G2);
+    line('ENTER WITH NOTHING TYPED = QUICK PLAY.', G2);
+    y += 14; line(`> ${T.input}${cursor}`);
+  } else if (T.tab === 'NAME') {
+    line(`YOUR NAME: ${net.nick.toUpperCase()}`);
+    y += 14; line('TYPE A NEW NAME, THEN PRESS ENTER.', G2);
+    y += 14; line(`> ${T.input}${cursor}`);
+  } else if (T.tab === 'COLOR') {
+    const d = lookDigits();
+    line('PRESS R, G OR B, THEN A NUMBER (0-9).', G2);
+    y += 10;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = i === T.ch ? G1 : G2;
+      ctx.fillText(`${i === T.ch ? '>' : ' '} ${'RGB'[i]}  ${d[i]}`, 40, y);
+      ctx.strokeStyle = G2; ctx.lineWidth = 3; ctx.strokeRect(250, y - 30, 360, 32);
+      ctx.fillRect(250, y - 30, 360 * (d[i] / 9), 32);
+      y += 56;
+    }
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgb(${Math.round(human.fur.r * 255)},${Math.round(human.fur.g * 255)},${Math.round(human.fur.b * 255)})`;
+    ctx.fillRect(680, 186, 280, 150); ctx.strokeStyle = G1; ctx.strokeRect(680, 186, 280, 150);
+    ctx.shadowBlur = 10;
+    y += 6;
+    if (redeemed.length) line(`S = NEXT SKIN (${redeemed.length} UNLOCKED)`, G2);
+    line('CHECK YOURSELF OUT IN THE MIRROR!', G2);
+  } else if (T.tab === 'CODE') {
+    line('ENTER PROMO CODE:', G2);
+    line(`> ${T.input}${T.pending ? '' : cursor}`);
+    y += 14;
+    if (redeemed.length) line(`REDEEMED: ${redeemed.join(', ')}`, G2);
+  } else if (T.tab === 'OPTIONS') {
+    line(`1  BLOOD ............ ${bloodOn ? 'ON' : 'OFF'}`);
+    line(`2  SHADOWS .......... ${SHADOW.on ? 'ON' : 'OFF'}`);
+    y += 14;
+    line('PRESS A NUMBER TO SWITCH IT.', G2);
+    line('TURN SHADOWS OFF IF THE GAME FEELS SLOW.', G2);
+  }
+  if (T.msg) { ctx.fillStyle = G1; ctx.fillText(T.msg, 40, H - 100); }
+  if (T.msg2) { ctx.fillStyle = T.msg2.startsWith('FAILED') ? '#ff7a5c' : G1; ctx.fillText(T.msg2, 40, H - 50); }
+  ctx.shadowBlur = 0;
+  // scanlines
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  for (let sy = 0; sy < H; sy += 4) ctx.fillRect(0, sy, W, 2);
+  screenPanel.tex.needsUpdate = true;
+}
+// redraw the screen only when something on it changed (uploading a big picture every frame is slow on a headset)
+let screenSig = '', kbDirty = true;
+function updateComputerPanels() {
+  const sig = [term.tab, term.input, term.msg, term.msg2, term.ch, term.pending, net.on, net.connecting, net.code, net.nick, net.on && net.lbc ? net.lbc.myRoomActorCount() : 0,
+    bloodOn, SHADOW.on, look.rgb && look.rgb.join(), redeemed.length, Math.floor(now * 1.25) % 2].join('|');
+  if (sig !== screenSig) { screenSig = sig; drawScreen(); }
+  if (kbDirty) { kbDirty = false; drawKeyboard(); }
+}
+// which key (if any) is under a point on the keyboard
+function keyAt(p) {
+  const lx = COMP.z - p.z, ly = COMP.x - p.x;
+  let best = null, bd = 1;
+  for (const k of KB) {
+    const dx = Math.abs(lx - k.lx), dy = Math.abs(ly - k.ly);
+    if (dx < k.w * 0.05 && dy < 0.05 && dx + dy < bd) { bd = dx + dy; best = k; }
+  }
+  return best;
+}
+// on a computer: click a key you are looking at
+function pcClickComputer() {
+  if (!inLobby() || human.kind !== 'pc') return false;
+  camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
+  if (_t2.y >= -0.05) return false;
+  const t = (COMP.top - _t1.y) / _t2.y;
+  if (t <= 0 || t > 2.6) return false;
+  const k = keyAt(_t3.copy(_t1).addScaledVector(_t2, t));
+  if (!k) return false;
+  termKey(k); return true;
 }
 function drawPadPanel() {
   const { ctx, c } = padPanel;
@@ -2760,7 +3155,6 @@ function drawBagPanel() {
 let yardDrawT = 0;
 function yardTick(dt) {
   const show = inLobby() && human.kind !== 'none';
-  for (const o of [padPanel.mesh, bagPanel.mesh, keyPanel.mesh, shopPanel.mesh, mirrorPanel.mesh]) o.visible = true;
   // punching bag swings on a spring
   yard.bagV.x += (-yard.bagO.x * 7 - yard.bagV.x * 0.9) * dt; yard.bagV.y += (-yard.bagO.y * 7 - yard.bagV.y * 0.9) * dt;
   yard.bagO.x += yard.bagV.x * dt; yard.bagO.y += yard.bagV.y * dt;
@@ -2776,19 +3170,17 @@ function yardTick(dt) {
   padIM.setColorAt(0, raw(1, 0.62 + 0.2 * glow, 0.1 + 0.15 * glow)); padIM.instanceColor.needsUpdate = true;
   if (onPad && yard.padT > 1.5) { yard.padT = 0; requestStart(); }
   yard.btnCD -= dt;
-  for (const k of KEYS) { k.cd -= dt; k.flash -= dt; }
+  for (const k of KB) { if (k.flash > 0 && (k.flash -= dt) <= 0) kbDirty = true; k.cd -= dt; }
+  termTick(dt);
   if (show) {
     for (const h of localHands()) {
       const sp = h.vel.length();
       // red start button
-      if (KEYS.some((k) => k.flash > 0 && k.flash < 0.05)) yardDrawT = 0;
       if (yard.btnCD <= 0 && h.pos.distanceTo(START_BTN) < 0.3 && sp > 1) { yard.btnCD = 1; sfx('slap', START_BTN); pulseHand(h.k, 0.8, 60); requestStart(); }
-      // keypad: push a button toward the board
-      for (const k of KEYS) {
-        const du = Math.abs(h.pos.z - k.pos.z), dv = Math.abs(h.pos.y - k.pos.y), dx = h.pos.x - k.pos.x;
-        if (k.cd <= 0 && dx < 0.16 && dx > -0.12 && du < (k.label === 'QUICK' ? 0.45 : 0.17) && dv < 0.14 && (human.kind === 'pc' || h.vel.x < -0.3)) {
-          k.cd = 0.45; pulseHand(h.k, 0.5, 30); pressKey(k);
-        }
+      // computer keyboard: tap a key by bringing your hand down onto it
+      if (human.kind === 'vr' && h.vel.y < -0.35 && h.pos.y < COMP.top + 0.1 && h.pos.y > COMP.top - 0.05 && (h.kbCD || 0) <= now) {
+        const k = keyAt(h.pos);
+        if (k && k.cd <= 0) { k.cd = 0.3; h.kbCD = now + 0.15; pulseHand(h.k, 0.4, 25); termKey(k); }
       }
       // punching bag
       if (h.pos.distanceTo(yard.bagC) < 0.42 && sp > FIGHT.slapMin && (yard.bagCD || 0) <= now) {
@@ -2801,7 +3193,8 @@ function yardTick(dt) {
     }
   }
   yardDrawT -= dt;
-  if (yardDrawT <= 0) { yardDrawT = 0.25; drawPadPanel(); drawKeypad(); }
+  if (yardDrawT <= 0) { yardDrawT = 0.25; drawPadPanel(); }
+  if (show && human.pos.distanceTo(screenPanel.mesh.position) < 14) updateComputerPanels();
   // your own ape for the mirror
   const me = show && !human.out;
   for (const im of Object.values(selfIM)) im.count = me ? (im === selfIM.arms ? 2 : im === selfIM.hands ? 0 : 1) : 0;
@@ -2818,17 +3211,52 @@ function yardTick(dt) {
     for (const im of Object.values(selfIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   }
 }
+const shadowCam = new THREE.OrthographicCamera(-SHADOW.half, SHADOW.half, SHADOW.half, -SHADOW.half, 1, 140);
+shadowCam.layers.enable(SELF_LAYER);
+const shadowDepthMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, colorWrite: false });
+const SHADOW_BIAS = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
+const _sc = new THREE.Vector3(), _sr = new THREE.Vector3(), _su = new THREE.Vector3(), hiddenForShadow = [];
+function renderShadows() {
+  SUN.sunOn.value = SHADOW.on ? 1 : 0;
+  shadowIM.visible = !SHADOW.on;
+  if (!SHADOW.on) return;
+  camera.getWorldPosition(_sc);
+  // follow the player, snapped to whole shadow pixels so the edges don't shimmer as you move
+  shadowCam.position.copy(_sc).addScaledVector(LIGHT_DIR, 70); shadowCam.lookAt(_sc); shadowCam.updateMatrixWorld();
+  const texel = (SHADOW.half * 2) / SHADOW.size;
+  _sr.setFromMatrixColumn(shadowCam.matrixWorld, 0); _su.setFromMatrixColumn(shadowCam.matrixWorld, 1);
+  const du = _sc.dot(_sr), dv = _sc.dot(_su);
+  _sc.addScaledVector(_sr, Math.round(du / texel) * texel - du).addScaledVector(_su, Math.round(dv / texel) * texel - dv);
+  shadowCam.position.copy(_sc).addScaledVector(LIGHT_DIR, 70); shadowCam.updateMatrixWorld();
+  SUN.sunMat.value.multiplyMatrices(shadowCam.projectionMatrix, shadowCam.matrixWorldInverse).premultiply(SHADOW_BIAS);
+  // only solid things cast shadows (not the sky, signs, glows or blood)
+  hiddenForShadow.length = 0;
+  scene.traverseVisible((o) => { if ((o.isMesh || o.isInstancedMesh) && (o === sky || o.userData.noCast || o.material.transparent)) hiddenForShadow.push(o); });
+  for (const o of hiddenForShadow) o.visible = false;
+  const xr = renderer.xr.enabled, prevTarget = renderer.getRenderTarget();
+  renderer.xr.enabled = false;
+  scene.overrideMaterial = shadowDepthMat;
+  renderer.setRenderTarget(shadowRT); renderer.clear();
+  renderer.render(scene, shadowCam);
+  scene.overrideMaterial = null;
+  renderer.xr.enabled = xr;
+  renderer.setRenderTarget(prevTarget);
+  for (const o of hiddenForShadow) o.visible = true;
+}
 function renderMirror() {
   if (!inLobby() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
   if ((yard.mirrorN = (yard.mirrorN + 1) % 3) !== 0) return;
   const xr = renderer.xr.enabled, prevTarget = renderer.getRenderTarget();
   renderer.xr.enabled = false;
   renderer.setRenderTarget(mirrorRT);
+  // the mirror can't show itself (drawing a picture into itself is an error on some headsets)
+  mirrorScreen.visible = false;
   renderer.render(scene, mirrorCam);
+  mirrorScreen.visible = true;
   renderer.xr.enabled = xr;
   renderer.setRenderTarget(prevTarget);
 }
-yardLabels(); drawKeypad(); drawPadPanel(); drawBagPanel();
+yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel();
 
 // ================= main loop =================
 let last = -1, hudT = 0;
@@ -2875,6 +3303,7 @@ renderer.setAnimationLoop((t, frame) => {
   const dt = last < 0 ? 1 / 60 : clamp(ts - last, 0.001, 0.05);
   last = ts;
   update(dt, frame);
+  renderShadows();
   renderMirror();
   renderer.render(scene, camera);
 });
@@ -2901,11 +3330,13 @@ $('bvr').addEventListener('click', enterVR);
     ? 'Headset ready. Press Enter VR to jump into the next round.'
     : 'No VR headset found in this browser. Open this page in the Meta Quest Browser to play in VR, or try it here on your computer.';
 })();
-if (document.fonts) document.fonts.ready.then(drawBoard);
+// canvas text only uses a web font once it has loaded, so load them and redraw every panel
+if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Paint"', '600 40px "Barlow Condensed"', '700 40px "Barlow Condensed"', '40px VT323'].map((f) => document.fonts.load(f).catch(() => null)))
+  .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); });
 goMenu();
 setNetStatus('');
 
-window.AR = { die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>

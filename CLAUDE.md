@@ -33,6 +33,10 @@ You are continuing work on **WRECKED**, a multiplayer VR ape brawler for Meta Qu
 - **Fighting (Gang Beasts-style):** slap with hand speed (min 2.2 m/s), dizzy builds 3.2 per m/s of slap speed, dizzy at 100 → 3.5 s knocked out (shake arms to wake early). Grab with grip; throws are 0.9x hand speed (cap 7, awake targets 0.6x). Grabbed apes escape by slapping the holder: 3 slaps (hard ones count double) or knocking them dizzy. Bots slap back when grabbed.
 - **Rounds:** free-for-all, 6 apes, last ape standing; 120 s; fall below y = -8 → out until next round (watch from the out ledge).
 - **Map:** Ravine Sawmill — wooden deck over a ravine, swinging log, shed deck, log bridge to a crystal rock island, lookout. Pixel-texture look (low-res wood/rock/moss, glowing crystals) per the creator's reference images; original chimp-like apes, not Gorilla Tag's art.
+- **Yard computer** (lobby, west desk): green-screen terminal with a full keyboard you tap with your hands (PC: look at a key and click). Tabs: ROOM (join by code / Quick Play), NAME, COLOR (fur colour, R/G/B 0-9, synced to others with the LOOK event), CODE (promo codes unlock fur skins: WRECKED, BANANA, GHOST, GOLDAPE; add new ones in `CODES`), OPTIONS (blood, shadows).
+- **Blood:** liquid look: glossy stretched droplets, wet shiny pools/splatters, drips running down walls, wrecked bodies bleed into a growing pool. Blood can be switched off.
+- **Graphics:** real-time sun shadows (a depth map around the player; can be switched off on the computer if a headset struggles), warm sun / cool shade lighting. Fonts: Rubik Distressed (titles), Rubik Wet Paint (logo), Barlow Condensed (text), VT323 (computer).
+- The creator can make 3D models; load them as .glb (three.js GLTFLoader) when they send some.
 - Name: **WRECKED** (repo is still called `ape-rumble`).
 
 ## Roadmap (creator's priorities)
