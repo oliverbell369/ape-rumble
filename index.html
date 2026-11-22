@@ -1604,6 +1604,7 @@ function pcStep(dt) {
   const R = H.hands[1];
   if (R.tool) {
     if (!mouse.right) { _e.set(human.pitch + 0.2, human.yaw, 0, 'YXZ'); dropTool(H, R, _v.set(0, 0, -1).applyQuaternion(_qq.setFromEuler(_e)).multiplyScalar(8)); }
+    mouse.rightWas = mouse.right;
     return;
   }
   if (mouse.right && !mouse.rightWas && !R.holding && H.ko <= 0 && !H.out && tryPickTool(H, R, 1.3)) { mouse.rightWas = true; return; }
@@ -1801,6 +1802,8 @@ function updateVisuals(dt) {
   fingN = 0; tipN = 0;
   for (const a of actors) {
     if (!a.active) continue;
+    // wrecked apes are drawn as their body item instead (and fallen ones are far below)
+    if (a !== human && (a.dead || (a.out && a.pos.y < -20))) continue;
     const isMe = a === human && human.kind !== 'none';
     if (!isMe) {
       // body: yaw, then wobble tilt; knocked-out apes flop onto their backs
