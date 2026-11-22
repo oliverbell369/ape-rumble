@@ -8,4 +8,6 @@ Grabbed? Keep slapping the ape holding you until it lets go (3 slaps, or 2 hard 
 
 **Online:** every game is online. Leave the room code empty for Quick Play, or type the same code as your friends to play together (up to 6 players; bots fill empty seats). Multiplayer runs on Photon Realtime; the room's first player hosts the bots and the round clock.
 
-Prototype 0.4.
+**The Yard:** everyone arrives in the Yard, a lobby on the canyon rim. Mess around, punch the punching bag, check yourself in the mirror, slap in a room code on the keypad, then stand on the START pad (or slap the red button) to begin a best-of-3 match. After the match everyone returns to the Yard.
+
+Prototype 0.5.

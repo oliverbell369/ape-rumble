@@ -82,18 +82,18 @@ details h3 { margin: 10px 0 0; font-size: 12px; letter-spacing: 0.08em; text-tra
 
 <canvas id="c"></canvas>
 <div id="hud" hidden>
-  <div class="hud-top"><span id="hnet"></span><span><small>Round</small><b id="hround">1</b></span><span><small>Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span></div>
+  <div class="hud-top"><span id="hnet"></span><span><small>Round</small><b id="hround">Yard</b></span><span><small id="halivelbl">Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span></div>
   <div id="xhair"></div>
   <div id="hko" hidden></div>
   <div id="hmsg"></div>
-  <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab, let go to throw · Esc frees the mouse</div>
+  <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab, let go to throw · Enter starts a match in the Yard · Esc frees the mouse</div>
   <div class="hud-bot"><span id="hbarlabel">Dizzy</span><div class="bar"><i id="hdizzy"></i></div></div>
   <button id="hmenu" type="button">Menu</button>
 </div>
 
 <main id="menu">
   <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.4</p>
+    <p class="kicker">VR ape brawler · prototype 0.5</p>
     <h1>WRECKED</h1>
     <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
     <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
@@ -159,9 +159,9 @@ const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8
 const LIGHT_DIR = new THREE.Vector3(0.45, 0.8, 0.35).normalize();
 // online play (Photon Realtime)
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
-const PHOTON_VERSION = 'wrecked-0.3';
+const PHOTON_VERSION = 'wrecked-0.5';
 const PHOTON_REGION = 'us';
-const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8 };
+const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9 };
 const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
@@ -322,6 +322,16 @@ const blk = (x, y0, z, w, h, d, o) => box(x, y0 + h / 2, z, w, h, d, o);
 const DECK = { top: 'planks', side: 'darkwood' };
 const SPAWNS = [];
 const EDGE_POINTS = [];
+// The Yard: the lobby everyone arrives in, on the canyon rim west of the sawmill
+const LB = new THREE.Vector3(-95, 24.3, 0);
+const LOBBY_SPAWNS = [];
+const MATCH_WINS = 2, MATCH_ROUNDS = 3;
+const LOBBY_BOARD = new THREE.Vector3(LB.x + 4, LB.y + 3.3, LB.z - 10), MATCH_BOARD = new THREE.Vector3(0, 7.2, -14);
+const MIRROR = new THREE.Vector3(LB.x - 2.5, LB.y + 1.45, LB.z - 9.56);
+const PAD = new THREE.Vector3(LB.x + 7.2, LB.y, LB.z);
+const START_BTN = new THREE.Vector3(LB.x + 9.35, LB.y + 1.15, LB.z);
+const KEYPAD = new THREE.Vector3(LB.x - 10.2, LB.y + 1.6, LB.z + 2);
+const BAG_PIVOT = new THREE.Vector3(LB.x + 7, LB.y + 3.0, LB.z - 6);
 const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
 function buildLevel() {
   // main deck (top at y = 0) on posts that drop into the ravine
@@ -355,6 +365,35 @@ function buildLevel() {
   // south: the "out" ledge where knocked-out players watch
   blk(0, 11.5, 26, 6, 0.5, 4, DECK);
   blk(0, -30, 26, 0.6, 41.5, 0.6, { mat: 'bark' });
+  // ----- The Yard (lobby) -----
+  const X = LB.x, Y = LB.y, Z = LB.z;
+  blk(X, -10, Z, 34, Y - 0.3 + 10, 34, { mat: 'rock', top: 'grass' });
+  blk(X, Y - 0.3, Z, 22, 0.3, 22, DECK);
+  blk(X, Y, Z - 11, 22.6, 2.2, 0.3, { mat: 'darkwood' });
+  blk(X, Y, Z + 11, 22.6, 2.2, 0.3, { mat: 'darkwood' });
+  blk(X - 11, Y, Z, 0.3, 2.2, 22, { mat: 'darkwood' });
+  blk(X + 11, Y, Z, 0.3, 2.2, 22, { mat: 'darkwood' });
+  // log pile and a lookout post to climb
+  blk(X + 6, Y, Z + 7, 3.2, 0.7, 1.3, { mat: 'bark' });
+  blk(X + 6, Y + 0.7, Z + 7, 2.3, 0.7, 1.1, { mat: 'bark' });
+  blk(X + 6, Y + 1.4, Z + 7, 1.4, 0.7, 0.9, { mat: 'bark' });
+  blk(X - 8, Y, Z - 7.5, 0.45, 3.4, 0.45, { mat: 'bark' });
+  blk(X - 8, Y + 3.4, Z - 7.5, 2.6, 0.3, 2.6, DECK);
+  blk(X - 6.2, Y, Z - 7.5, 1.0, 1.2, 1.0, { mat: 'darkwood' });
+  // mirror backing board
+  blk(MIRROR.x, Y, MIRROR.z - 0.2, 3.9, 2.95, 0.25, { mat: 'darkwood' });
+  // keypad board on the west fence
+  blk(KEYPAD.x - 0.2, Y + 0.2, KEYPAD.z, 0.2, 2.7, 1.9, { mat: 'darkwood' });
+  // start button post
+  blk(START_BTN.x + 0.15, Y, Z, 0.35, 0.95, 0.35, { mat: 'darkwood' });
+  // shop stall (closed for now)
+  blk(X + 1.5, Y, Z + 9.6, 3.6, 1.0, 0.8, { mat: 'planks' });
+  for (const dx of [-0.3, 3.3]) blk(X + dx, Y, Z + 10.2, 0.25, 2.7, 0.25, { mat: 'bark' });
+  box(X + 1.5, Y + 2.85, Z + 9.7, 4.4, 0.2, 2.2, { rx: 0.3, mat: 'planks' });
+  // punching bag frame
+  for (const dx of [-1.25, 1.25]) blk(BAG_PIVOT.x + dx, Y, BAG_PIVOT.z, 0.3, 3.15, 0.3, { mat: 'bark' });
+  blk(BAG_PIVOT.x, Y + 3.15, BAG_PIVOT.z, 2.8, 0.3, 0.3, { mat: 'bark' });
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; LOBBY_SPAWNS.push(new THREE.Vector3(X + Math.cos(a) * 3, Y, Z + 1 + Math.sin(a) * 3)); }
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.5; SPAWNS.push(new THREE.Vector3(Math.cos(a) * 4, 0, Math.sin(a) * 4)); }
   for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; const s = 7.2 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))); EDGE_POINTS.push(new THREE.Vector3(Math.cos(a) * s, 0, Math.sin(a) * s)); }
 }
@@ -609,12 +648,15 @@ function buildScenery() {
       if (r() < 0.35) cluster(side * (27 + r() * 3), -20 + r() * 30, z + r() * 6, 2 + r() * 2);
     }
     // rim forest
-    for (let i = 0; i < 45; i++) pine(side * (46 + r() * 30), 26, -110 + r() * 220, 1.4 + r() * 1.2);
+    for (let i = 0; i < 45; i++) { const px = side * (46 + r() * 30), pz = -110 + r() * 220, ps = 1.4 + r() * 1.2; if (side < 0 && px < -74 && Math.abs(pz - LB.z) < 22) continue; pine(px, 26, pz, ps); }
   }
   // far end of the canyon, so the ravine doesn't run into nothing
   for (const end of [-1, 1]) for (let x = -50; x <= 50; x += 12) rock(x + r() * 6, -10 + r() * 20, end * (130 + r() * 15), 16 + r() * 10, 30 + r() * 20, 14, 0.75);
   // rock island crystals
   for (const [x, y, z, s] of CRYSTALS) cluster(x, y, z, s);
+  // around the Yard
+  for (const [dx, dz, s] of [[-14, -14, 1.6], [14, -13, 1.9], [-13, 14, 1.7], [15, 14, 1.5], [-15, 2, 1.8], [2, -15, 1.4]]) pine(LB.x + dx, LB.y - 0.3, LB.z + dz, s);
+  cluster(LB.x - 14, LB.y - 0.3, LB.z + 8, 1.8); cluster(LB.x + 13.5, LB.y - 0.3, LB.z - 4, 1.4);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -780,6 +822,54 @@ const logIM = inst(mergeParts([
 const ropeIM = inst(mergeParts([{ geo: cyl(0.035, 0.035, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 2);
 logIM.count = 1; ropeIM.count = 2;
 
+// ----- Yard props -----
+const padIM = inst(mergeParts([{ geo: cyl(1.3, 1.3, 0.05, 24), c: F, tint: true }, { geo: cyl(1.45, 1.45, 0.03, 24), c: [0.2, 0.16, 0.12], m: M(0, -0.01, 0) }]), 1);
+const startBtnIM = inst(mergeParts([{ geo: ico(0.2, 1), c: F, tint: true, m: M(0, 0, 0, 0, 0, 0, 1, 0.7, 1) }]), 1);
+const keysIM = inst(mergeParts([{ geo: new THREE.BoxGeometry(0.07, 0.26, 0.32), c: F, tint: true }]), 13);
+const bagIM = inst(mergeParts([
+  { geo: cyl(0.27, 0.3, 0.95, 10), c: [0.55, 0.3, 0.18] },
+  { geo: cyl(0.285, 0.285, 0.06, 10), c: [0.25, 0.16, 0.1], m: M(0, 0.3, 0) },
+  { geo: cyl(0.305, 0.305, 0.06, 10), c: [0.25, 0.16, 0.1], m: M(0, -0.3, 0) },
+]), 1);
+const bagRopeIM = inst(mergeParts([{ geo: cyl(0.03, 0.03, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 1);
+padIM.count = 1; startBtnIM.count = 1; keysIM.count = 0; bagIM.count = 1; bagRopeIM.count = 1;
+padIM.setMatrixAt(0, M(PAD.x, PAD.y + 0.03, PAD.z));
+startBtnIM.setMatrixAt(0, M(START_BTN.x, START_BTN.y, START_BTN.z)); startBtnIM.setColorAt(0, raw(0.9, 0.15, 0.1));
+// keypad layout: u runs left->right as seen from inside the Yard (world -z), v is up
+const KEYS = [['1', -0.42, 0.4], ['2', 0, 0.4], ['3', 0.42, 0.4], ['4', -0.42, 0.05], ['5', 0, 0.05], ['6', 0.42, 0.05], ['7', -0.42, -0.3], ['8', 0, -0.3], ['9', 0.42, -0.3],
+  ['DEL', -0.42, -0.65], ['0', 0, -0.65], ['JOIN', 0.42, -0.65], ['QUICK', 0, -1.0]].map(([label, u, v]) => ({ label, u, v, pos: new THREE.Vector3(KEYPAD.x + 0.05, KEYPAD.y + v, KEYPAD.z - u), cd: 0, flash: 0 }));
+KEYS.forEach((k, i) => keysIM.setMatrixAt(i, M(k.pos.x, k.pos.y, k.pos.z, 0, 0, 0, 1, 1, k.label === 'QUICK' ? 2.8 : 1)));
+function panelAt(w, h, pw, ph, pos, ry) { const p = makePanel(w, h, pw, ph); p.mesh.position.copy(pos); p.mesh.rotation.y = ry; scene.add(p.mesh); return p; }
+const keyPanel = panelAt(512, 840, 1.4, 2.3, new THREE.Vector3(KEYPAD.x - 0.05, KEYPAD.y - 0.05, KEYPAD.z), Math.PI / 2);
+const padPanel = panelAt(512, 256, 1.6, 0.8, new THREE.Vector3(START_BTN.x + 0.1, LB.y + 2.15, LB.z), -Math.PI / 2);
+const bagPanel = panelAt(512, 160, 1.6, 0.5, new THREE.Vector3(BAG_PIVOT.x, LB.y + 3.75, BAG_PIVOT.z), 0);
+const shopPanel = panelAt(512, 200, 2.2, 0.86, new THREE.Vector3(LB.x + 1.5, LB.y + 1.75, LB.z + 9.15), Math.PI);
+const mirrorPanel = panelAt(512, 96, 1.6, 0.3, new THREE.Vector3(MIRROR.x, LB.y + 3.15, MIRROR.z), 0);
+// the mirror: a small camera renders the Yard (and your own ape) onto a screen, flipped like a real mirror
+const mirrorRT = new THREE.WebGLRenderTarget(320, 240);
+mirrorRT.texture.colorSpace = THREE.SRGBColorSpace;
+mirrorRT.texture.repeat.x = -1; mirrorRT.texture.offset.x = 1;
+const mirrorScreen = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.55), new THREE.MeshBasicMaterial({ map: mirrorRT.texture, fog: false }));
+mirrorScreen.position.copy(MIRROR); scene.add(mirrorScreen);
+const mirrorCam = new THREE.PerspectiveCamera(64, 4 / 3, 0.1, 60);
+mirrorCam.position.set(MIRROR.x, LB.y + 1.1, MIRROR.z + 0.05); mirrorCam.lookAt(MIRROR.x, LB.y + 0.75, LB.z + 2);
+const SELF_LAYER = 5;
+mirrorCam.layers.enable(SELF_LAYER);
+const selfIM = { ape: null, band: null, arms: null, hands: null };
+// your own ape, only drawn for the mirror camera
+selfIM.ape = inst(apeGeo, 1); selfIM.band = inst(bandGeo, 1); selfIM.arms = inst(armGeo, 2); selfIM.hands = inst(handGeo, 2);
+for (const im of Object.values(selfIM)) im.layers.set(SELF_LAYER);
+const yardLabels = () => {
+  const draw = (p, lines, bg = 'rgba(22,18,13,0.9)') => {
+    const { ctx, c } = p; ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = bg; rr(ctx, 0, 0, c.width, c.height, 28); ctx.fill(); ctx.textAlign = 'center';
+    lines.forEach(([txt, font, color, y]) => { ctx.font = font; ctx.fillStyle = color; ctx.fillText(txt, c.width / 2, y); });
+    p.tex.needsUpdate = true;
+  };
+  draw(shopPanel, [['SHOP', `80px ${FD}`, '#ffc23a', 92], ['Coming soon: hats, gloves and more', `600 28px ${FB}`, '#f3ead8', 150]]);
+  draw(mirrorPanel, [['MIRROR', `60px ${FD}`, '#f3ead8', 70]]);
+};
+
 // ================= text panels =================
 function makePanel(w, h, pw, ph) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -795,6 +885,7 @@ const wrist = makePanel(256, 128, 0.16, 0.08);
 wrist.mesh.material.depthTest = false; wrist.mesh.renderOrder = 10; wrist.mesh.visible = false; scene.add(wrist.mesh);
 const vignette = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8), new THREE.MeshBasicMaterial({ color: 0x1a0d00, transparent: true, opacity: 0, side: THREE.BackSide, depthTest: false, fog: false }));
 vignette.renderOrder = 20; vignette.visible = false; camera.add(vignette);
+vignette.layers.set(7); camera.layers.enable(7);
 
 // ================= audio =================
 let AC = null, noiseBuf = null;
@@ -880,7 +971,7 @@ function setupSlots() {
     b.player = seatNr.has(k);
     b.remote = !!map && (b.player || !net.host);
     b.name = b.player ? (net.names[seatNr.get(k)] || 'Player') : APES[k].name;
-    b.active = true;
+    b.active = !inLobby() || b.player;
     actors.push(b);
     if (!b.remote) bots.push(b);
   }
@@ -888,7 +979,9 @@ function setupSlots() {
 }
 
 // ================= game state =================
-const G = { state: 'menu', demo: true, round: 0, timeLeft: ROUND_TIME, countdown: 0, endT: 0, winner: null, lastCount: 4, feed: [], feedT: 0 };
+const G = { state: 'menu', demo: true, round: 0, timeLeft: ROUND_TIME, countdown: 0, endT: 0, winner: null, lastCount: 4, feed: [], feedT: 0,
+  lobbyN: 0, matchRound: 0, matchWinner: null, welcomeT: 0 };
+const inLobby = () => G.state === 'lobby' || G.state === 'starting';
 let now = 0;
 const _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3(), _t3 = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
 function rotY(v, yaw, out) { const c = Math.cos(yaw), s = Math.sin(yaw); return out.set(v.x * c + v.z * s, v.y, -v.x * s + v.z * c); }
@@ -910,10 +1003,11 @@ function placeHuman(floorPt, yaw) {
     h.prev.copy(h.pos);
   }
 }
-function resetActor(a, i) {
+function resetActor(a, i, pts = SPAWNS) {
   a.out = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
-  const sp = SPAWNS[i % SPAWNS.length];
-  const yaw = Math.atan2(sp.x, sp.z);
+  const sp = pts[(i < 0 ? 0 : i) % pts.length];
+  const cx = pts === SPAWNS ? 0 : LB.x, cz = pts === SPAWNS ? 0 : LB.z + 1;
+  const yaw = Math.atan2(sp.x - cx, sp.z - cz);
   if (a === human) placeHuman(sp, yaw);
   else { a.pos.set(sp.x, sp.y + 0.56, sp.z); a.vel.set(0, 0, 0); a.yaw = yaw; a.holding = null; a.slapT = -1; a.goal = null; for (const h of a.hands) h.pos.copy(a.pos); }
 }
@@ -921,7 +1015,10 @@ function startRound() {
   if (net.on && !net.host) return;
   if (net.on) buildMap();
   setupSlots();
-  G.round++; G.state = 'countdown'; G.countdown = 3.2; G.lastCount = 4; G.timeLeft = ROUND_TIME; G.winner = null; G.feed = [];
+  G.round++; if (!G.demo) G.matchRound++;
+  G.state = 'countdown'; G.countdown = 3.2; G.lastCount = 4; G.timeLeft = ROUND_TIME; G.winner = null; G.feed = [];
+  setupSlots();
+  flash = 0.25;
   const order = actors.map((a, i) => i).sort(() => Math.random() - 0.5);
   actors.forEach((a, k) => {
     a.active = a === human ? human.kind !== 'none' : true;
@@ -931,6 +1028,44 @@ function startRound() {
     if (a.remote) { a.snapT = 0; a.holding = null; }
   });
   if (net.on) sendState();
+}
+// ----- the Yard and matches -----
+function placeInLobby() {
+  for (const a of actors) {
+    if (!a.active) continue;
+    if (a === human) resetActor(human, mySlot, LOBBY_SPAWNS);
+    else { resetActor(a, a.i, LOBBY_SPAWNS); a.holding = null; a.snapT = 0; }
+  }
+  flash = 0.25; G.welcomeT = 4;
+}
+function goLobby() {
+  if (net.on && !net.host) return;
+  G.state = 'lobby'; G.lobbyN++; G.round = 0; G.matchRound = 0; G.winner = null; G.matchWinner = null; G.feed = [];
+  PJ_reset();
+  if (net.on) buildMap();
+  setupSlots();
+  human.active = human.kind !== 'none';
+  placeInLobby();
+  if (net.on) sendState();
+}
+function PJ_reset() { for (const a of actors) { if (a.heldBy) clearHold(a); } }
+function requestStart() {
+  if (G.state !== 'lobby') return;
+  if (net.on && !net.host) { netSendTo(net.lbc.myRoomMasterActorNr(), EV.START, {}); return; }
+  G.state = 'starting'; G.countdown = 4; G.lastCount = 5;
+  sfx('go');
+  if (net.on) sendState();
+}
+function startMatch() {
+  for (const a of [human, ...allBots]) a.wins = 0;
+  G.matchRound = 0; G.matchWinner = null;
+  startRound();
+}
+function matchOver() { return actors.some((a) => a.wins >= MATCH_WINS) || G.matchRound >= MATCH_ROUNDS; }
+function topWinner() {
+  let best = null, n = 0, tie = false;
+  for (const a of actors) { if (!a.active) continue; if (a.wins > n) { best = a; n = a.wins; tie = false; } else if (a.wins === n && n > 0) tie = true; }
+  return tie ? null : best;
 }
 function endRound() {
   const left = alive();
@@ -952,6 +1087,7 @@ function eliminate(a) {
     placeHuman(OUT_LEDGE, Math.PI);
   } else { if (a.holding) release(a.holding, null); a.holding = null; }
 }
+function goMenuDemo() { G.demo = true; startRound(); G.countdown = 0.01; }
 function goMenu() {
   netLeave();
   human.kind = 'none'; human.active = false; G.demo = true; G.round = 0;
@@ -959,7 +1095,7 @@ function goMenu() {
   setupSlots();
   $('menu').hidden = false; $('hud').hidden = true;
   if (document.pointerLockElement) document.exitPointerLock();
-  startRound(); G.countdown = 0.01;
+  goMenuDemo();
 }
 function updateGame(dt) {
   G.feedT -= dt;
@@ -975,13 +1111,28 @@ function updateGame(dt) {
     if (auth && (alive().length <= 1 || G.timeLeft <= 0)) endRound();
   } else if (G.state === 'end') {
     G.endT -= dt;
-    if (auth && G.endT <= 0) startRound();
+    if (auth && G.endT <= 0) {
+      if (!G.demo && matchOver()) {
+        G.state = 'matchEnd'; G.endT = 6; G.matchWinner = topWinner();
+        sfx(G.matchWinner === human ? 'win' : 'go');
+      } else startRound();
+    }
+  } else if (G.state === 'matchEnd') {
+    G.endT -= dt;
+    if (auth && G.endT <= 0) goLobby();
+  } else if (G.state === 'starting') {
+    G.countdown -= dt;
+    const c = Math.ceil(G.countdown);
+    if (c !== G.lastCount) { G.lastCount = c; if (c > 0) sfx('beep'); }
+    if (auth && G.countdown <= 0) startMatch();
   }
+  G.welcomeT -= dt;
   if (auth && net.on && before !== G.state + G.round) sendState();
   for (const a of actors) {
     if (!a.active) continue;
     if (a.remote) { a.tiltV.x += (-a.tilt.x * 60 - a.tiltV.x * 7) * dt; a.tiltV.y += (-a.tilt.y * 60 - a.tiltV.y * 7) * dt; a.tilt.x += a.tiltV.x * dt; a.tilt.y += a.tiltV.y * dt; continue; }
-    if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
+    if (inLobby()) { if ((a === human ? human.head.y : a.pos.y) < LB.y - 6) resetActor(a, a === human ? mySlot : a.i, LOBBY_SPAWNS); }
+    else if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
     else if (a === human && a.out && human.head.y < FALL_Y) placeHuman(OUT_LEDGE, Math.PI);
     if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
     else if (now - a.lastHit > 2.5) a.dizzy = Math.max(0, a.dizzy - 6 * dt);
@@ -1009,7 +1160,8 @@ function hit(attacker, target, hv, speed, from) {
   const s = Math.min(speed, FIGHT.slapCap);
   _v.copy(hv).setLength(s * FIGHT.slapMul); _v.y = Math.max(_v.y, 0) + FIGHT.slapUp * (s / 6);
   push(target, _v);
-  target.dizzy += s * FIGHT.dizzyPerSpeed * (target.ko > 0 ? 0.3 : 1);
+  const lobbyHit = inLobby();
+  if (!lobbyHit) target.dizzy += s * FIGHT.dizzyPerSpeed * (target.ko > 0 ? 0.3 : 1);
   target.lastHit = now;
   target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
   if (target.heldBy && target.heldBy !== attacker) release(target, null);
@@ -1017,11 +1169,11 @@ function hit(attacker, target, hv, speed, from) {
   if (attacker === human) pulseHand(from, Math.min(1, 0.3 + s * 0.1), 50);
   sfx(s > 6 ? 'bonk' : 'slap', target === human ? null : target.pos, 0.6 + s * 0.06);
   // an ape holding you lets go when you slap it
-  if (isHolding(target)) {
+  if (!lobbyHit && isHolding(target)) {
     target.gripHits = (target.gripHits || 0) + (s > 6 ? 2 : 1);
     if (target.gripHits >= FIGHT.gripBreak) { dropAll(target); feed(`${target === human ? 'You' : target.name} lost their grip!`); }
   }
-  if (target.dizzy >= 100 && target.ko <= 0) {
+  if (!lobbyHit && target.dizzy >= 100 && target.ko <= 0) {
     target.ko = FIGHT.koTime; dropAll(target);
     feed(`${target.name === 'You' ? 'You are' : target.name + ' is'} dizzy!`); sfx('ko', target === human ? null : target.pos);
   }
@@ -1305,7 +1457,7 @@ function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
 // ================= human: computer controls =================
 const keys = {};
 const mouse = { left: false, right: false, drag: false, lx: 0, ly: 0 };
-addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code === 'Enter' && inLobby()) requestStart(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
@@ -1585,6 +1737,7 @@ function updateVisuals(dt) {
   if (wrist.mesh.visible) { wrist.mesh.position.copy(human.hands[0].pos).y += 0.1; wrist.mesh.lookAt(human.head); }
   camera.getWorldPosition(_p);
   sky.position.copy(_p);
+  board.mesh.position.copy(inLobby() ? LOBBY_BOARD : MATCH_BOARD);
   board.mesh.lookAt(_p.x, board.mesh.position.y, _p.z);
   flash = Math.max(0, flash - dt);
   const vo = human.ko > 0 ? 0.55 : flash * 1.6;
@@ -1595,6 +1748,9 @@ function updateVisuals(dt) {
 // ================= HUD =================
 const fmtTime = (t) => { t = Math.max(0, Math.ceil(t)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 function banner() {
+  if (G.state === 'starting') return `Match starting in ${Math.max(1, Math.ceil(G.countdown))}`;
+  if (G.state === 'matchEnd') return G.matchWinner ? (G.matchWinner === human ? 'You win the match!' : `${G.matchWinner.name} wins the match!`) : 'The match is a draw!';
+  if (G.state === 'lobby') return G.welcomeT > 0 && human.kind !== 'none' ? 'Welcome to the Yard' : '';
   if (G.state === 'countdown') return G.countdown > 0.2 ? String(Math.ceil(G.countdown)) : 'RUMBLE!';
   if (G.state === 'fight' && G.timeLeft > ROUND_TIME - 1) return 'RUMBLE!';
   if (G.state === 'end') return G.winner ? (G.winner === human ? 'You win!' : `${G.winner.name} wins!`) : 'Nobody wins!';
@@ -1608,9 +1764,10 @@ function drawBoard() {
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.fillStyle = 'rgba(22,18,13,0.88)'; rr(ctx, 0, 0, c.width, c.height, 44); ctx.fill();
   ctx.fillStyle = '#ffc23a'; ctx.font = `76px ${FD}`; ctx.textAlign = 'left';
-  ctx.fillText(`ROUND ${G.round}`, 48, 100);
+  const lob = inLobby();
+  ctx.fillText(lob ? 'THE YARD' : G.demo ? `ROUND ${G.round}` : `ROUND ${G.matchRound} OF ${MATCH_ROUNDS}`, 48, 100);
   ctx.textAlign = 'right'; ctx.fillStyle = '#f3ead8';
-  ctx.fillText(G.state === 'countdown' ? banner() : G.state === 'end' ? 'NEXT…' : fmtTime(G.timeLeft), 976, 100);
+  ctx.fillText(lob ? (G.state === 'starting' ? String(Math.max(1, Math.ceil(G.countdown))) : '') : G.state === 'countdown' ? banner() : G.state === 'end' || G.state === 'matchEnd' ? 'NEXT…' : fmtTime(G.timeLeft), 976, 100);
   ctx.textAlign = 'left'; ctx.fillStyle = '#b9ad94'; ctx.font = `600 30px ${FB}`;
   ctx.fillText(netLabel(), 48, 142);
   actors.filter((a) => a.active).forEach((a, i) => {
@@ -1619,11 +1776,15 @@ function drawBoard() {
     ctx.fillStyle = a.css; rr(ctx, x, y, 56, 56, 14); ctx.fill();
     ctx.fillStyle = '#f3ead8'; ctx.font = `52px ${FD}`; ctx.fillText(a.name, x + 76, y + 46);
     ctx.font = `600 34px ${FB}`; ctx.fillStyle = '#b9ad94'; ctx.textAlign = 'right';
-    ctx.fillText(a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
+    ctx.fillText(lob ? (a === human ? 'you' : 'here') : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
     ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   });
-  if (G.state === 'end') {
-    ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 120, 190, 784, 160, 30); ctx.fill();
+  if (lob && G.state === 'lobby') {
+    ctx.fillStyle = '#b9ad94'; ctx.font = `600 28px ${FB}`; ctx.textAlign = 'center';
+    ctx.fillText('Stand on the START pad or slap the red button to play', 512, 488);
+  }
+  if (G.state === 'end' || G.state === 'matchEnd') {
+    ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 60, 190, 904, 160, 30); ctx.fill();
     ctx.fillStyle = '#ffc23a'; ctx.font = `86px ${FD}`; ctx.textAlign = 'center'; ctx.fillText(banner(), 512, 300);
   }
   board.tex.needsUpdate = true;
@@ -1634,8 +1795,8 @@ function drawWrist() {
   ctx.fillStyle = 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, 256, 128, 22); ctx.fill();
   ctx.fillStyle = '#f3ead8'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left';
   const stuck = H.ko > 0;
-  ctx.fillText(H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(`${alive().length} left`, 240, 50);
+  ctx.fillText(inLobby() ? (G.state === 'starting' ? `GO IN ${Math.max(1, Math.ceil(G.countdown))}` : 'YARD') : H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(inLobby() ? `${alive().length} here` : `${alive().length} left`, 240, 50);
   ctx.fillStyle = 'rgba(255,255,255,0.15)'; rr(ctx, 16, 80, 224, 22, 11); ctx.fill();
   ctx.fillStyle = stuck ? '#ffc23a' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, stuck ? H.struggle : H.dizzy / 100)), 22, 11); ctx.fill();
   wrist.tex.needsUpdate = true;
@@ -1647,7 +1808,8 @@ function netLabel() {
 }
 function drawHtmlHud() {
   $('hnet').textContent = net.on ? (net.code ? `Room ${net.code}` : 'Online') : net.connecting ? 'Connecting…' : 'Offline';
-  $('hround').textContent = G.round; $('halive').textContent = alive().length; $('htime').textContent = fmtTime(G.timeLeft);
+  $('halivelbl').textContent = inLobby() ? 'Apes here' : 'Apes left';
+  $('hround').textContent = inLobby() ? 'Yard' : `${G.matchRound}/${MATCH_ROUNDS}`; $('halive').textContent = alive().length; $('htime').textContent = inLobby() ? '' : fmtTime(G.timeLeft);
   $('hmsg').textContent = banner() || (G.feedT > 0 ? G.feed[0] : '');
   const stuck = human.ko > 0;
   $('hbarlabel').textContent = stuck ? 'Break free' : 'Dizzy';
@@ -1745,14 +1907,20 @@ function sendState() {
   net.stateT = 0.5;
   const seats = [0, 1, 2, 3, 4, 5];
   netSendAll(EV.STATE, { r: G.round, st: G.state, cd: r2(G.countdown), tl: r2(G.timeLeft), et: r2(G.endT), t: r2(now), map: net.map, names: net.names,
-    wins: seats.map((k) => slotActor(k).wins), w: G.winner ? G.winner.i : -1 });
+    wins: seats.map((k) => slotActor(k).wins), w: G.winner ? G.winner.i : -1, lb: G.lobbyN, mr: G.matchRound, mw: G.matchWinner ? G.matchWinner.i : -1 });
 }
 function applyState(d) {
   const off = d.t - now;
   net.hostOffset = net.hasOffset ? net.hostOffset * 0.9 + off * 0.1 : off; net.hasOffset = true;
-  const newRound = d.r !== G.round;
+  const prev = G.state;
+  const wasLobby = inLobby();
+  G.state = d.st;
+  const lobbyNow = inLobby();
+  const enterLobby = lobbyNow && (d.lb !== G.lobbyN || !wasLobby);
+  const newRound = !lobbyNow && d.r !== G.round;
   net.names = d.names || {};
-  if (newRound || JSON.stringify(d.map) !== JSON.stringify(net.map)) { net.map = d.map || {}; setupSlots(); }
+  if (newRound || enterLobby || JSON.stringify(d.map) !== JSON.stringify(net.map)) { net.map = d.map || {}; setupSlots(); }
+  if (enterLobby) { G.lobbyN = d.lb; G.round = d.r; placeInLobby(); }
   if (newRound) {
     G.round = d.r; G.feed = [];
     for (const a of actors) {
@@ -1760,9 +1928,12 @@ function applyState(d) {
       if (a === human) { if (mySlot >= 0) resetActor(human, mySlot); else { human.out = true; placeHuman(OUT_LEDGE, Math.PI); } }
       else { resetActor(a, a.i); a.holding = null; a.snapT = 0; }
     }
+    flash = 0.25;
   }
-  const prev = G.state;
-  G.state = d.st; G.countdown = d.cd; G.timeLeft = d.tl; G.endT = d.et;
+  G.countdown = d.cd; G.timeLeft = d.tl; G.endT = d.et; G.matchRound = d.mr || 0;
+  G.matchWinner = d.mw >= 0 ? slotActor(d.mw) : null;
+  if (prev !== 'matchEnd' && G.state === 'matchEnd') sfx(G.matchWinner === human ? 'win' : 'go');
+  if (prev === 'lobby' && G.state === 'starting') sfx('go');
   (d.wins || []).forEach((w, k) => { slotActor(k).wins = w; });
   G.winner = d.w >= 0 ? slotActor(d.w) : null;
   if (prev !== 'end' && G.state === 'end') sfx(G.winner === human ? 'win' : 'go');
@@ -1786,6 +1957,7 @@ function onNetEvent(code, d, nr) {
     case EV.RELEASE: { const t = slotActor(d.to); if (t && !t.remote && t.heldBy) release(t, d.v ? new THREE.Vector3(d.v[0], d.v[1], d.v[2]) : null); break; }
     case EV.FREED: { const t = slotActor(d.s); if (t && t.remote) clearHold(t); break; }
     case EV.FEED: if (typeof d.m === 'string') feed(d.m.slice(0, 40)); break;
+    case EV.START: if (net.host) requestStart(); break;
   }
 }
 function updateProxy(b, dt) {
@@ -1826,8 +1998,9 @@ function netTick(dt) {
       netSendAll(EV.POSE, { s: mySlot, p: pack3(human.pos), v: pack3(human.V), y: r2(humanFacing()),
         h: [...pack3(human.hands[0].pos), ...pack3(human.hands[1].pos)], f: flagsOf(human) });
     }
-    if (net.host && bots.length) {
-      netSendAll(EV.BOTS, bots.map((b) => [b.i, ...pack3(b.pos), ...pack3(b.vel), r2(b.yaw), ...pack3(b.hands[0].pos), ...pack3(b.hands[1].pos), flagsOf(b)]));
+    const liveBots = bots.filter((b) => b.active);
+    if (net.host && liveBots.length) {
+      netSendAll(EV.BOTS, liveBots.map((b) => [b.i, ...pack3(b.pos), ...pack3(b.vel), r2(b.yaw), ...pack3(b.hands[0].pos), ...pack3(b.hands[1].pos), flagsOf(b)]));
     }
   }
   if (net.host && net.stateT <= 0) sendState();
@@ -1842,7 +2015,7 @@ function netDrop(msg) {
   netLeave();
   setNetStatus(msg);
   feed('Playing offline');
-  if (human.kind !== 'none') { G.round = 0; startRound(); }
+  if (human.kind !== 'none') goLobby();
 }
 function startPlay() {
   net.want = true;
@@ -1853,7 +2026,7 @@ function startPlay() {
   netLeave();
   G.demo = false; G.round = 0;
   for (const a of [human, ...allBots]) a.wins = 0;
-  setupSlots(); startRound();
+  goLobby();
   if (net.want) connectOnline(); else setNetStatus('');
 }
 function connectOnline() {
@@ -1881,15 +2054,15 @@ function connectOnline() {
     net.on = true; net.connecting = false; net.myNr = lbc.myActor().actorNr;
     net.host = lbc.myRoomMasterActorNr() === net.myNr;
     for (const a of [human, ...allBots]) a.wins = 0;
-    if (net.host) { G.round = 0; startRound(); }
-    else { net.map = {}; G.round = -1; setupSlots(); human.out = true; placeHuman(OUT_LEDGE, Math.PI); G.state = 'end'; G.endT = 9; G.winner = null; }
+    if (net.host) goLobby();
+    else { net.map = {}; G.round = -1; G.lobbyN = -1; G.state = 'lobby'; setupSlots(); human.active = true; placeInLobby(); }
     setNetStatus(net.code ? `Online in room ${net.code}. Friends who type ${net.code} join you.` : 'Online in Quick Play.');
   };
   lbc.onActorJoin = (a) => {
     if (!mine() || a.actorNr === net.myNr) return;
     feed(`${(a.name || 'A player').slice(0, 12)} joined!`);
-    // start a fresh round so the new player can jump in
-    if (net.host && G.state !== 'end') { G.state = 'end'; G.winner = null; G.endT = 3; sendState(); }
+    // in the Yard they get a seat straight away; during a match they join at the next round
+    if (net.host && inLobby()) { buildMap(); setupSlots(); sendState(); }
   };
   lbc.onActorLeave = (a) => {
     if (!mine()) return;
@@ -1907,6 +2080,140 @@ function connectOnline() {
   try { lbc.connectToRegionMaster(PHOTON_REGION); } catch (e) { netDrop("Couldn't reach online play, so you are playing offline with bots."); }
 }
 
+
+// ================= the Yard: pad, keypad, punching bag, mirror =================
+const yard = { typed: '', padT: 0, bagO: new THREE.Vector2(), bagV: new THREE.Vector2(), last: 0, best: 0, btnCD: 0, mirrorN: 0, bagC: new THREE.Vector3(), status: '' };
+const BAG_LEN = 1.55;
+function localHands() { return human.kind === 'none' ? [] : human.hands.filter((h) => h.ok && (human.kind !== 'pc' || h.punchT > 0)); }
+function switchRoom(code) {
+  $('room').value = code; net.code = code;
+  netLeave();
+  feed(code ? `Joining room ${code}…` : 'Joining Quick Play…');
+  G.demo = false; goLobby(); connectOnline();
+}
+function pressKey(k) {
+  k.flash = 0.25; yardDrawT = 0; sfx('tap', k.pos, 3);
+  if (/^[0-9]$/.test(k.label)) { if (yard.typed.length < 6) yard.typed += k.label; }
+  else if (k.label === 'DEL') yard.typed = yard.typed.slice(0, -1);
+  else if (k.label === 'JOIN') { if (yard.typed) { const c = yard.typed; yard.typed = ''; switchRoom(c); } }
+  else if (k.label === 'QUICK') { yard.typed = ''; switchRoom(''); }
+  drawKeypad();
+}
+function drawKeypad() {
+  const { ctx, c } = keyPanel;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill();
+  const toPx = (u, v) => [c.width / 2 + (u / 1.4) * c.width, c.height / 2 - ((v + 0.05) / 2.3) * c.height];
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#b9ad94'; ctx.font = `600 30px ${FB}`; ctx.fillText('ROOM CODE', c.width / 2, 60);
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; rr(ctx, 50, 80, c.width - 100, 90, 18); ctx.fill();
+  ctx.fillStyle = yard.typed ? '#ffc23a' : '#f3ead8'; ctx.font = `64px ${FD}`;
+  ctx.fillText(yard.typed || (net.code ? net.code : (net.on ? 'QUICK PLAY' : '—')), c.width / 2, 148);
+  for (const k of KEYS) {
+    const [x, y] = toPx(k.u, k.v);
+    const w = k.label === 'QUICK' ? 330 : 112, hgt = 84;
+    ctx.fillStyle = k.flash > 0 ? '#ffc23a' : k.label === 'JOIN' ? '#3fa356' : k.label === 'QUICK' ? '#3f7fe0' : k.label === 'DEL' ? '#b3493c' : '#5a4a3a';
+    rr(ctx, x - w / 2, y - hgt / 2, w, hgt, 16); ctx.fill();
+    ctx.fillStyle = '#f3ead8'; ctx.font = k.label.length > 1 ? `34px ${FD}` : `56px ${FD}`;
+    ctx.fillText(k.label === 'QUICK' ? 'QUICK PLAY' : k.label, x, y + (k.label.length > 1 ? 12 : 20));
+  }
+  keyPanel.tex.needsUpdate = true;
+}
+function drawPadPanel() {
+  const { ctx, c } = padPanel;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill(); ctx.textAlign = 'center';
+  if (G.state === 'starting') {
+    ctx.fillStyle = '#ffc23a'; ctx.font = `110px ${FD}`; ctx.fillText(String(Math.max(1, Math.ceil(G.countdown))), c.width / 2, 150);
+    ctx.fillStyle = '#f3ead8'; ctx.font = `600 30px ${FB}`; ctx.fillText('Match starting…', c.width / 2, 215);
+  } else {
+    ctx.fillStyle = '#ffc23a'; ctx.font = `92px ${FD}`; ctx.fillText('START', c.width / 2, 120);
+    ctx.fillStyle = '#f3ead8'; ctx.font = `600 26px ${FB}`; ctx.fillText('Stand on the pad or slap the red button', c.width / 2, 180);
+    ctx.fillStyle = '#b9ad94'; ctx.fillText('Best of 3 rounds · bots fill empty seats', c.width / 2, 222);
+  }
+  padPanel.tex.needsUpdate = true;
+}
+function drawBagPanel() {
+  const { ctx, c } = bagPanel;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, c.width, c.height, 26); ctx.fill(); ctx.textAlign = 'center';
+  ctx.fillStyle = '#f3ead8'; ctx.font = `54px ${FD}`; ctx.fillText(`LAST SLAP ${yard.last.toFixed(1)}`, c.width / 2, 72);
+  ctx.fillStyle = '#ffc23a'; ctx.font = `600 32px ${FB}`; ctx.fillText(`Best ${yard.best.toFixed(1)} m/s`, c.width / 2, 124);
+  bagPanel.tex.needsUpdate = true;
+}
+let yardDrawT = 0;
+function yardTick(dt) {
+  const show = inLobby() && human.kind !== 'none';
+  for (const o of [padPanel.mesh, bagPanel.mesh, keyPanel.mesh, shopPanel.mesh, mirrorPanel.mesh]) o.visible = true;
+  // punching bag swings on a spring
+  yard.bagV.x += (-yard.bagO.x * 7 - yard.bagV.x * 0.9) * dt; yard.bagV.y += (-yard.bagO.y * 7 - yard.bagV.y * 0.9) * dt;
+  yard.bagO.x += yard.bagV.x * dt; yard.bagO.y += yard.bagV.y * dt;
+  yard.bagC.set(BAG_PIVOT.x + yard.bagO.x, BAG_PIVOT.y - BAG_LEN - 0.45, BAG_PIVOT.z + yard.bagO.y);
+  _t1.set(yard.bagC.x, yard.bagC.y + 0.45, yard.bagC.z);
+  setSeg(bagRopeIM, 0, _t1, BAG_PIVOT); bagRopeIM.instanceMatrix.needsUpdate = true;
+  _q.setFromUnitVectors(_yAxis, _t2.subVectors(BAG_PIVOT, _t1).normalize());
+  bagIM.setMatrixAt(0, _mm.compose(yard.bagC, _q, _s.set(1, 1, 1))); bagIM.instanceMatrix.needsUpdate = true;
+  // pad glows (and fills up while you stand on it)
+  const onPad = show && G.state === 'lobby' && !human.out && Math.hypot(human.pos.x - PAD.x, human.pos.z - PAD.z) < 1.35 && human.pos.y < PAD.y + 1.4;
+  yard.padT = onPad ? yard.padT + dt : 0;
+  const glow = G.state === 'starting' ? 1 : 0.45 + 0.25 * Math.sin(now * 4) + Math.min(1, yard.padT / 1.5) * 0.5;
+  padIM.setColorAt(0, raw(1, 0.62 + 0.2 * glow, 0.1 + 0.15 * glow)); padIM.instanceColor.needsUpdate = true;
+  if (onPad && yard.padT > 1.5) { yard.padT = 0; requestStart(); }
+  yard.btnCD -= dt;
+  for (const k of KEYS) { k.cd -= dt; k.flash -= dt; }
+  if (show) {
+    for (const h of localHands()) {
+      const sp = h.vel.length();
+      // red start button
+      if (KEYS.some((k) => k.flash > 0 && k.flash < 0.05)) yardDrawT = 0;
+      if (yard.btnCD <= 0 && h.pos.distanceTo(START_BTN) < 0.3 && sp > 1) { yard.btnCD = 1; sfx('slap', START_BTN); pulseHand(h.k, 0.8, 60); requestStart(); }
+      // keypad: push a button toward the board
+      for (const k of KEYS) {
+        const du = Math.abs(h.pos.z - k.pos.z), dv = Math.abs(h.pos.y - k.pos.y), dx = h.pos.x - k.pos.x;
+        if (k.cd <= 0 && dx < 0.16 && dx > -0.12 && du < (k.label === 'QUICK' ? 0.45 : 0.17) && dv < 0.14 && (human.kind === 'pc' || h.vel.x < -0.3)) {
+          k.cd = 0.45; pulseHand(h.k, 0.5, 30); pressKey(k);
+        }
+      }
+      // punching bag
+      if (h.pos.distanceTo(yard.bagC) < 0.42 && sp > FIGHT.slapMin && (yard.bagCD || 0) <= now) {
+        yard.bagCD = now + 0.3;
+        yard.bagV.x += h.vel.x * 0.35; yard.bagV.y += h.vel.z * 0.35;
+        yard.last = sp; yard.best = Math.max(yard.best, sp);
+        sfx(sp > 6 ? 'bonk' : 'slap', yard.bagC); pulseHand(h.k, Math.min(1, 0.3 + sp * 0.1), 50);
+        drawBagPanel();
+      }
+    }
+  }
+  yardDrawT -= dt;
+  if (yardDrawT <= 0) { yardDrawT = 0.25; drawPadPanel(); drawKeypad(); }
+  // your own ape for the mirror
+  const me = show && !human.out;
+  for (const im of Object.values(selfIM)) im.count = me ? (im === selfIM.arms ? 2 : im === selfIM.hands ? 0 : 1) : 0;
+  if (me) {
+    const yaw = humanFacing();
+    _q.setFromAxisAngle(_yAxis, yaw);
+    selfIM.ape.setMatrixAt(0, _mm.compose(human.pos, _q, _s.set(1, 1, 1))); selfIM.ape.setColorAt(0, human.fur);
+    selfIM.band.setMatrixAt(0, _mm); selfIM.band.setColorAt(0, human.band);
+    for (let k = 0; k < 2; k++) {
+      rotY(_t3.set(k === 0 ? -0.27 : 0.27, -0.06, -0.02), yaw, _t2).add(human.pos);
+      setSeg(selfIM.arms, k, _t2, human.hands[k].pos); selfIM.arms.setColorAt(k, human.fur);
+      selfIM.hands.setMatrixAt(k, _mm.compose(human.hands[k].pos, _q.setFromAxisAngle(_yAxis, yaw), _s.set(1, 1, 1)));
+    }
+    for (const im of Object.values(selfIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  }
+}
+function renderMirror() {
+  if (!inLobby() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
+  if ((yard.mirrorN = (yard.mirrorN + 1) % 3) !== 0) return;
+  const xr = renderer.xr.enabled;
+  renderer.xr.enabled = false;
+  renderer.setRenderTarget(mirrorRT);
+  renderer.render(scene, mirrorCam);
+  renderer.setRenderTarget(null);
+  renderer.xr.enabled = xr;
+}
+yardLabels(); drawKeypad(); drawPadPanel(); drawBagPanel();
+
 // ================= main loop =================
 let last = -1, hudT = 0;
 function update(dt, frame) {
@@ -1923,7 +2230,7 @@ function update(dt, frame) {
   updateGame(dt);
   for (const b of bots) updateBot(b, dt);
   for (const a of actors) if (a.remote) updateProxy(a, dt);
-  if (G.state === 'fight') {
+  if (G.state === 'fight' || inLobby()) {
     if (human.kind === 'vr') vrGrabs();
     if (human.active && !human.out && human.ko <= 0) handHits(human, human.hands);
     for (const b of bots) if (b.active && !b.out && b.ko <= 0) handHits(b, b.hands);
@@ -1931,6 +2238,7 @@ function update(dt, frame) {
   updateHeld(dt);
   bodyBump();
   updateLog(dt);
+  yardTick(dt);
   netTick(dt);
   updateVisuals(dt);
   updateCamera();
@@ -1947,6 +2255,7 @@ renderer.setAnimationLoop((t, frame) => {
   const dt = last < 0 ? 1 / 60 : clamp(ts - last, 0.001, 0.05);
   last = ts;
   update(dt, frame);
+  renderMirror();
   renderer.render(scene, camera);
 });
 
