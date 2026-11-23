@@ -30,40 +30,16 @@
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; }
 #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-#menu {
-  position: fixed; inset: 0; overflow-y: auto; display: flex; align-items: flex-start;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 24px; pointer-events: none;
+#start {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  width: max-content; max-width: calc(100% - 32px); display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; text-align: center; pointer-events: none;
 }
-.panel {
-  pointer-events: auto; width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--line);
-  border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 16px; backdrop-filter: blur(6px);
-}
-.kicker { margin: 0; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-h1 { margin: 0; font-family: var(--font-logo); font-weight: 400; font-size: clamp(56px, 15vw, 84px); line-height: 1; padding-bottom: 6px; color: #e3342b; text-wrap: balance; text-shadow: 0 4px 0 #3d0707; }
-.lede { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.5; max-width: 36ch; }
-.facts { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.facts li { font-size: 14px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-.actions { display: flex; gap: 10px; flex-wrap: wrap; }
-button { font: 700 18px var(--font-body); letter-spacing: 0.02em; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 11px 18px; cursor: pointer; }
-button.primary { background: var(--banana); border-color: var(--banana); color: #2a1a05; }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
+#starthint { margin: 0; font: 700 20px var(--font-body); letter-spacing: 0.02em; }
+button { font: 700 18px var(--font-body); letter-spacing: 0.02em; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 11px 18px; cursor: pointer; pointer-events: auto; }
+button.primary { background: var(--banana); border-color: var(--banana); color: #2a1a05; font-size: 26px; padding: 14px 34px; }
 button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-legend { font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; padding: 0; }
-.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.fields label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); min-width: 0; }
-.fields input { font: 600 18px var(--font-body); color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; width: 100%; min-width: 0; box-sizing: border-box; text-transform: none; }
-#room { text-transform: uppercase; }
-#room::placeholder { text-transform: none; }
-.fields input:focus-visible { outline: 2px solid var(--banana); outline-offset: 1px; }
-.check { display: flex; gap: 8px; align-items: center; font-size: 16px; cursor: pointer; }
-.check input { accent-color: var(--banana); width: 16px; height: 16px; margin: 0; }
-.status { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); }
-details { font-size: 15px; line-height: 1.5; color: var(--muted); }
-summary { cursor: pointer; color: var(--ink); font-weight: 600; }
-details ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
-details h3 { margin: 10px 0 0; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+.status { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); max-width: 46ch; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 .hud-top {
   position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
@@ -77,64 +53,29 @@ details h3 { margin: 10px 0 0; font-size: 14px; letter-spacing: 0.08em; text-tra
 .hud-bot span { font-size: 14px; color: var(--ink); text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
 .bar { width: 100%; height: 12px; border-radius: 999px; background: rgba(0,0,0,0.45); overflow: hidden; border: 1px solid var(--line); }
 .bar i { display: block; height: 100%; width: 0%; background: var(--danger); }
-#hmenu { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: auto; background: var(--panel); }
 #hko { position: absolute; inset: 0; background: rgba(20, 10, 0, 0.45); }
 #hhint { position: absolute; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,0.7); padding-inline: 16px; }
-@media (max-width: 520px) { #menu { align-items: flex-end; } .panel { max-width: none; } .hud-top { font-size: 16px; gap: 10px; } }
+@media (max-width: 520px) { .hud-top { font-size: 16px; gap: 10px; } }
 </style>
 
 <canvas id="c"></canvas>
-<div id="hud" hidden>
+<div id="hud">
   <div class="hud-top"><span id="hnet"></span><span><small>Round</small><b id="hround">Yard</b></span><span><small id="halivelbl">Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span></div>
   <div id="xhair"></div>
   <div id="hko" hidden></div>
   <div id="hmsg"></div>
   <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab apes or tools, let go to throw · Click swings a tool · Enter starts a match in the Yard</div>
   <div class="hud-bot"><span id="hbarlabel">Dizzy</span><div class="bar"><i id="hdizzy"></i></div></div>
-  <button id="hmenu" type="button">Menu</button>
 </div>
 
-<main id="menu">
-  <section class="panel" aria-label="WRECKED menu">
-    <p class="kicker">VR ape brawler · prototype 0.9</p>
-    <h1>WRECKED</h1>
-    <p class="lede">Swing around on your arms, slap other apes silly, grab them and throw them off the sawmill into the ravine. Last ape standing wins.</p>
-    <ul class="facts"><li>6 apes</li><li>Free-for-all</li><li>Ravine Sawmill map</li><li>Swinging log hazard</li></ul>
-    <fieldset class="netpick">
-      <legend>Play</legend>
-      <label class="check" for="blood"><input type="checkbox" id="blood" checked> Blood effects</label>
-      <div class="fields">
-        <label for="nick">Your name<input id="nick" maxlength="12" autocomplete="off" spellcheck="false"></label>
-        <label for="room">Room code<input id="room" maxlength="10" autocomplete="off" spellcheck="false" placeholder="Empty = Quick Play"></label>
-      </div>
-      <p class="status">Leave the room code empty to join anyone who's online, or type the same code as your friends to play together. Bots fill any empty seats, so you always get a full match of 6 apes.</p>
-    </fieldset>
-    <div class="actions">
-      <button id="bvr" class="primary" type="button" disabled>Enter VR</button>
-      <button id="bpc" type="button">Play on computer</button>
-    </div>
-    <p id="vrstatus" class="status">Checking for a VR headset…</p>
-    <p id="netstatus" class="status" hidden></p>
-    <details>
-      <summary>How to play</summary>
-      <h3>In VR</h3>
-      <ul>
-        <li>Push floors, walls and logs with your hands to move. Fling your arms to jump.</li>
-        <li>Swing your hand fast into an ape to slap it. Faster swings hit harder.</li>
-        <li>Enough slaps make an ape dizzy and floppy. Hold grip near an ape to pick it up, then swing and let go to throw.</li>
-        <li>Stab an ape while it's dizzy and it's wrecked: out for the round, and its body stays on the map. Grab a body with grip and swing it at people, or throw it.</li>
-        <li>Smash crates that drop in to find tools: mallet, frying pan, plunger, rubber chicken, knife, boxing-glove launcher and banana peels. Hold grip to hold a tool, swing to hit, let go to throw. Trigger fires the glove launcher.</li>
-        <li>Your fingers follow the controller: the trigger curls your pointing finger, grip curls the rest (and grabs), and your thumb drops when it rests on the buttons.</li>
-        <li>Grabbed? Keep slapping the ape holding you until it lets go. Dizzy? Shake your arms hard to snap out of it.</li>
-        <li>Hold grip on a ledge or beam to hang on. Right stick turns.</li>
-        <li>Fall into the ravine and you're out until the next round. Watch out for the swinging log.</li>
-        <li>In the Yard, use the computer on the desk: tap its keys to join a room with a code, change your name and fur colour, redeem promo codes and switch blood or shadows on and off.</li>
-      </ul>
-      <h3>On a computer</h3>
-      <ul><li>WASD to move, Space to hop, mouse to look, click to slap, hold right-click to grab and release to throw. Look at a key on the Yard computer and click to press it.</li></ul>
-    </details>
-  </section>
-</main>
+<!-- no menu: the game loads straight into the Yard. Browsers only allow VR to start from a
+     button press, so a single Enter VR button sits over the game (on a computer, click to play). -->
+<div id="start">
+  <button id="bvr" class="primary" type="button" hidden>Enter VR</button>
+  <p id="starthint">Click to play · WASD to move</p>
+  <p id="vrstatus" class="status" hidden></p>
+  <p id="netstatus" class="status" hidden></p>
+</div>
 
 <script src="photon-realtime.js"></script>
 <script type="importmap">
@@ -953,6 +894,7 @@ const padPanel = panelAt(512, 256, 1.6, 0.8, new THREE.Vector3(START_BTN.x + 0.1
 const bagPanel = panelAt(512, 160, 1.6, 0.5, new THREE.Vector3(BAG_PIVOT.x, LB.y + 3.75, BAG_PIVOT.z), 0);
 const shopPanel = panelAt(512, 200, 2.2, 0.86, new THREE.Vector3(LB.x + 1.5, LB.y + 1.75, LB.z + 9.15), Math.PI);
 const mirrorPanel = panelAt(512, 96, 1.6, 0.3, new THREE.Vector3(MIRROR.x, LB.y + 3.15, MIRROR.z), 0);
+const logoPanel = panelAt(1024, 300, 4.4, 1.29, new THREE.Vector3(LB.x + 10.7, LB.y + 3.45, LB.z), -Math.PI / 2);
 const rackPanel = panelAt(512, 170, 2.2, 0.73, new THREE.Vector3(LB.x - 6.75, LB.y + 1.85, LB.z + 10.7), Math.PI);
 // the mirror: a small camera renders the Yard (and your own ape) onto a screen, flipped like a real mirror
 const mirrorRT = new THREE.WebGLRenderTarget(320, 240);
@@ -977,6 +919,9 @@ const yardLabels = () => {
   };
   draw(shopPanel, [['SHOP', `80px ${FD}`, '#ffc23a', 92], ['Coming soon: hats, gloves and more', `600 28px ${FB}`, '#f3ead8', 150]]);
   draw(mirrorPanel, [['MIRROR', `60px ${FD}`, '#f3ead8', 70]]);
+  // the game's logo over the START pad
+  { const { ctx, c } = logoPanel; ctx.clearRect(0, 0, c.width, c.height); ctx.textAlign = 'center'; ctx.font = `200px ${FW}`;
+    ctx.fillStyle = '#3d0707'; ctx.fillText('WRECKED', c.width / 2, 222); ctx.fillStyle = '#e3342b'; ctx.fillText('WRECKED', c.width / 2, 210); logoPanel.tex.needsUpdate = true; }
   draw(rackPanel, [['TRY THE TOOLS', `64px ${FD}`, '#ffc23a', 82], ['Grab one with grip and hit the punching bag', `600 26px ${FB}`, '#f3ead8', 140]]);
 };
 
@@ -1211,16 +1156,6 @@ function eliminate(a) {
     for (const h of human.hands) dropHeld(h);
     placeHuman(OUT_LEDGE, Math.PI);
   } else { if (a.holding) release(a.holding, null); a.holding = null; }
-}
-function goMenuDemo() { G.demo = true; startRound(); G.countdown = 0.01; }
-function goMenu() {
-  netLeave();
-  human.kind = 'none'; human.active = false; G.demo = true; G.round = 0;
-  for (const a of [human, ...allBots]) a.wins = 0;
-  setupSlots();
-  $('menu').hidden = false; $('hud').hidden = true;
-  if (document.pointerLockElement) document.exitPointerLock();
-  goMenuDemo();
 }
 function updateGame(dt) {
   G.feedT -= dt;
@@ -2056,14 +1991,21 @@ async function enterVR() {
   initAudio();
   try {
     const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
-    session.addEventListener('end', goMenu);
+    session.addEventListener('end', leaveVR);
     await renderer.xr.setSession(session);
     camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0);
     human.kind = 'vr'; human.active = true; G.demo = false; firstVRFrame = true;
-    $('menu').hidden = true; $('hud').hidden = true;
+    $('start').hidden = true; $('hud').hidden = true;
   } catch (e) {
-    $('vrstatus').textContent = `Couldn't start VR here (${e.message || e.name}). If this page is inside another app, open it directly in the Meta Quest Browser.`;
+    const el = $('vrstatus'); el.hidden = false;
+    el.textContent = `Couldn't start VR here (${e.message || e.name}). If this page is inside another app, open it directly in the Meta Quest Browser.`;
   }
+}
+// your ape stays where it is when you switch between the headset and the screen
+function keepPlace() { placeHuman(_t1.set(human.pos.x, human.pos.y - 0.56, human.pos.z), human.yaw); }
+function leaveVR() {
+  human.kind = 'pc'; human.headL.set(0, 1, 0); keepPlace();
+  $('hud').hidden = false; $('start').hidden = false;
 }
 
 
@@ -2242,10 +2184,6 @@ function netDrop(msg) {
 }
 function startPlay() {
   net.want = true;
-  net.nick = cleanNick($('nick').value) || randomNick();
-  $('nick').value = net.nick;
-  try { localStorage.setItem('wrecked-nick', net.nick); } catch (e) { /* storage blocked */ }
-  net.code = cleanCode($('room').value);
   netLeave();
   G.demo = false; G.round = 0;
   for (const a of [human, ...allBots]) a.wins = 0;
@@ -2346,8 +2284,6 @@ let items = [], nextItemId = 1, itemsDirty = false, crateT = 4, rackT = 0;
 const pendingPick = new Map();
 let bloodOn = true;
 try { const v = localStorage.getItem('wrecked-blood'); if (v !== null) bloodOn = v === '1'; } catch (e) { /* storage blocked */ }
-$('blood').checked = bloodOn;
-$('blood').addEventListener('change', () => { bloodOn = $('blood').checked; try { localStorage.setItem('wrecked-blood', bloodOn ? '1' : '0'); } catch (e) { /* storage blocked */ } });
 const itemById = (id) => items.find((it) => it.id === id);
 const toolType = (id) => itemById(id)?.type;
 const mkItem = (type, p, v, st = 1) => { const it = { id: nextItemId++, type, st, p: p.clone(), v: v ? v.clone() : new THREE.Vector3(), s: -1, h: 0, u: TOOLS[type] ? TOOLS[type].uses : 0, rack: false, thrower: -1, thrownT: 0, spin: rand(0, 6) }; items.push(it); itemsDirty = true; return it; };
@@ -2943,7 +2879,7 @@ const yard = { typed: '', padT: 0, bagO: new THREE.Vector2(), bagV: new THREE.Ve
 const BAG_LEN = 1.55;
 function localHands() { return human.kind === 'none' ? [] : human.hands.filter((h) => h.ok && (human.kind !== 'pc' || h.punchT > 0)); }
 function switchRoom(code) {
-  $('room').value = code; net.code = code;
+  net.code = code;
   netLeave();
   feed(code ? `Joining room ${code}…` : 'Joining Quick Play…');
   G.demo = false; goLobby(); connectOnline();
@@ -2967,13 +2903,13 @@ function setLook(rgb, skin) {
   sendLook();
 }
 function setNick(n) {
-  net.nick = n; $('nick').value = n;
+  net.nick = n;
   try { localStorage.setItem('wrecked-nick', n); } catch (e) { /* storage blocked */ }
   if (net.lbc && net.on) try { net.lbc.myActor().setName(n); } catch (e) { /* not in a room */ }
   sendLook();
 }
 function setOption(which) {
-  if (which === 'blood') { bloodOn = !bloodOn; $('blood').checked = bloodOn; try { localStorage.setItem('wrecked-blood', bloodOn ? '1' : '0'); } catch (e) { /* storage blocked */ } }
+  if (which === 'blood') { bloodOn = !bloodOn; try { localStorage.setItem('wrecked-blood', bloodOn ? '1' : '0'); } catch (e) { /* storage blocked */ } }
   if (which === 'shadows') { SHADOW.on = !SHADOW.on; try { localStorage.setItem('wrecked-shadows', SHADOW.on ? '1' : '0'); } catch (e) { /* storage blocked */ } }
 }
 function termKey(k) {
@@ -3265,7 +3201,7 @@ function update(dt, frame) {
   for (const h of human.hands) h.prev.copy(h.pos);
   if (renderer.xr.isPresenting && frame && human.kind === 'vr') {
     if (readXR(frame)) {
-      if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); startPlay(); }
+      if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); keepPlace(); }
       if (G.state === 'countdown' && !human.out) { /* free to look around, movement locked */ for (const h of human.hands) { h.L.copy(xrIn.hands[h.k].pos); h.q.copy(xrIn.hands[h.k].q); h.ok = xrIn.hands[h.k].ok; handTarget(h, h.pos); } human.headL.copy(xrIn.head); headWorld(human.head); }
       else vrStep(dt, xrIn);
     }
@@ -3308,33 +3244,25 @@ renderer.setAnimationLoop((t, frame) => {
   renderer.render(scene, camera);
 });
 
-// ================= menu wiring =================
-$('bpc').addEventListener('click', () => {
-  initAudio();
-  human.kind = 'pc'; human.active = true;
-  $('menu').hidden = true; $('hud').hidden = false;
-  startPlay();
-});
+// ================= start-up: straight into the Yard =================
 const randomNick = () => `Ape${100 + Math.floor(Math.random() * 900)}`;
 const cleanNick = (v) => (v || '').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 12);
 const cleanCode = (v) => (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
-try { $('nick').value = localStorage.getItem('wrecked-nick') || randomNick(); } catch (e) { $('nick').value = randomNick(); }
-for (const id of ['nick', 'room']) $(id).addEventListener('keydown', (e) => e.stopPropagation());
-$('hmenu').addEventListener('click', goMenu);
+try { net.nick = cleanNick(localStorage.getItem('wrecked-nick')) || randomNick(); localStorage.setItem('wrecked-nick', net.nick); } catch (e) { net.nick = randomNick(); }
 $('bvr').addEventListener('click', enterVR);
+// the hint hides once you're playing with the mouse captured, and comes back if you let go of it
+document.addEventListener('pointerlockchange', () => { if (human.kind === 'pc') $('start').hidden = document.pointerLockElement === canvas; });
 (async () => {
   let ok = false;
   try { ok = !!navigator.xr && await navigator.xr.isSessionSupported('immersive-vr'); } catch (e) { ok = false; }
-  $('bvr').disabled = !ok;
-  $('vrstatus').textContent = ok
-    ? 'Headset ready. Press Enter VR to jump into the next round.'
-    : 'No VR headset found in this browser. Open this page in the Meta Quest Browser to play in VR, or try it here on your computer.';
+  $('bvr').hidden = !ok;
+  $('starthint').textContent = ok ? 'or click the screen to play here' : 'Click to play · WASD to move';
 })();
 // canvas text only uses a web font once it has loaded, so load them and redraw every panel
 if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Paint"', '600 40px "Barlow Condensed"', '700 40px "Barlow Condensed"', '40px VT323'].map((f) => document.fonts.load(f).catch(() => null)))
   .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); });
-goMenu();
-setNetStatus('');
+human.kind = 'pc'; human.active = true;
+startPlay();
 
 window.AR = { get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
