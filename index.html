@@ -302,8 +302,8 @@ const EDGE_POINTS = [];
 const LB = new THREE.Vector3(-95, 24.3, 0);
 const LOBBY_SPAWNS = [];
 const MATCH_WINS = 2, MATCH_ROUNDS = 3;
-const LOBBY_BOARD = new THREE.Vector3(LB.x + 4, LB.y + 3.3, LB.z - 10), MATCH_BOARD = new THREE.Vector3(0, 7.2, -14);
-const MIRROR = new THREE.Vector3(LB.x - 2.5, LB.y + 1.45, LB.z - 9.56);
+const LOBBY_BOARD = new THREE.Vector3(LB.x - 1, LB.y + 5.85, LB.z - 9.2), MATCH_BOARD = new THREE.Vector3(0, 7.2, -14);
+const MIRROR = new THREE.Vector3(LB.x - 2.5, LB.y + 1.45, LB.z - 7.27);
 const PAD = new THREE.Vector3(LB.x + 7.2, LB.y, LB.z);
 const START_BTN = new THREE.Vector3(LB.x + 9.35, LB.y + 1.15, LB.z);
 // the computer on the west side of the Yard: COMP is the middle of the keyboard, top = key tops
@@ -342,27 +342,51 @@ function buildLevel() {
   // south: the "out" ledge where knocked-out players watch
   blk(0, 11.5, 26, 6, 0.5, 4, DECK);
   blk(0, -30, 26, 0.6, 41.5, 0.6, { mat: 'bark' });
-  // ----- The Yard (lobby) -----
+  // ----- The Yard (lobby): a backyard behind a log cabin, with a picket fence, a big tree and a campfire -----
   const X = LB.x, Y = LB.y, Z = LB.z;
   blk(X, -10, Z, 34, Y - 0.3 + 10, 34, { mat: 'rock', top: 'grass' });
-  blk(X, Y - 0.3, Z, 22, 0.3, 22, DECK);
-  blk(X, Y, Z - 11, 22.6, 2.2, 0.3, { mat: 'darkwood' });
-  blk(X, Y, Z + 11, 22.6, 2.2, 0.3, { mat: 'darkwood' });
-  blk(X - 11, Y, Z, 0.3, 2.2, 22, { mat: 'darkwood' });
-  blk(X + 11, Y, Z, 0.3, 2.2, 22, { mat: 'darkwood' });
-  // log pile and a lookout post to climb
-  blk(X + 6, Y, Z + 7, 3.2, 0.7, 1.3, { mat: 'bark' });
-  blk(X + 6, Y + 0.7, Z + 7, 2.3, 0.7, 1.1, { mat: 'bark' });
-  blk(X + 6, Y + 1.4, Z + 7, 1.4, 0.7, 0.9, { mat: 'bark' });
-  blk(X - 8, Y, Z - 7.5, 0.45, 3.4, 0.45, { mat: 'bark' });
+  blk(X, Y - 0.3, Z, 23, 0.3, 23, { top: 'grass', side: 'dirt' });
+  // the picket fence is scenery; these invisible walls are what you bump into (you can still climb over)
+  blk(X, Y, Z - 11.2, 22.6, 1.25, 0.2, { hidden: true });
+  blk(X, Y, Z + 11.2, 22.6, 1.25, 0.2, { hidden: true });
+  blk(X - 11.2, Y, Z, 0.2, 1.25, 22.6, { hidden: true });
+  blk(X + 11.2, Y, Z, 0.2, 1.25, 22.6, { hidden: true });
+  // log cabin along the north side (its log walls are scenery over this dark core), porch in front
+  blk(X - 1, Y, Z - 9.2, 10, 3.0, 3.4, { mat: 'darkwood' });
+  box(X - 1, Y + 3.68, Z - 8.075, 11.2, 0.22, 2.62, { rx: 0.524, mat: 'planks' });
+  box(X - 1, Y + 3.68, Z - 10.325, 11.2, 0.22, 2.62, { rx: -0.524, mat: 'planks' });
+  blk(X - 1, Y + 3.0, Z - 9.2, 10, 0.9, 2.2, { hidden: true });
+  blk(X + 2.6, Y + 2.4, Z - 9.7, 0.8, 2.8, 0.8, { mat: 'stone' });
+  blk(X - 1, Y, Z - 6.4, 10.6, 0.12, 2.2, DECK);
+  blk(MIRROR.x, Y + 0.12, Z - 7.45, 3.9, 2.85, 0.3, { mat: 'darkwood' });
+  for (const dx of [-3.6, 1.6]) blk(X + dx, Y + 4.1, Z - 9.2, 0.14, 0.4, 0.14, { mat: 'bark' });
+  // the big tree with a treehouse platform (climb the trunk) and a stump to step on
+  blk(X - 8, Y, Z - 7.5, 0.85, 3.4, 0.85, { hidden: true });
   blk(X - 8, Y + 3.4, Z - 7.5, 2.6, 0.3, 2.6, DECK);
-  blk(X - 6.2, Y, Z - 7.5, 1.0, 1.2, 1.0, { mat: 'darkwood' });
-  // mirror backing board
-  blk(MIRROR.x, Y, MIRROR.z - 0.2, 3.9, 2.95, 0.25, { mat: 'darkwood' });
-  // computer desk against the west fence; the monitor and keyboard are solid too
-  blk(X - 10.2, Y, COMP.z, 1.3, 0.42, 2.0, { top: 'planks', side: 'darkwood' });
-  blk(X - 10.47, Y + 0.42, COMP.z, 0.65, 1.1, 1.45, { hidden: true });
-  blk(COMP.x, Y + 0.42, COMP.z, 0.55, COMP.top - Y - 0.42, 1.12, { hidden: true });
+  blk(X - 9.25, Y + 3.7, Z - 7.5, 0.1, 0.5, 2.6, { mat: 'bark' });
+  blk(X - 6.75, Y + 3.7, Z - 7.5, 0.1, 0.5, 2.6, { mat: 'bark' });
+  blk(X - 8, Y + 3.7, Z - 8.75, 2.6, 0.5, 0.1, { mat: 'bark' });
+  blk(X - 8, Y, Z - 5.7, 0.9, 0.75, 0.9, { hidden: true });
+  // campfire in the middle (everyone spawns around it) with log benches
+  blk(X, Y, Z + 1, 1.3, 0.22, 1.3, { hidden: true });
+  for (const a of [0.9, 3.0, 5.1]) box(X + Math.sin(a) * 1.75, Y + 0.18, Z + 1 + Math.cos(a) * 1.75, 1.5, 0.36, 0.38, { ry: a, hidden: true });
+  // picnic table
+  blk(X + 6.5, Y + 0.68, Z + 3.2, 1.9, 0.07, 0.85, { mat: 'planks' });
+  for (const dz of [-0.68, 0.68]) blk(X + 6.5, Y + 0.4, Z + 3.2 + dz, 1.9, 0.06, 0.3, { mat: 'planks' });
+  for (const dx of [-0.75, 0.75]) { blk(X + 6.5 + dx, Y, Z + 3.2, 0.09, 0.68, 0.09, { mat: 'bark' }); blk(X + 6.5 + dx, Y + 0.32, Z + 3.2, 0.08, 0.08, 1.6, { mat: 'bark' }); }
+  // log pile to climb
+  blk(X + 6, Y, Z + 7, 3.2, 0.7, 1.3, { hidden: true });
+  blk(X + 6, Y + 0.7, Z + 7, 2.3, 0.7, 1.1, { hidden: true });
+  blk(X + 6, Y + 1.4, Z + 7, 1.4, 0.7, 0.9, { hidden: true });
+  // computer booth: back board, posts and a little roof over the desk
+  blk(X - 10.95, Y, COMP.z, 0.15, 2.5, 2.6, { mat: 'darkwood' });
+  for (const dz of [-1.25, 1.25]) blk(X - 9.6, Y, COMP.z + dz, 0.12, 2.5, 0.12, { mat: 'bark' });
+  blk(X - 10.3, Y + 2.5, COMP.z, 1.6, 0.12, 2.8, { mat: 'planks' });
+  // lamp posts in the corners
+  for (const [dx, dz] of [[-10.3, -10.3], [10.3, -10.3], [-10.3, 10.3], [10.3, 10.3]]) blk(X + dx, Y, Z + dz, 0.14, 2.7, 0.14, { mat: 'bark' });
+  // sign board behind the START panel
+  blk(START_BTN.x + 0.22, Y, Z, 0.12, 1.75, 0.12, { mat: 'bark' });
+  blk(START_BTN.x + 0.2, Y + 1.72, Z, 0.08, 0.9, 1.7, { mat: 'darkwood' });
   // start button post
   blk(START_BTN.x + 0.15, Y, Z, 0.35, 0.95, 0.35, { mat: 'darkwood' });
   // shop stall (closed for now)
@@ -638,6 +662,7 @@ function buildScenery() {
   // around the Yard
   for (const [dx, dz, s] of [[-14, -14, 1.6], [14, -13, 1.9], [-13, 14, 1.7], [15, 14, 1.5], [-15, 2, 1.8], [2, -15, 1.4]]) pine(LB.x + dx, LB.y - 0.3, LB.z + dz, s);
   cluster(LB.x - 14, LB.y - 0.3, LB.z + 8, 1.8); cluster(LB.x + 13.5, LB.y - 0.3, LB.z - 4, 1.4);
+  buildYardDecor(add, r);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -682,6 +707,138 @@ function buildScenery() {
   scene.add(mesh);
 }
 buildScenery();
+// ----- the Yard's look: log cabin, picket fence, big tree, campfire, bushes, path, string lights -----
+// Everything here is scenery (no collision); the solid parts are boxes in buildLevel().
+function buildYardDecor(add, r) {
+  const X = LB.x, Y = LB.y, Z = LB.z;
+  const V = (x, y, z) => new THREE.Vector3(X + x, Y + y, Z + z);
+  const bx = (x, y, z, w, h, d, mat, c, glow = 0, ry = 0) => add(new THREE.BoxGeometry(w, h, d), M(X + x, Y + y, Z + z, 0, ry, 0), mat, c, glow);
+  const seg = (a, b, rad, mat, c, sides = 6, glow = 0, rad2 = rad) => {
+    const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    add(new THREE.CylinderGeometry(rad2, rad, len, sides), new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)), mat, c, glow);
+  };
+  const blob = (x, y, z, rad, mat, c, glow = 0) => add(new THREE.IcosahedronGeometry(1, 1), M(X + x, Y + y, Z + z, r() * 3, r() * 3, 0, rad, rad * (0.8 + r() * 0.3), rad), mat, c, glow, Math.floor(r() * 900) + 1);
+  const WOOD = [1.05, 0.95, 0.85], PICKET = [1.3, 1.22, 1.08], GREEN = () => [0.75 + r() * 0.3, 0.9 + r() * 0.25, 0.7 + r() * 0.2];
+
+  // log cabin walls: horizontal logs, ends crossing at the corners
+  for (let k = 0; k < 10; k++) {
+    const y = 0.16 + k * 0.3;
+    seg(V(-6.25, y, -7.5), V(4.25, y, -7.5), 0.16, 'bark', WOOD, 8);
+    for (const x of [-6, 4]) seg(V(x, y + 0.15, -11.0), V(x, y + 0.15, -7.25), 0.16, 'bark', WOOD, 8);
+  }
+  // log gables under the roof
+  for (let h = 0.15; h < 1.2; h += 0.3) {
+    const half = Math.min(1.7, 2.25 * (1 - h / 1.3)) - 0.08;
+    for (const x of [-6, 4]) seg(V(x, 3.0 + h, -9.2 - half), V(x, 3.0 + h, -9.2 + half), 0.15, 'bark', WOOD, 8);
+  }
+  // door, windows with warm light inside, chimney cap
+  bx(2.6, 1.17, -7.3, 1.05, 2.1, 0.08, 'darkwood', [1.1, 0.85, 0.65]);
+  for (const [x, w] of [[2.04, 0.1], [3.16, 0.1]]) bx(x, 1.2, -7.27, w, 2.2, 0.1, 'planks', [1, 0.9, 0.8]);
+  bx(2.6, 2.3, -7.27, 1.3, 0.1, 0.1, 'planks', [1, 0.9, 0.8]);
+  add(new THREE.IcosahedronGeometry(0.05, 0), M(X + 3.0, Y + 1.15, Z - 7.23), 'stone', [1.3, 1.1, 0.5]);
+  const windowAt = (x, y, z, ry) => {
+    bx(x, y, z, 0.95, 0.8, 0.04, 'crystal', [1.0, 0.75, 0.4], 1, ry);
+    const ox = Math.cos(ry), oz = -Math.sin(ry);
+    for (const s of [-1, 1]) { bx(x + ox * s * 0.5, y, z + oz * s * 0.5, 0.1, 0.95, 0.1, 'planks', [1, 0.9, 0.8], 0, ry); bx(x, y + s * 0.44, z, 1.1, 0.1, 0.1, 'planks', [1, 0.9, 0.8], 0, ry); }
+    bx(x, y, z, 0.05, 0.8, 0.07, 'darkwood', [0.6, 0.5, 0.4], 0, ry); bx(x, y, z, 0.95, 0.05, 0.07, 'darkwood', [0.6, 0.5, 0.4], 0, ry);
+  };
+  windowAt(0.85, 1.65, -7.3, 0);
+  windowAt(4.2, 1.7, -9.2, Math.PI / 2);
+  windowAt(-6.2, 1.7, -9.2, Math.PI / 2);
+  bx(2.6, 5.15, -9.7, 0.95, 0.12, 0.95, 'stone', [0.8, 0.8, 0.8]);
+  // picket fence: posts, two rails and pointed pickets (none behind the cabin)
+  const fenceRun = (along, fixed, axisX) => {
+    const P = (t, y) => (axisX ? V(t, y, fixed) : V(fixed, y, t));
+    const out = Math.sign(fixed) * 0.07;
+    for (let t = -11.2; t <= 11.21; t += 2.24) {
+      const p = P(t, 0.72); add(new THREE.BoxGeometry(0.16, 1.45, 0.16), M(p.x, p.y, p.z), 'darkwood', [1.1, 1, 0.9]);
+      const c = P(t, 1.5); add(new THREE.ConeGeometry(0.13, 0.14, 4), M(c.x, c.y, c.z, 0, Math.PI / 4, 0), 'darkwood', [1.1, 1, 0.9]);
+    }
+    for (const y of [0.3, 0.92]) {
+      const a = P(-11.2, y), b = P(11.2, y);
+      add(new THREE.BoxGeometry(axisX ? 22.4 : 0.05, 0.1, axisX ? 0.05 : 22.4), M((a.x + b.x) / 2 + (axisX ? 0 : out), y + Y, (a.z + b.z) / 2 + (axisX ? out : 0)), 'planks', PICKET);
+    }
+    for (let t = -11.05; t <= 11.1; t += 0.27) {
+      if (along === 'north' && t > -6.4 && t < 4.4) continue;
+      const p = P(t, 0.56), ry = axisX ? 0 : Math.PI / 2, hh = 1.08 + (r() - 0.5) * 0.04;
+      add(new THREE.BoxGeometry(0.11, hh, 0.03), M(p.x, Y + hh / 2, p.z, 0, ry, 0), 'planks', PICKET);
+      add(new THREE.ConeGeometry(0.078, 0.13, 4), M(p.x, Y + hh + 0.06, p.z, 0, ry + Math.PI / 4, 0, 1, 1, 0.4), 'planks', PICKET);
+    }
+  };
+  fenceRun('north', -11.2, true); fenceRun('south', 11.2, true); fenceRun('west', -11.2, false); fenceRun('east', 11.2, false);
+  // the big tree: trunk, roots, branches, a leafy crown, ladder rungs and a tire swing
+  seg(V(-8, 0, -7.5), V(-8.1, 6.2, -7.6), 0.52, 'bark', [0.95, 0.85, 0.75], 9, 0, 0.3);
+  for (let i = 0; i < 5; i++) { const a = (i / 5) * 6.28 + 0.4; seg(V(-8 + Math.cos(a) * 0.3, 0.35, -7.5 + Math.sin(a) * 0.3), V(-8 + Math.cos(a) * 1.25, -0.05, -7.5 + Math.sin(a) * 1.25), 0.2, 'bark', [0.95, 0.85, 0.75], 6, 0, 0.06); }
+  const crown = [];
+  for (const [ex, ey, ez] of [[-6.2, 5.6, -8.6], [-9.8, 5.4, -6.4], [-8.4, 6.1, -9.6], [-8, 5.0, -4.3], [-9.6, 5.9, -8.8]]) { seg(V(-8.05, 4.0 + r() * 0.8, -7.55), V(ex, ey, ez), 0.18, 'bark', [0.95, 0.85, 0.75], 6, 0, 0.09); crown.push([ex, ey, ez]); }
+  for (const [cx, cy, cz] of [...crown, [-8.1, 6.8, -7.6], [-7, 6.6, -6.8], [-9.2, 6.6, -7.2], [-8, 6.4, -8.8]]) {
+    blob(cx, cy + 0.4, cz, 1.25 + r() * 0.5, 'leaves', GREEN());
+    blob(cx + (r() - 0.5) * 1.4, cy + 0.9, cz + (r() - 0.5) * 1.4, 0.9 + r() * 0.4, 'leaves', GREEN());
+  }
+  for (let y = 0.45; y < 3.3; y += 0.4) bx(-8, y, -7.05, 0.5, 0.06, 0.08, 'planks', [1.05, 0.95, 0.85]);
+  seg(V(-8, 4.62, -4.6), V(-8, 1.25, -4.6), 0.018, 'planks', [0.95, 0.85, 0.6], 4);
+  add(new THREE.TorusGeometry(0.3, 0.1, 6, 12), M(X - 8, Y + 0.98, Z - 4.6, 0, Math.PI / 2, 0), 'stone', [0.25, 0.25, 0.27]);
+  add(new THREE.CylinderGeometry(0.46, 0.5, 0.75, 9), M(X - 8, Y + 0.375, Z - 5.7), 'bark', [0.95, 0.85, 0.75]);
+  add(new THREE.CylinderGeometry(0.44, 0.44, 0.02, 9), M(X - 8, Y + 0.755, Z - 5.7), 'planks', [1.25, 1.1, 0.8]);
+  // campfire: stone ring, crossed logs (the flames are animated separately)
+  for (let i = 0; i < 10; i++) { const a = (i / 10) * 6.28; blob(Math.cos(a) * 0.58, 0.1, 1 + Math.sin(a) * 0.58, 0.17, 'stone', [0.85, 0.85, 0.85]); }
+  seg(V(-0.4, 0.1, 0.8), V(0.4, 0.14, 1.2), 0.08, 'bark', [0.6, 0.5, 0.45], 6);
+  seg(V(-0.35, 0.14, 1.3), V(0.35, 0.1, 0.7), 0.08, 'bark', [0.6, 0.5, 0.45], 6);
+  bx(0, 0.02, 1, 0.9, 0.02, 0.9, 'stone', [0.25, 0.22, 0.2]);
+  for (const a of [0.9, 3.0, 5.1]) add(new THREE.CylinderGeometry(0.2, 0.2, 1.5, 9), M(X + Math.sin(a) * 1.75, Y + 0.2, Z + 1 + Math.cos(a) * 1.75, 0, a, Math.PI / 2), 'bark', WOOD);
+  // log pile: round logs with pale cut ends
+  [[5, 3.2, 1.5], [3, 2.3, 1.3], [2, 1.4, 1.1]].forEach(([n, w, len], k) => {
+    const rad = Math.min(0.36, w / (2 * n));
+    for (let i = 0; i < n; i++) {
+      const x = 6 - w / 2 + rad + i * (w - 2 * rad) / Math.max(1, n - 1), y = 0.36 + k * 0.68, l = len + (r() - 0.5) * 0.2;
+      add(new THREE.CylinderGeometry(rad, rad, l, 9), M(X + x, Y + y, Z + 7, Math.PI / 2, 0, 0), 'bark', WOOD);
+      for (const e of [-1, 1]) add(new THREE.CylinderGeometry(rad * 0.88, rad * 0.88, 0.02, 9), M(X + x, Y + y, Z + 7 + e * (l / 2 + 0.005), Math.PI / 2, 0, 0), 'planks', [1.3, 1.12, 0.8]);
+    }
+  });
+  // lamp posts: a lantern and a little roof on each
+  for (const [dx, dz] of [[-10.3, -10.3], [10.3, -10.3], [-10.3, 10.3], [10.3, 10.3]]) {
+    bx(dx, 2.82, dz, 0.24, 0.3, 0.24, 'crystal', [1.0, 0.78, 0.42], 1);
+    add(new THREE.ConeGeometry(0.26, 0.2, 4), M(X + dx, Y + 3.07, Z + dz, 0, Math.PI / 4, 0), 'darkwood', [0.9, 0.8, 0.7]);
+  }
+  // string lights: sagging wires with coloured bulbs
+  const BULB = [[1, 0.85, 0.5], [1, 0.4, 0.25], [0.5, 0.95, 0.5], [0.45, 0.65, 1], [1, 0.6, 0.9]];
+  const lights = (a, b, sag) => {
+    const n = Math.max(6, Math.round(a.distanceTo(b) / 0.7)); let prev = null;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, p = a.clone().lerp(b, t); p.y -= sag * 4 * t * (1 - t);
+      if (prev) seg(prev, p, 0.008, 'darkwood', [0.3, 0.27, 0.25], 4);
+      if (i > 0 && i < n) add(new THREE.IcosahedronGeometry(0.045, 0), M(p.x, p.y - 0.05, p.z), 'crystal', BULB[i % BULB.length], 1);
+      prev = p;
+    }
+  };
+  lights(V(-5.8, 2.95, -6.9), V(10.3, 2.95, 10.3), 1.0);
+  lights(V(3.8, 2.95, -6.9), V(-10.3, 2.95, 10.3), 1.0);
+  lights(V(-6.1, 2.95, -6.95), V(4.1, 2.95, -6.95), 0.25);
+  // bushes with flowers along the fence
+  const FLOWER = [[1, 0.45, 0.6], [1, 0.85, 0.3], [0.9, 0.5, 1], [1, 1, 0.9]];
+  for (const [bxp, bzp] of [[-2.3, 10.4], [5, 10.4], [8.8, 10.4], [10.4, 5.2], [10.4, -3.4], [10.4, -8.6], [-10.4, 6.6], [-10.4, -3], [-10.4, 9.8], [5.6, -10.4], [9, -10.4]]) {
+    for (let k = 0; k < 4; k++) blob(bxp + (r() - 0.5) * 1.1, 0.3 + r() * 0.2, bzp + (r() - 0.5) * 0.5, 0.38 + r() * 0.2, 'leaves', GREEN());
+    const fc = FLOWER[Math.floor(r() * FLOWER.length)];
+    for (let k = 0; k < 7; k++) add(new THREE.IcosahedronGeometry(0.06, 0), M(X + bxp + (r() - 0.5) * 1.2, Y + 0.45 + r() * 0.35, Z + bzp + (r() - 0.5) * 0.6), 'crystal', fc, 1);
+  }
+  // stepping-stone paths: porch -> campfire -> START pad
+  const path = (ax, az, bx2, bz2, step = 0.75) => {
+    const n = Math.round(Math.hypot(bx2 - ax, bz2 - az) / step);
+    for (let i = 0; i <= n; i++) { const t = i / n; add(new THREE.CylinderGeometry(0.27, 0.29, 0.05, 7), M(X + ax + (bx2 - ax) * t + (r() - 0.5) * 0.15, Y + 0.02, Z + az + (bz2 - az) * t + (r() - 0.5) * 0.15, 0, r() * 3, 0), 'stone', [0.95, 0.95, 0.92]); }
+  };
+  path(-1, -4.9, -0.2, -1.4); path(2.6, 0.8, 5.6, 0.2);
+  // grass tufts, kept off the paths, porch and props
+  const clear = (x, z) => (z < -5 && x > -6.8 && x < 4.8) || Math.hypot(x, z - 1) < 2.7 || Math.hypot(x - 7.2, z) < 1.6 || (x > 5.2 && x < 7.8 && z > 2.2 && z < 4.2)
+    || (x > 4.2 && x < 7.8 && z > 6.1 && z < 7.9) || (x > -0.7 && x < 3.7 && z > 8.8) || (x > -9.4 && x < -4 && z > 8.9) || (x < -9.3 && z > 0.5 && z < 3.5)
+    || Math.hypot(x + 8, z + 7.5) < 1.4 || (x > 5.3 && x < 8.7 && Math.abs(z + 6) < 0.6);
+  for (let i = 0; i < 170; i++) {
+    const x = (r() - 0.5) * 21, z = (r() - 0.5) * 21;
+    if (clear(x, z)) continue;
+    const g = GREEN();
+    for (let k = 0; k < 3; k++) add(new THREE.ConeGeometry(0.035, 0.2 + r() * 0.12, 3), M(X + x + (r() - 0.5) * 0.12, Y + 0.1, Z + z + (r() - 0.5) * 0.12, (r() - 0.5) * 0.5, r() * 3, (r() - 0.5) * 0.5), 'leaves', g);
+  }
+}
 const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 12), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
   uniforms: { top: { value: hexToV3(SKY_TOP) }, hor: { value: hexToV3(FOG_HEX) } },
@@ -858,6 +1015,31 @@ const bagIM = inst(mergeParts([
 const bagRopeIM = inst(mergeParts([{ geo: cyl(0.03, 0.03, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 1);
 padIM.count = 1; startBtnIM.count = 1; bagIM.count = 1; bagRopeIM.count = 1;
 padIM.setMatrixAt(0, M(PAD.x, PAD.y + 0.03, PAD.z));
+// campfire flames: glowing cones that flicker, and a warm glow on the ground
+const FIRE = new THREE.Vector3(LB.x, LB.y + 0.12, LB.z + 1);
+const fireIM = new THREE.InstancedMesh(new THREE.ConeGeometry(0.13, 0.55, 6).translate(0, 0.27, 0),
+  new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), 6);
+fireIM.frustumCulled = false; scene.add(fireIM);
+const FIRE_PTS = [[0, 0, 1.0], [0.13, 0.08, 0.75], [-0.12, 0.1, 0.7], [0.05, -0.13, 0.65], [-0.07, -0.1, 0.55], [0, 0.02, 0.45]];
+FIRE_PTS.forEach((f, i) => fireIM.setColorAt(i, new THREE.Color(i === 0 ? 0xff7a1a : i % 2 ? 0xffb02e : 0xff5a10)));
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64); rg.addColorStop(0, 'rgba(255,150,60,1)'); rg.addColorStop(0.35, 'rgba(255,110,30,0.45)'); rg.addColorStop(1, 'rgba(255,90,20,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const fireGlow = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.4).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+fireGlow.position.copy(FIRE).setY(LB.y + 0.025); scene.add(fireGlow);
+function fireTick(dt) {
+  FIRE_PTS.forEach(([dx, dz, h], i) => {
+    const f = h * (0.75 + 0.25 * Math.sin(now * 11 + i * 1.9) + 0.12 * Math.sin(now * 23 + i * 4.1));
+    fireIM.setMatrixAt(i, _mm.compose(_p.set(FIRE.x + dx, FIRE.y, FIRE.z + dz), _q.setFromAxisAngle(_yAxis, now * 0.7 + i), _s.set(1 - f * 0.15, f, 1 - f * 0.15)));
+  });
+  fireIM.instanceMatrix.needsUpdate = true;
+  fireGlow.material.opacity = 0.42 + 0.1 * Math.sin(now * 9) + 0.05 * Math.sin(now * 21);
+  // embers drifting up
+  if (inLobby() && Math.random() < dt * 6 && parts.length < 200 && human.pos.distanceTo(FIRE) < 20)
+    parts.push({ p: _p.set(FIRE.x + rand(-0.2, 0.2), FIRE.y + 0.3, FIRE.z + rand(-0.2, 0.2)).clone(), v: new THREE.Vector3(rand(-0.2, 0.2), rand(0.6, 1.2), rand(-0.2, 0.2)), col: new THREE.Color(Math.random() < 0.5 ? 0xffa030 : 0xff6010), life: rand(0.8, 1.6), size: rand(0.012, 0.022), g: -0.4, drag: 1.2 });
+}
 startBtnIM.setMatrixAt(0, M(START_BTN.x, START_BTN.y, START_BTN.z)); startBtnIM.setColorAt(0, raw(0.9, 0.15, 0.1));
 // ----- the computer: an old beige terminal with a full keyboard -----
 // Keyboard layout in the keyboard's own frame: lx runs left -> right as you face the screen
@@ -893,8 +1075,6 @@ scene.add(kbPanel.mesh);
 const padPanel = panelAt(512, 256, 1.6, 0.8, new THREE.Vector3(START_BTN.x + 0.1, LB.y + 2.15, LB.z), -Math.PI / 2);
 const bagPanel = panelAt(512, 160, 1.6, 0.5, new THREE.Vector3(BAG_PIVOT.x, LB.y + 3.75, BAG_PIVOT.z), 0);
 const shopPanel = panelAt(512, 200, 2.2, 0.86, new THREE.Vector3(LB.x + 1.5, LB.y + 1.75, LB.z + 9.15), Math.PI);
-const mirrorPanel = panelAt(512, 96, 1.6, 0.3, new THREE.Vector3(MIRROR.x, LB.y + 3.15, MIRROR.z), 0);
-const logoPanel = panelAt(1024, 300, 4.4, 1.29, new THREE.Vector3(LB.x + 10.7, LB.y + 3.45, LB.z), -Math.PI / 2);
 const rackPanel = panelAt(512, 170, 2.2, 0.73, new THREE.Vector3(LB.x - 6.75, LB.y + 1.85, LB.z + 10.7), Math.PI);
 // the mirror: a small camera renders the Yard (and your own ape) onto a screen, flipped like a real mirror
 const mirrorRT = new THREE.WebGLRenderTarget(320, 240);
@@ -918,10 +1098,7 @@ const yardLabels = () => {
     p.tex.needsUpdate = true;
   };
   draw(shopPanel, [['SHOP', `80px ${FD}`, '#ffc23a', 92], ['Coming soon: hats, gloves and more', `600 28px ${FB}`, '#f3ead8', 150]]);
-  draw(mirrorPanel, [['MIRROR', `60px ${FD}`, '#f3ead8', 70]]);
-  // the game's logo over the START pad
-  { const { ctx, c } = logoPanel; ctx.clearRect(0, 0, c.width, c.height); ctx.textAlign = 'center'; ctx.font = `200px ${FW}`;
-    ctx.fillStyle = '#3d0707'; ctx.fillText('WRECKED', c.width / 2, 222); ctx.fillStyle = '#e3342b'; ctx.fillText('WRECKED', c.width / 2, 210); logoPanel.tex.needsUpdate = true; }
+
   draw(rackPanel, [['TRY THE TOOLS', `64px ${FD}`, '#ffc23a', 82], ['Grab one with grip and hit the punching bag', `600 26px ${FB}`, '#f3ead8', 140]]);
 };
 
@@ -1867,7 +2044,7 @@ function updateVisuals(dt) {
   camera.getWorldPosition(_p);
   sky.position.copy(_p);
   board.mesh.position.copy(inLobby() ? LOBBY_BOARD : MATCH_BOARD);
-  board.mesh.lookAt(_p.x, board.mesh.position.y, _p.z);
+  if (inLobby()) board.mesh.rotation.set(0, 0, 0); else board.mesh.lookAt(_p.x, board.mesh.position.y, _p.z);
   flash = Math.max(0, flash - dt);
   const vo = human.ko > 0 ? 0.55 : flash * 1.6;
   vignette.visible = human.kind !== 'none' && vo > 0.01;
@@ -1879,7 +2056,7 @@ const fmtTime = (t) => { t = Math.max(0, Math.ceil(t)); return `${Math.floor(t /
 function banner() {
   if (G.state === 'starting') return `Match starting in ${Math.max(1, Math.ceil(G.countdown))}`;
   if (G.state === 'matchEnd') return G.matchWinner ? (G.matchWinner === human ? 'You win the match!' : `${G.matchWinner.name} wins the match!`) : 'The match is a draw!';
-  if (G.state === 'lobby') return G.welcomeT > 0 && human.kind !== 'none' ? 'Welcome to the Yard' : '';
+  if (G.state === 'lobby') return '';
   if (G.state === 'countdown') return G.countdown > 0.2 ? String(Math.ceil(G.countdown)) : 'RUMBLE!';
   if (G.state === 'fight' && G.timeLeft > ROUND_TIME - 1) return 'RUMBLE!';
   if (G.state === 'end') return G.winner ? (G.winner === human ? 'You win!' : `${G.winner.name} wins!`) : 'Nobody wins!';
@@ -3107,7 +3284,7 @@ function yardTick(dt) {
   if (onPad && yard.padT > 1.5) { yard.padT = 0; requestStart(); }
   yard.btnCD -= dt;
   for (const k of KB) { if (k.flash > 0 && (k.flash -= dt) <= 0) kbDirty = true; k.cd -= dt; }
-  termTick(dt);
+  termTick(dt); fireTick(dt);
   if (show) {
     for (const h of localHands()) {
       const sp = h.vel.length();
