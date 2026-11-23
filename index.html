@@ -110,7 +110,7 @@ const LIGHT_DIR = new THREE.Vector3(0.55, 0.66, 0.42).normalize();
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
 const PHOTON_VERSION = 'wrecked-0.7';
 const PHOTON_REGION = 'eu';
-const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, TIRE: 14 };
+const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13 };
 const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, looks: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
@@ -406,11 +406,6 @@ buildLevel();
 // moving parts you can grab and ride (positions are updated every frame)
 const logBox = box(0, 0.9, 0, 4.6, 0.84, 0.84, { hidden: true, dyn: true });
 const ropeBoxes = [-1.6, 1.6].map((x) => box(x, 5.4, 0, 0.12, 9, 0.12, { hidden: true, dyn: true }));
-// tire swing on the Yard's big tree: a real pendulum (state in TIRE, updated in tireTick)
-const TIRE = { pivot: new THREE.Vector3(LB.x - 8, LB.y + 4.62, LB.z - 4.6), L: 3.64, d: new THREE.Vector2(), v: new THREE.Vector2(), bob: new THREE.Vector3(LB.x - 8, LB.y + 0.98, LB.z - 4.6),
-  bobPrev: new THREE.Vector3(), vel3: new THREE.Vector3(), yawPrev: 0, had: false, cd: 0, sendT: 0, syncT: 0 };
-const tireBox = box(TIRE.bob.x, TIRE.bob.y, TIRE.bob.z, 0.24, 0.8, 0.8, { hidden: true, dyn: true });
-const tireRopeBox = box(TIRE.pivot.x, TIRE.pivot.y - TIRE.L / 2, TIRE.pivot.z, 0.08, TIRE.L - 0.4, 0.08, { hidden: true, dyn: true });
 function setBoxRotX(b, x, y, z, th) {
   const c = Math.cos(th), s = Math.sin(th);
   b.c.set(x, y, z); b.ax[0] = 1; b.ax[1] = 0; b.ax[2] = 0;
@@ -772,7 +767,7 @@ function buildYardDecor(add, r) {
     }
   };
   fenceRun('north', -11.2, true); fenceRun('south', 11.2, true); fenceRun('west', -11.2, false); fenceRun('east', 11.2, false);
-  // the big tree: trunk, roots, branches, a leafy crown, ladder rungs and a tire swing
+  // the big tree: trunk, roots, branches, a leafy crown and ladder rungs
   seg(V(-8, 0, -7.5), V(-8.1, 6.2, -7.6), 0.52, 'bark', [0.95, 0.85, 0.75], 9, 0, 0.3);
   for (let i = 0; i < 5; i++) { const a = (i / 5) * 6.28 + 0.4; seg(V(-8 + Math.cos(a) * 0.3, 0.35, -7.5 + Math.sin(a) * 0.3), V(-8 + Math.cos(a) * 1.25, -0.05, -7.5 + Math.sin(a) * 1.25), 0.2, 'bark', [0.95, 0.85, 0.75], 6, 0, 0.06); }
   const crown = [];
@@ -1006,76 +1001,6 @@ const logIM = inst(mergeParts([
 ]), 1);
 const ropeIM = inst(mergeParts([{ geo: cyl(0.035, 0.035, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 2);
 logIM.count = 1; ropeIM.count = 2;
-
-// ----- tire swing -----
-const tireIM = inst(mergeParts([{ geo: new THREE.TorusGeometry(0.3, 0.1, 8, 16), c: [0.22, 0.22, 0.24], layer: 'stone' }]), 1);
-const tireRopeIM = inst(mergeParts([{ geo: cyl(0.02, 0.02, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 1);
-tireIM.count = tireRopeIM.count = 1;
-const _tx = new THREE.Vector3(), _ty = new THREE.Vector3(), _tz = new THREE.Vector3(), _tc = new THREE.Vector3();
-function setBoxBasis(b, c, ax, ay, az) { b.c.copy(c); b.ax[0] = ax.x; b.ax[1] = ax.y; b.ax[2] = ax.z; b.ay[0] = ay.x; b.ay[1] = ay.y; b.ay[2] = ay.z; b.az[0] = az.x; b.az[1] = az.y; b.az[2] = az.z; }
-const onTire = (h) => h.anchored && (h.dyn === tireBox || h.dyn === tireRopeBox);
-function tireTick(dt) {
-  const T = TIRE;
-  let touched = false;
-  // a hand on the tire (or its rope): moving that arm pushes the tire the same way. That's how you
-  // push it from the ground, and how you pump it while riding (swing your arms in rhythm).
-  const riding = human.kind === 'vr' && human.hands.some(onTire);
-  for (const h of human.hands) {
-    rotY(h.L, human.yaw, _v);
-    if (h.armPrev && onTire(h) && T.had && T.yawPrev === human.yaw) {
-      T.v.x += clamp(_v.x - h.armPrev.x, -0.06, 0.06) * 4; T.v.y += clamp(_v.z - h.armPrev.z, -0.06, 0.06) * 4; touched = true;
-    }
-    (h.armPrev || (h.armPrev = new THREE.Vector3())).copy(_v);
-  }
-  T.had = riding; T.yawPrev = human.yaw;
-  // slap it to send it flying
-  if (T.cd <= now) for (const h of localHands()) {
-    if (onTire(h) || h.pos.distanceTo(T.bob) > 0.55) continue;
-    _v.subVectors(h.vel, T.vel3); const sp = Math.hypot(_v.x, _v.z);
-    if (sp < 1.8) continue;
-    T.v.x += _v.x * 0.35; T.v.y += _v.z * 0.35; T.cd = now + 0.25; touched = true;
-    sfx(sp > 5 ? 'bonk' : 'slap', T.bob, 0.8); pulseHand(h.k, 0.5, 40);
-  }
-  // a damped pendulum (steeper pull the higher it swings), kept off the tree trunk
-  const L = T.L, MAX = 2.0;
-  const k = GRAV / Math.sqrt(Math.max(0.5, L * L - T.d.lengthSq()));
-  T.v.x -= k * T.d.x * dt; T.v.y -= k * T.d.y * dt;
-  T.v.multiplyScalar(Math.exp(-0.12 * dt));
-  if (T.v.length() > 7) T.v.setLength(7);
-  T.d.addScaledVector(T.v, dt);
-  const m = T.d.length();
-  if (m > MAX) {
-    T.d.multiplyScalar(MAX / m);
-    const nx = T.d.x / MAX, nz = T.d.y / MAX, vn = T.v.x * nx + T.v.y * nz;
-    if (vn > 0) { T.v.x -= nx * vn * 1.4; T.v.y -= nz * vn * 1.4; if (vn > 1.5) sfx('bonk', T.bob, 0.6); }
-  }
-  T.bobPrev.copy(T.bob);
-  T.bob.set(T.pivot.x + T.d.x, T.pivot.y - Math.sqrt(L * L - T.d.lengthSq()), T.pivot.z + T.d.y);
-  T.vel3.subVectors(T.bob, T.bobPrev).multiplyScalar(1 / Math.max(dt, 1e-3));
-  // move the colliders and the meshes: ty runs up the rope, tx is the tire's axle
-  _ty.subVectors(T.pivot, T.bob).normalize();
-  _tx.set(1, 0, 0).addScaledVector(_ty, -_ty.x).normalize(); _tz.crossVectors(_tx, _ty);
-  setBoxBasis(tireBox, T.bob, _tx, _ty, _tz);
-  _tc.copy(T.bob).addScaledVector(_ty, 0.38);
-  setBoxBasis(tireRopeBox, _t1.addVectors(_tc, T.pivot).multiplyScalar(0.5), _tx, _ty, _tz);
-  _mm.makeBasis(_t2.copy(_tz).negate(), _ty, _tx).setPosition(T.bob);
-  tireIM.setMatrixAt(0, _mm); tireIM.instanceMatrix.needsUpdate = true;
-  setSeg(tireRopeIM, 0, _tc, T.pivot); tireRopeIM.instanceMatrix.needsUpdate = true;
-  // a fast tire bowls apes over
-  if (T.vel3.lengthSq() > 4) for (const a of actors) {
-    if (!a.active || a.out || a.remote || (a === human && riding)) continue;
-    if (a.pos.distanceTo(T.bob) > 0.6 || (a.hitCD.get(-2) || 0) > now) continue;
-    a.hitCD.set(-2, now + 0.8);
-    _v.copy(T.vel3).multiplyScalar(0.8); _v.y = Math.max(_v.y, 0) + 1.5; push(a, _v);
-    sfx('bonk', a === human ? null : a.pos, 0.8); if (a === human) pulseAll(0.6, 80);
-  }
-  // online: share the swing while you're touching it; the host corrects drift once a second
-  T.sendT -= dt; T.syncT -= dt;
-  if (net.on && ((touched && T.sendT <= 0) || (net.host && T.syncT <= 0 && (T.v.lengthSq() > 0.002 || T.d.lengthSq() > 0.0004)))) {
-    T.sendT = 0.1; T.syncT = 1;
-    netSendAll(EV.TIRE, { d: [r2(T.d.x), r2(T.d.y)], v: [r2(T.v.x), r2(T.v.y)] });
-  }
-}
 
 // ----- Yard props -----
 const padIM = inst(mergeParts([{ geo: cyl(1.3, 1.3, 0.05, 24), c: F, tint: true }, { geo: cyl(1.45, 1.45, 0.03, 24), c: [0.2, 0.16, 0.12], m: M(0, -0.01, 0) }]), 1);
@@ -2357,7 +2282,6 @@ function onNetEvent(code, d, nr) {
     case EV.FREED: { const t = slotActor(d.s); if (t && t.remote) clearHold(t); break; }
     case EV.FEED: if (typeof d.m === 'string') feed(d.m.slice(0, 40)); break;
     case EV.START: if (net.host) requestStart(); break;
-    case EV.TIRE: if (Array.isArray(d.d) && Array.isArray(d.v)) { TIRE.d.set(clamp(+d.d[0] || 0, -2, 2), clamp(+d.d[1] || 0, -2, 2)); TIRE.v.set(clamp(+d.v[0] || 0, -7, 7), clamp(+d.v[1] || 0, -7, 7)); } break;
     case EV.LOOK: {
       // a player's name and fur colour, sent when they change them (and every few seconds)
       if (typeof d.n === 'string' && cleanNick(d.n)) net.names[nr] = cleanNick(d.n);
@@ -3473,7 +3397,6 @@ function update(dt, frame) {
   updateHeld(dt);
   bodyBump();
   updateLog(dt);
-  tireTick(dt);
   yardTick(dt);
   netTick(dt);
   updateVisuals(dt);
@@ -3516,7 +3439,7 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
 human.kind = 'pc'; human.active = true;
 startPlay();
 
-window.AR = { TIRE, tireBox, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
