@@ -110,7 +110,7 @@ const LIGHT_DIR = new THREE.Vector3(0.55, 0.66, 0.42).normalize();
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
 const PHOTON_VERSION = 'wrecked-0.7';
 const PHOTON_REGION = 'eu';
-const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13 };
+const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, RTC: 15 };
 const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, looks: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
@@ -1043,7 +1043,7 @@ startBtnIM.setMatrixAt(0, M(START_BTN.x, START_BTN.y, START_BTN.z)); startBtnIM.
 // Keyboard layout in the keyboard's own frame: lx runs left -> right as you face the screen
 // (world -z), ly runs from the near edge to the far edge (world -x); 10 cm per key.
 const KB_ROWS = [
-  [['ROOM', 2], ['NAME', 2], ['COLOR', 2], ['CODE', 2], ['OPTIONS', 2]],
+  [['ROOM', 1.5], ['NAME', 1.5], ['COLOR', 1.5], ['CODE', 1.5], ['VOICE', 1.5], ['OPTIONS', 2.5]],
   [...'1234567890'].map((c) => [c, 1]),
   [...'QWERTYUIOP'].map((c) => [c, 1]),
   [...[...'ASDFGHJKL'].map((c) => [c, 1]), ['DEL', 1]],
@@ -1725,6 +1725,7 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   if (human.kind !== 'pc') return;
   initAudio();
+  if (voice.want && !voice.stream) startMic();
   if (!document.pointerLockElement) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* drag to look */ } }
   addStruggle(0.12);
   if (e.button === 0) {
@@ -2164,6 +2165,8 @@ function readXR(frame) {
 let firstVRFrame = false;
 async function enterVR() {
   initAudio();
+  // the headset asks to use the microphone the first time; give it a few seconds before going into VR
+  if (voice.want && !voice.stream && voice.state !== 'denied') { const r = startMic(); if (r) await Promise.race([r, new Promise((ok) => setTimeout(ok, 4000))]); }
   try {
     const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
     session.addEventListener('end', leaveVR);
@@ -2173,7 +2176,7 @@ async function enterVR() {
     $('start').hidden = true; $('hud').hidden = true;
   } catch (e) {
     const el = $('vrstatus'); el.hidden = false;
-    el.textContent = `Couldn't start VR here (${e.message || e.name}). If this page is inside another app, open it directly in the Meta Quest Browser.`;
+    el.textContent = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'Tap Enter VR again to jump in.' : `Couldn't start VR here (${e.message || e.name}). If this page is inside another app, open it directly in the Meta Quest Browser.`;
   }
 }
 // your ape stays where it is when you switch between the headset and the screen
@@ -2282,6 +2285,7 @@ function onNetEvent(code, d, nr) {
     case EV.FREED: { const t = slotActor(d.s); if (t && t.remote) clearHold(t); break; }
     case EV.FEED: if (typeof d.m === 'string') feed(d.m.slice(0, 40)); break;
     case EV.START: if (net.host) requestStart(); break;
+    case EV.RTC: onRtc(d, nr); break;
     case EV.LOOK: {
       // a player's name and fur colour, sent when they change them (and every few seconds)
       if (typeof d.n === 'string' && cleanNick(d.n)) net.names[nr] = cleanNick(d.n);
@@ -2348,6 +2352,7 @@ function netTick(dt) {
 function netLeave() {
   const l = net.lbc;
   net.lbc = null; net.on = false; net.connecting = false; net.host = true; net.map = null; net.hasOffset = false;
+  closeAllPeers();
   if (l) try { l.disconnect(); } catch (e) { /* already closed */ }
 }
 function netDrop(msg) {
@@ -2398,12 +2403,14 @@ function connectOnline() {
   lbc.onActorJoin = (a) => {
     if (!mine() || a.actorNr === net.myNr) return;
     feed(`${(a.name || 'A player').slice(0, 12)} joined!`);
+    rtcCall(a.actorNr);
     // in the Yard they get a seat straight away; during a match they join at the next round
     if (net.host && inLobby()) { buildMap(); setupSlots(); sendState(); }
   };
   lbc.onActorLeave = (a) => {
     if (!mine()) return;
     feed(`${(a.name || 'A player').slice(0, 12)} left`);
+    closePeer(a.actorNr);
     if (net.map && net.map[a.actorNr] !== undefined) {
       const k = net.map[a.actorNr];
       delete net.map[a.actorNr];
@@ -2417,6 +2424,138 @@ function connectOnline() {
   try { lbc.connectToRegionMaster(PHOTON_REGION); } catch (e) { netDrop("Couldn't reach online play, so you are playing offline with bots."); }
 }
 
+
+// ================= voice chat =================
+// Players in the same room talk over direct browser-to-browser audio (WebRTC); Photon only carries
+// the short setup messages. Each voice comes out of that player's ape (3D sound) and fades with
+// distance. Whoever was in the room first places the call to a newcomer.
+const voice = { want: true, stream: null, state: 'off', ready: null, peers: new Map(), early: new Map(), muted: new Set(), micAn: null, level: 0, buf: new Uint8Array(256) };
+try { voice.want = localStorage.getItem('wrecked-mic') !== '0'; } catch (e) { /* storage blocked */ }
+const RTC_CFG = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' }] };
+const micTrack = () => (voice.stream ? voice.stream.getAudioTracks()[0] : null);
+function startMic() {
+  if (voice.stream || voice.state === 'asking') return voice.ready;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.RTCPeerConnection) { voice.state = 'none'; return null; }
+  voice.state = 'asking';
+  voice.ready = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+    .then((st) => {
+      voice.stream = st; voice.state = 'on';
+      const t = micTrack(); t.enabled = voice.want;
+      for (const pr of voice.peers.values()) if (pr.sender) pr.sender.replaceTrack(t).catch(() => {});
+    })
+    .catch((e) => { voice.state = e && (e.name === 'NotFoundError' || e.name === 'OverconstrainedError') ? 'none' : 'denied'; });
+  return voice.ready;
+}
+function setMic(on) {
+  voice.want = on;
+  try { localStorage.setItem('wrecked-mic', on ? '1' : '0'); } catch (e) { /* storage blocked */ }
+  if (on && !voice.stream) startMic();
+  const t = micTrack(); if (t) t.enabled = on;
+}
+function rtcPeer(nr) {
+  let pr = voice.peers.get(nr);
+  if (pr) return pr;
+  const pc = new RTCPeerConnection(RTC_CFG);
+  pr = { nr, pc, sender: null, el: null, src: null, an: null, panner: null, gain: null, level: 0, tries: 0 };
+  pc.onicecandidate = (e) => { if (e.candidate) netSendTo(nr, EV.RTC, { k: 'ice', c: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } }); };
+  pc.ontrack = (e) => attachVoice(pr, e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]));
+  pc.onconnectionstatechange = () => {
+    // a call that fails is retried by whoever placed it
+    if (pc.connectionState === 'failed' && net.myNr < nr && pr.tries < 3 && voice.peers.get(nr) === pr) setTimeout(() => { if (voice.peers.get(nr) === pr) { const t = pr.tries + 1; closePeer(nr); rtcCall(nr, t); } }, 2000);
+  };
+  voice.peers.set(nr, pr);
+  return pr;
+}
+async function rtcCall(nr, tries = 0) {
+  if (!net.on || !window.RTCPeerConnection || nr === net.myNr) return;
+  try {
+    const pr = rtcPeer(nr); pr.tries = tries;
+    const tr = pr.pc.addTransceiver('audio', { direction: 'sendrecv' });
+    pr.sender = tr.sender;
+    if (micTrack()) await tr.sender.replaceTrack(micTrack());
+    await pr.pc.setLocalDescription(await pr.pc.createOffer());
+    netSendTo(nr, EV.RTC, { k: 'offer', sdp: pr.pc.localDescription.sdp });
+  } catch (e) { /* voice is optional */ }
+}
+async function onRtc(d, nr) {
+  if (!net.on || !d || !window.RTCPeerConnection) return;
+  try {
+    if (d.k === 'offer' && typeof d.sdp === 'string') {
+      closePeer(nr);
+      const pr = rtcPeer(nr);
+      await pr.pc.setRemoteDescription({ type: 'offer', sdp: d.sdp });
+      const tr = pr.pc.getTransceivers()[0];
+      if (tr) { tr.direction = 'sendrecv'; pr.sender = tr.sender; if (micTrack()) await tr.sender.replaceTrack(micTrack()); }
+      await pr.pc.setLocalDescription(await pr.pc.createAnswer());
+      netSendTo(nr, EV.RTC, { k: 'answer', sdp: pr.pc.localDescription.sdp });
+      for (const c of voice.early.get(nr) || []) pr.pc.addIceCandidate(c).catch(() => {});
+      voice.early.delete(nr);
+    } else if (d.k === 'answer' && typeof d.sdp === 'string') {
+      const pr = voice.peers.get(nr);
+      if (pr && pr.pc.signalingState === 'have-local-offer') await pr.pc.setRemoteDescription({ type: 'answer', sdp: d.sdp });
+    } else if (d.k === 'ice' && d.c && typeof d.c.candidate === 'string') {
+      const pr = voice.peers.get(nr);
+      if (pr && pr.pc.remoteDescription) pr.pc.addIceCandidate(d.c).catch(() => {});
+      else { const l = voice.early.get(nr) || []; if (l.length < 40) l.push(d.c); voice.early.set(nr, l); }
+    }
+  } catch (e) { /* voice is optional */ }
+}
+function attachVoice(pr, stream) {
+  if (pr.src) return;
+  // Chrome only feeds a remote voice into 3D audio if it is also playing in an (silent) audio element
+  pr.el = new Audio(); pr.el.srcObject = stream; pr.el.muted = true; pr.el.play().catch(() => {});
+  if (!AC) initAudio();
+  if (!AC) return;
+  pr.src = AC.createMediaStreamSource(stream);
+  pr.an = AC.createAnalyser(); pr.an.fftSize = 256;
+  pr.panner = AC.createPanner();
+  Object.assign(pr.panner, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 1.5, maxDistance: 60, rolloffFactor: 1.1 });
+  pr.gain = AC.createGain(); pr.gain.gain.value = 0;
+  pr.src.connect(pr.an); pr.src.connect(pr.panner); pr.panner.connect(pr.gain); pr.gain.connect(AC.destination);
+}
+function closePeer(nr) {
+  const pr = voice.peers.get(nr); if (!pr) return;
+  voice.peers.delete(nr);
+  try { pr.pc.close(); } catch (e) { /* already closed */ }
+  try { if (pr.src) pr.src.disconnect(); if (pr.gain) pr.gain.disconnect(); } catch (e) { /* already gone */ }
+  if (pr.el) { pr.el.srcObject = null; pr.el = null; }
+}
+function closeAllPeers() { for (const nr of [...voice.peers.keys()]) closePeer(nr); voice.early.clear(); }
+// how loud an analyser is hearing (0..1)
+function levelOf(an) { an.getByteTimeDomainData(voice.buf); let s2 = 0; for (let i = 0; i < 128; i++) { const v = (voice.buf[i] - 128) / 128; s2 += v * v; } return Math.min(1, Math.sqrt(s2 / 128) * 6); }
+const voiceApe = (nr) => { const k = net.map ? net.map[nr] : undefined; const b = k !== undefined ? allBots[k] : null; return b && b.player && b.active ? b : null; };
+const _vf = new THREE.Vector3(), _vu = new THREE.Vector3();
+function voiceTick(dt) {
+  if (!AC) return;
+  // your ears are your head
+  camera.getWorldPosition(_p); camera.getWorldDirection(_vf); _vu.set(0, 1, 0).applyQuaternion(camera.getWorldQuaternion(_q));
+  const L = AC.listener, t = AC.currentTime;
+  if (L.positionX) { L.positionX.setTargetAtTime(_p.x, t, 0.02); L.positionY.setTargetAtTime(_p.y, t, 0.02); L.positionZ.setTargetAtTime(_p.z, t, 0.02);
+    L.forwardX.setTargetAtTime(_vf.x, t, 0.02); L.forwardY.setTargetAtTime(_vf.y, t, 0.02); L.forwardZ.setTargetAtTime(_vf.z, t, 0.02);
+    L.upX.setTargetAtTime(_vu.x, t, 0.02); L.upY.setTargetAtTime(_vu.y, t, 0.02); L.upZ.setTargetAtTime(_vu.z, t, 0.02); }
+  else { L.setPosition(_p.x, _p.y, _p.z); L.setOrientation(_vf.x, _vf.y, _vf.z, _vu.x, _vu.y, _vu.z); }
+  let n = 0;
+  for (const pr of voice.peers.values()) {
+    if (!pr.panner) continue;
+    const b = voiceApe(pr.nr);
+    // each voice comes from that player's ape; someone without a seat is heard quietly from right here
+    const at = b ? _t1.copy(b.pos).setY(b.pos.y + 0.15) : _t1.copy(_p);
+    if (pr.panner.positionX) { pr.panner.positionX.setTargetAtTime(at.x, t, 0.03); pr.panner.positionY.setTargetAtTime(at.y, t, 0.03); pr.panner.positionZ.setTargetAtTime(at.z, t, 0.03); }
+    else pr.panner.setPosition(at.x, at.y, at.z);
+    pr.gain.gain.setTargetAtTime(voice.muted.has(pr.nr) ? 0 : b ? 1.8 : 0.6, t, 0.05);
+    pr.level = pr.level * 0.7 + levelOf(pr.an) * 0.3;
+    // little sound bars over apes that are talking
+    if (b && pr.level > 0.08 && !voice.muted.has(pr.nr) && n < 6) {
+      _q.setFromAxisAngle(_yAxis, Math.atan2(_p.x - b.pos.x, _p.z - b.pos.z));
+      speakIM.setMatrixAt(n++, _mm.compose(_t2.copy(b.pos).setY(b.pos.y + 0.62), _q, _s.set(1, 0.4 + Math.min(1.6, pr.level * 3), 1)));
+    }
+  }
+  speakIM.count = n; speakIM.instanceMatrix.needsUpdate = true;
+  // your own mic level (shown on the computer)
+  if (voice.stream && !voice.micAn) { try { voice.micAn = AC.createAnalyser(); voice.micAn.fftSize = 256; AC.createMediaStreamSource(voice.stream).connect(voice.micAn); } catch (e) { voice.micAn = null; } }
+  voice.level = voice.micAn && voice.want ? voice.level * 0.7 + levelOf(voice.micAn) * 0.3 : 0;
+}
+const speakIM = inst(mergeParts([-0.06, 0, 0.06].map((x, i) => ({ geo: new THREE.BoxGeometry(0.03, i === 1 ? 0.12 : 0.08, 0.03), c: [0.95, 0.95, 0.95], m: M(x, 0, 0) }))), 6);
 
 // ================= crates, tools and blood =================
 // Crates drop onto the map during a fight; slap one open to get a tool. Hold grip to hold it,
@@ -3060,7 +3199,7 @@ function switchRoom(code) {
   G.demo = false; goLobby(); connectOnline();
 }
 // ----- the computer (like the ones in other ape games): room codes, name, fur colour, promo codes, options
-const TABS = ['ROOM', 'NAME', 'COLOR', 'CODE', 'OPTIONS'];
+const TABS = ['ROOM', 'NAME', 'COLOR', 'CODE', 'VOICE', 'OPTIONS'];
 const term = { tab: 'ROOM', input: '', ch: 0, msg: '', msg2: '', busy: 0, pending: null };
 // promo codes unlock fur skins; add new ones here for events (like a holiday code)
 const CODES = {
@@ -3096,6 +3235,12 @@ function termKey(k) {
     if (L === 'R' || L === 'G' || L === 'B') T.ch = 'RGB'.indexOf(L);
     else if (/^[0-9]$/.test(L)) { const d = lookDigits(); d[T.ch] = +L; setLook(d.map((v) => 0.06 + (v / 9) * 0.9)); T.ch = (T.ch + 1) % 3; T.msg = 'COLOR SAVED'; }
     else if (L === 'S' && redeemed.length) { const i = (redeemed.indexOf(look.skin) + 1) % redeemed.length, c = CODES[redeemed[i]]; setLook(c.rgb, redeemed[i]); T.msg = `WEARING ${c.name}`; }
+  } else if (T.tab === 'VOICE') {
+    if (L === 'M') { setMic(!voice.want); T.msg = voice.want ? 'MIC ON' : 'MIC OFF'; }
+    else if (/^[1-5]$/.test(L)) {
+      const p = voicePlayers()[+L - 1];
+      if (p) { if (voice.muted.has(p.nr)) voice.muted.delete(p.nr); else voice.muted.add(p.nr); T.msg = `${voice.muted.has(p.nr) ? 'MUTED' : 'UNMUTED'} ${p.name}`; }
+    }
   } else if (T.tab === 'OPTIONS') {
     if (L === '1') setOption('blood'); else if (L === '2') setOption('shadows');
   } else if (L === 'ENTER') {
@@ -3197,6 +3342,16 @@ function drawScreen() {
     line(`> ${T.input}${T.pending ? '' : cursor}`);
     y += 14;
     if (redeemed.length) line(`REDEEMED: ${redeemed.join(', ')}`, G2);
+  } else if (T.tab === 'VOICE') {
+    const ms = !voice.want ? 'OFF' : voice.state === 'on' ? 'ON' : voice.state === 'asking' ? 'WAITING FOR PERMISSION' : voice.state === 'denied' ? 'BLOCKED' : voice.state === 'none' ? 'NO MIC FOUND' : 'ON';
+    line(`YOUR MIC: ${ms}`);
+    if (voice.want && voice.stream) { ctx.strokeStyle = G2; ctx.lineWidth = 3; ctx.strokeRect(560, y - 80, 300, 30); ctx.fillStyle = G1; ctx.fillRect(560, y - 80, 300 * Math.min(1, voice.level * 2), 30); }
+    line('M = TURN YOUR MIC ON OR OFF', G2);
+    if (voice.state === 'denied') line('ALLOW THE MICROPHONE FOR THIS SITE TO TALK.', '#ff7a5c');
+    y += 6;
+    const ps = voicePlayers();
+    if (!ps.length) line(net.on ? 'NOBODY ELSE IS IN THE ROOM.' : 'VOICE CHAT NEEDS ONLINE PLAY.', G2);
+    else { line('PRESS A NUMBER TO MUTE / UNMUTE:', G2); ps.forEach((p, i) => line(`${i + 1}  ${p.name.padEnd(12, '.')} ${peerStatus(p.nr)}`)); }
   } else if (T.tab === 'OPTIONS') {
     line(`1  BLOOD ............ ${bloodOn ? 'ON' : 'OFF'}`);
     line(`2  SHADOWS .......... ${SHADOW.on ? 'ON' : 'OFF'}`);
@@ -3212,11 +3367,19 @@ function drawScreen() {
   for (let sy = 0; sy < H; sy += 4) ctx.fillRect(0, sy, W, 2);
   screenPanel.tex.needsUpdate = true;
 }
+// everyone else in the room, for the VOICE screen
+function voicePlayers() {
+  if (!net.on || !net.lbc) return [];
+  return net.lbc.myRoomActorsArray().filter((a) => a.actorNr !== net.myNr).sort((a, b) => a.actorNr - b.actorNr).slice(0, 5)
+    .map((a) => ({ nr: a.actorNr, name: (net.names[a.actorNr] || a.name || 'PLAYER').toUpperCase().slice(0, 12) }));
+}
+const peerStatus = (nr) => { const pr = voice.peers.get(nr); if (voice.muted.has(nr)) return 'MUTED'; if (!pr) return 'NO VOICE'; const st = pr.pc.connectionState; return st === 'connected' ? (pr.level > 0.08 ? 'TALKING' : 'CONNECTED') : st === 'failed' ? "CAN'T CONNECT" : 'CONNECTING...'; };
 // redraw the screen only when something on it changed (uploading a big picture every frame is slow on a headset)
 let screenSig = '', kbDirty = true;
 function updateComputerPanels() {
   const sig = [term.tab, term.input, term.msg, term.msg2, term.ch, term.pending, net.on, net.connecting, net.code, net.nick, net.on && net.lbc ? net.lbc.myRoomActorCount() : 0,
-    bloodOn, SHADOW.on, look.rgb && look.rgb.join(), redeemed.length, Math.floor(now * 1.25) % 2].join('|');
+    bloodOn, SHADOW.on, look.rgb && look.rgb.join(), redeemed.length, Math.floor(now * 1.25) % 2,
+    term.tab === 'VOICE' ? [voice.want, voice.state, Math.round(voice.level * 10), ...voicePlayers().map((p) => p.name + peerStatus(p.nr))].join() : ''].join('|');
   if (sig !== screenSig) { screenSig = sig; drawScreen(); }
   if (kbDirty) { kbDirty = false; drawKeyboard(); }
 }
@@ -3401,6 +3564,7 @@ function update(dt, frame) {
   netTick(dt);
   updateVisuals(dt);
   updateCamera();
+  voiceTick(dt);
   hudT -= dt;
   if (hudT <= 0) {
     hudT = 0.15;
@@ -3439,7 +3603,7 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
 human.kind = 'pc'; human.active = true;
 startPlay();
 
-window.AR = { get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { voice, startMic, setMic, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
