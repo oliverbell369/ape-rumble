@@ -1111,7 +1111,8 @@ function skinMaterial() {
       void main() {
         vec4 t = texture(map, vUv);
         vec3 base = mix(t.rgb, t.rgb * fur * 1.5, t.a);
-        vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
+        // the model's normals point outward even where Meshy wound a triangle backwards, so they're used as they are
+        vec3 n = normalize(vN);
         vec3 col = base * sunLight(n, lightDir, sunShadow(vW, n), 0.5);
         outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), 1.0);
       }`,
@@ -1120,7 +1121,7 @@ function skinMaterial() {
 async function loadApeModel() {
   try {
     const [{ GLTFLoader }, { clone }] = await Promise.all([import('three/addons/loaders/GLTFLoader.js'), import('three/addons/utils/SkeletonUtils.js')]);
-    const g = await new GLTFLoader().loadAsync('models/ape.glb?v=1');
+    const g = await new GLTFLoader().loadAsync('models/ape.glb?v=2');
     const src = g.scene;
     let mesh = null; src.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
     if (!mesh) throw new Error('no rigged mesh in the model');
@@ -1131,10 +1132,36 @@ async function loadApeModel() {
     RIG.src = src; RIG.clone = clone; RIG.ready = true;
   } catch (e) { console.warn('Ape model could not load, using the built-in apes:', e); }
 }
+// The model's head has a hole at the back and top (you could see the inside of the eyes). This smooth
+// fur cap covers the back and top of the head (not the face); its texture spot is plain fur, so it
+// takes the fur colour like the rest of the ape. Built in the model's own space (metres, facing +z).
+let capGeo = null;
+function headCapGeo() {
+  if (capGeo) return capGeo;
+  const src = new THREE.IcosahedronGeometry(1, 4), P = src.attributes.position, C = [0, 1.47, -0.02], R = [0.2, 0.238, 0.21];
+  const pos = [], nor = [], uv = [];
+  for (let t = 0; t < P.count; t += 3) {
+    const v = [0, 1, 2].map((k) => [P.getX(t + k), P.getY(t + k), P.getZ(t + k)]);
+    const cy = (v[0][1] + v[1][1] + v[2][1]) / 3, cz = (v[0][2] + v[1][2] + v[2][2]) / 3;
+    if (cz > 0.25 && cy < 0.5) continue;   // leave the face (eyes, nose, mouth) open
+    if (cy < -0.45) continue;              // nothing under the chin
+    for (const [x, y, z] of v) {
+      pos.push(C[0] + x * R[0], C[1] + y * R[1], C[2] + z * R[2]);
+      const n = new THREE.Vector3(x / R[0], y / R[1], z / R[2]).normalize(); nor.push(n.x, n.y, n.z);
+      uv.push(0.9458, 0.2974);
+    }
+  }
+  capGeo = new THREE.BufferGeometry();
+  capGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  capGeo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  capGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  return capGeo;
+}
 function mkSkin(layer) {
   const root = RIG.clone(RIG.src);
   root.matrixAutoUpdate = false;
   const s = { root, bones: {}, W: {}, mat: skinMaterial(), used: -1 };
+  root.add(new THREE.Mesh(headCapGeo()));
   root.traverse((o) => {
     if (o.isBone) { s.bones[o.name] = o; s.W[o.name] = new THREE.Matrix4(); }
     if (o.isMesh) { o.material = s.mat; o.frustumCulled = false; if (layer) o.layers.set(layer); }
@@ -2324,7 +2351,7 @@ function updateVisuals(dt) {
       shadowIM.setMatrixAt(si++, _mm.compose(_p.copy(h.p).setY(h.p.y + 0.015), _q.identity(), _s.set(s, 1, s)));
     }
   }
-  bandsIM.count = mouthIM.count = ai; apesIM.count = RIG.ready ? 0 : ai; limbCount(LIV, RIG.ready ? 0 : ai); handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
+  mouthIM.count = ai; bandsIM.count = apesIM.count = RIG.ready ? 0 : ai;   // the model has no headband (fur colour + name tag say who's who) limbCount(LIV, RIG.ready ? 0 : ai); handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
   // (fingers for your own hands are added below; counts are set at the end)
   for (const im of [apesIM, bandsIM, mouthIM, handsIM, starsIM, shadowIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   // your hands
@@ -3499,7 +3526,7 @@ function renderItems() {
   let bn = 0;
   for (const it of items) if (it.type === 'crate' && bn < 8) { const pulse = 1 + Math.sin(now * 5 + it.id) * 0.15; beamIM.setMatrixAt(bn++, _mm.compose(it.p, _q.identity(), _s.set(pulse, 1, pulse))); }
   beamIM.count = bn; beamIM.instanceMatrix.needsUpdate = true;
-  deadIM.band.count = deadIM.xs.count = dn; deadIM.ape.count = RIG.ready ? 0 : dn; deadIM.hands.count = dn * 2; limbCount(DEADL, RIG.ready ? 0 : dn);
+  deadIM.xs.count = dn; deadIM.band.count = deadIM.ape.count = RIG.ready ? 0 : dn; deadIM.hands.count = dn * 2; limbCount(DEADL, RIG.ready ? 0 : dn);
   for (const im of Object.values(deadIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   gloves.forEach((g, i) => {
     const e = Math.sin(Math.min(1, g.t / 0.4) * Math.PI) * 1.7;
@@ -3634,7 +3661,7 @@ function shopTick(dt, show) {
   shopApe.ape.setMatrixAt(0, _mm); shopApe.ape.setColorAt(0, human.fur || raw(0.5, 0.34, 0.22));
   SHOP_HANDS[0].set(-0.33, -0.32, -0.08).applyMatrix4(_mm); SHOP_HANDS[1].set(0.33, -0.32, -0.08).applyMatrix4(_mm);
   const hm = skinPose('shop', _mm, SHOP_HANDS[0], SHOP_HANDS[1], human.fur || raw(0.5, 0.34, 0.22), 0, 0, 0) || _mm;
-  shopApe.ape.count = RIG.ready ? 0 : 1;
+  shopApe.ape.count = shopApe.band.count = RIG.ready ? 0 : 1;
   shopApe.band.setMatrixAt(0, hm); shopApe.band.setColorAt(0, human.band || raw(0.9, 0.18, 0.15));
   wearCos([SHOP.i], hm);
   for (const im of Object.values(shopApe)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
@@ -3960,7 +3987,7 @@ function yardTick(dt) {
     const hs = Math.hypot(human.V.x, human.V.z);
     human.legPh = ((human.legPh || 0) + Math.min(3, hs) * dt * 7) % 6.2832;
     const hm = skinPose('self', _mm, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0, 1, SELF_LAYER) || _mm;
-    if (RIG.ready) selfIM.ape.count = 0;
+    if (RIG.ready) selfIM.ape.count = selfIM.band.count = 0;
     selfIM.band.setMatrixAt(0, hm); selfIM.band.setColorAt(0, human.band);
     selfIM.mouth.setMatrixAt(0, mouthMatrix(hm, mouthOpen(human)));
     myCos().forEach((id, k) => { const im = selfCos[k]; if (COS[id]) { if (im.geometry !== COS[id].geo) im.geometry = COS[id].geo; im.setMatrixAt(0, hm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0; });
