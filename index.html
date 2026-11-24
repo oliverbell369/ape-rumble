@@ -79,7 +79,7 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 <script src="photon-realtime.js"></script>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -123,6 +123,8 @@ renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local-floor');
 renderer.xr.setFoveation(1);
 const scene = new THREE.Scene();
+// matrices are updated once per frame in the main loop (so the ape model's posed bones aren't overwritten)
+scene.matrixWorldAutoUpdate = false;
 scene.background = new THREE.Color(FOG_HEX);
 scene.fog = new THREE.Fog(FOG_HEX, FOG_NEAR, FOG_FAR);
 const rig = new THREE.Group();
@@ -995,7 +997,7 @@ function drawLimbs(set, i, pos, bodyQ, yaw, sc, hA, hB, fur, ph, sw, splay, limp
     set.feet.setMatrixAt(j, _mm.compose(_lF, _lQ, ONE));
   }
 }
-const limbCount = (set, n) => { for (const im of Object.values(set)) { im.count = n * 2; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; } };
+const limbCount = (set, n) => { for (const [nm, im] of Object.entries(set)) { im.count = nm === 'legs' || nm === 'feet' ? 0 : n * 2; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; } };
 const _qI = new THREE.Quaternion();
 const handGeo = mergeParts([{ geo: ico(0.055, 1), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.72, 0.95, 1.0) }]);
 const starGeo = mergeParts([{ geo: new THREE.OctahedronGeometry(0.05, 0), c: [1, 0.86, 0.25] }]);
@@ -1066,6 +1068,144 @@ function wearCos(cos, bodyM) {
   for (const id of cos) { const it = COS[id]; if (it && cosN[id] < MAXA + 10) it.im.setMatrixAt(cosN[id]++, bodyM); }
 }
 function cosBegin() { cosN.fill(0); }
+// ================= the ape model (made in Meshy AI, rigged) =================
+// The game keeps the simple built-in apes until the model has loaded. Each ape is a copy of the model
+// whose bones are set every frame: arms reach for that ape's hands (elbows bend, or the arms stretch
+// when the hands are further away), legs crouch with the feet on the floor and waddle when walking,
+// and the fur takes that ape's colour (the texture's alpha marks which parts are fur).
+const RIG = { ready: false, src: null, clone: null, rest: new Map(), joints: {}, pool: new Map(), frame: 0, mapU: { value: null } };
+const MODEL_S = 0.68, M_HC = new THREE.Vector3(0, 1.46, 0.03), A_HC = new THREE.Vector3(0, 0.22, -0.08), P_HC = new THREE.Vector3(0, 0.2, -0.1);
+// where the model sits in an ape's own frame (the built-in ape faces -z; the model faces +z)
+const MODEL_FIT = new THREE.Matrix4().compose(A_HC, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), new THREE.Vector3(MODEL_S, MODEL_S, MODEL_S))
+  .multiply(new THREE.Matrix4().makeTranslation(-M_HC.x, -M_HC.y, -M_HC.z));
+// headbands, hats, mouths and face items were made for the built-in head: this maps them onto the model's head
+// (fitted to the model's measured head: mouth on the muzzle, eyes, top of head, back of head)
+const HEAD_K = new THREE.Vector3(0.85, 0.78, 0.78);
+const HEADMAP = new THREE.Matrix4().makeTranslation(0, 0.132 - HEAD_K.y * 0.068, -0.223 + HEAD_K.z * 0.345).multiply(new THREE.Matrix4().makeScale(HEAD_K.x, HEAD_K.y, HEAD_K.z));
+const SKIN_CHAINS = [['Left', -1], ['Right', 1]];
+function skinMaterial() {
+  return new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3, side: THREE.DoubleSide,
+    uniforms: { map: RIG.mapU, fur: { value: new THREE.Color() }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR }, ...SUN },
+    vertexShader: `
+      #include <common>
+      #include <skinning_pars_vertex>
+      out vec2 vUv; out vec3 vN; out vec3 vW; out float vDepth;
+      void main() {
+        vUv = uv;
+        #include <skinbase_vertex>
+        vec3 objectNormal = vec3(normal);
+        #include <skinnormal_vertex>
+        vec3 transformed = vec3(position);
+        #include <skinning_vertex>
+        vec4 wp = modelMatrix * vec4(transformed, 1.0); vW = wp.xyz;
+        vN = normalize(mat3(modelMatrix) * objectNormal);
+        vec4 mv = viewMatrix * wp; vDepth = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      out vec4 outColor;
+      uniform sampler2D map; uniform vec3 fur, fogColor, lightDir; uniform float fogNear, fogFar;
+      in vec2 vUv; in vec3 vN; in vec3 vW; in float vDepth;
+      ${SUN_GLSL}
+      void main() {
+        vec4 t = texture(map, vUv);
+        vec3 base = mix(t.rgb, t.rgb * fur * 1.5, t.a);
+        vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
+        vec3 col = base * sunLight(n, lightDir, sunShadow(vW, n), 0.5);
+        outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), 1.0);
+      }`,
+  });
+}
+async function loadApeModel() {
+  try {
+    const [{ GLTFLoader }, { clone }] = await Promise.all([import('three/addons/loaders/GLTFLoader.js'), import('three/addons/utils/SkeletonUtils.js')]);
+    const g = await new GLTFLoader().loadAsync('models/ape.glb?v=1');
+    const src = g.scene;
+    let mesh = null; src.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+    if (!mesh) throw new Error('no rigged mesh in the model');
+    const map = mesh.material.map; map.colorSpace = THREE.NoColorSpace; map.needsUpdate = true; RIG.mapU.value = map;
+    src.updateMatrixWorld(true);
+    src.traverse((o) => { if (o.isBone) RIG.rest.set(o.name, o.matrixWorld.clone()); });
+    for (const nm of ['UpperArm', 'LowerArm', 'Hand', 'UpperLeg', 'LowerLeg', 'Foot', 'Toes']) for (const [side] of SKIN_CHAINS) if (!RIG.rest.has(side + nm)) throw new Error('missing bone ' + side + nm);
+    RIG.src = src; RIG.clone = clone; RIG.ready = true;
+  } catch (e) { console.warn('Ape model could not load, using the built-in apes:', e); }
+}
+function mkSkin(layer) {
+  const root = RIG.clone(RIG.src);
+  root.matrixAutoUpdate = false;
+  const s = { root, bones: {}, W: {}, mat: skinMaterial(), used: -1 };
+  root.traverse((o) => {
+    if (o.isBone) { s.bones[o.name] = o; s.W[o.name] = new THREE.Matrix4(); }
+    if (o.isMesh) { o.material = s.mat; o.frustumCulled = false; if (layer) o.layers.set(layer); }
+  });
+  scene.add(root);
+  return s;
+}
+const _sk = { MT: new THREE.Matrix4(), hm: new THREE.Matrix4(), a: new THREE.Matrix4(), b: new THREE.Matrix4(), J: new THREE.Vector3(), E0: new THREE.Vector3(), H0: new THREE.Vector3(),
+  T: new THREE.Vector3(), E: new THREE.Vector3(), d: new THREE.Vector3(), pole: new THREE.Vector3(), q: new THREE.Quaternion(), q2: new THREE.Quaternion(), u: new THREE.Vector3(), v: new THREE.Vector3(), F0: new THREE.Vector3() };
+const jointOf = (MT, name, out) => out.setFromMatrixPosition(RIG.rest.get(name)).applyMatrix4(MT);
+// W = T(J) * stretch(along d1, by k) * rotate(d0 -> d1) * T(-J0) * MT * rest
+function boneTo(W, MT, name, J0, J, d0, d1, k) {
+  const m = _sk.a, x = d1.x, y = d1.y, z = d1.z, c = k - 1;
+  m.set(1 + c * x * x, c * x * y, c * x * z, 0, c * y * x, 1 + c * y * y, c * y * z, 0, c * z * x, c * z * y, 1 + c * z * z, 0, 0, 0, 0, 1);
+  _sk.q.setFromUnitVectors(d0, d1);
+  W.makeTranslation(J.x, J.y, J.z).multiply(m).multiply(_sk.b.makeRotationFromQuaternion(_sk.q))
+    .multiply(_sk.a.makeTranslation(-J0.x, -J0.y, -J0.z)).multiply(_sk.b.multiplyMatrices(MT, RIG.rest.get(name)));
+}
+// two-bone reach from S to T; the knee/elbow bends toward `pole` (limp < 1 straightens it). Writes the joint into E.
+function reach2(S, L1, L2, T, pole, limp, stretch, E) {
+  const d = _sk.d.subVectors(T, S); let len = d.length();
+  if (len < 1e-4) { d.copy(pole); len = 1e-4; } else d.multiplyScalar(1 / len);
+  if (len >= L1 + L2) {
+    if (!stretch) { len = (L1 + L2) * 0.999; T.copy(S).addScaledVector(d, len); }
+    return E.copy(S).addScaledVector(d, len * L1 / (L1 + L2));
+  }
+  const a = (L1 * L1 - L2 * L2 + len * len) / (2 * len), h = Math.sqrt(Math.max(0, L1 * L1 - a * a)) * limp;
+  _sk.u.copy(pole).addScaledVector(d, -pole.dot(d)); if (_sk.u.lengthSq() < 1e-8) _sk.u.set(0, 1, 0); _sk.u.normalize();
+  return E.copy(S).addScaledVector(d, a).addScaledVector(_sk.u, h);
+}
+// pose one model ape. bodyM = the ape's body matrix (same frame as the built-in ape). Returns the head matrix
+// for headbands, hats and mouths, or null if the model isn't in use.
+function skinPose(key, bodyM, hA, hB, fur, ph, sw, splay, limp = 1, layer = 0) {
+  if (!RIG.ready) return null;
+  let s = RIG.pool.get(key);
+  if (!s) { s = mkSkin(layer); RIG.pool.set(key, s); }
+  s.used = RIG.frame; s.root.visible = true;
+  s.mat.uniforms.fur.value.copy(fur);
+  const MT = _sk.MT.multiplyMatrices(bodyM, MODEL_FIT);
+  s.root.matrix.copy(MT);
+  for (const [name, R] of RIG.rest) s.W[name].multiplyMatrices(MT, R);
+  const S = _sk.J, E0 = _sk.E0, H0 = _sk.H0, T = _sk.T, E = _sk.E, d0 = _sk.u, d1 = _sk.v;
+  for (const [side, sign] of SKIN_CHAINS) {
+    // ----- arm: shoulder -> elbow -> wrist (the hand mesh is tucked away: the game draws its own hands with fingers)
+    jointOf(MT, side + 'UpperArm', S); jointOf(MT, side + 'LowerArm', E0); jointOf(MT, side + 'Hand', H0);
+    const L1 = S.distanceTo(E0), L2 = E0.distanceTo(H0);
+    T.copy(sign < 0 ? hA : hB);
+    _sk.pole.set(sign * 0.8, -0.55, 0.35).transformDirection(bodyM);
+    reach2(S, L1, L2, T, _sk.pole, limp, true, E);
+    const ex = E.x, ey = E.y, ez = E.z, sx = S.x, sy = S.y, sz = S.z;
+    d0.subVectors(E0, S).normalize(); d1.set(ex - sx, ey - sy, ez - sz); const k1 = d1.length() / L1; d1.normalize();
+    boneTo(s.W[side + 'UpperArm'], MT, side + 'UpperArm', S, S, d0, d1, k1);
+    d0.subVectors(H0, E0).normalize(); d1.set(T.x - ex, T.y - ey, T.z - ez); const k2 = d1.length() / L2; d1.normalize();
+    boneTo(s.W[side + 'LowerArm'], MT, side + 'LowerArm', E0, E.set(ex, ey, ez), d0, d1, k2);
+    _sk.q2.copy(_sk.q);
+    s.W[side + 'Hand'].makeTranslation(T.x, T.y, T.z).multiply(_sk.a.makeScale(0.05, 0.05, 0.05)).multiply(_sk.b.makeRotationFromQuaternion(_sk.q2))
+      .multiply(_sk.a.makeTranslation(-H0.x, -H0.y, -H0.z)).multiply(_sk.b.multiplyMatrices(MT, RIG.rest.get(side + 'Hand')));
+    // ----- no legs (like other ape games): the legs are folded away into the hips
+    jointOf(MT, side + 'UpperLeg', S);
+    for (const nm of ['UpperLeg', 'LowerLeg', 'Foot', 'Toes'])
+      s.W[side + nm].makeTranslation(S.x, S.y, S.z).multiply(_sk.a.makeScale(0.02, 0.02, 0.02)).multiply(_sk.b.makeTranslation(-S.x, -S.y, -S.z)).multiply(_sk.a.multiplyMatrices(MT, RIG.rest.get(side + nm)));
+  }
+  return _sk.hm.multiplyMatrices(bodyM, HEADMAP);
+}
+// after the scene's matrices are worked out each frame: put the posed bones in, hide unused copies
+function applySkins() {
+  for (const s of RIG.pool.values()) {
+    if (s.used !== RIG.frame) { s.root.visible = false; continue; }
+    for (const nm in s.bones) s.bones[nm].matrixWorld.copy(s.W[nm]);
+  }
+}
 function cosEnd() { COS.forEach((it, i) => { it.im.count = cosN[i]; it.im.instanceMatrix.needsUpdate = true; }); }
 const shadowIM = new THREE.InstancedMesh(new THREE.CircleGeometry(0.34, 12).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), MAXA);
@@ -2137,13 +2277,14 @@ function updateVisuals(dt) {
       const sq = a.squashT > 0 ? 1 : 0;
       const bodyAt = sq ? _p.copy(a.pos).setY(a.pos.y - 0.18) : a.pos, bodySc = sq ? _bsq : ONE;
       apesIM.setMatrixAt(ai, _mm.compose(bodyAt, _q, bodySc)); apesIM.setColorAt(ai, a.fur);
-      wearCos(a.cos, _mm);
-      bandsIM.setMatrixAt(ai, _mm); bandsIM.setColorAt(ai, a.band);
-      mouthIM.setMatrixAt(ai, mouthMatrix(_mm, mouthOpen(a)));
       const hands = a.isBot ? a.hands : human.hands;
       // legs waddle with walking speed
       const hs = Math.hypot(a.vel.x, a.vel.z);
       a.legPh = ((a.legPh || 0) + Math.min(3, hs) * dt * 7) % 6.2832;
+      const hm = skinPose('a' + a.i, _mm, hands[0].pos, hands[1].pos, a.fur, a.legPh, Math.min(1, hs / 1.5), ko ? 0.08 : 0) || _mm;
+      wearCos(a.cos, hm);
+      bandsIM.setMatrixAt(ai, hm); bandsIM.setColorAt(ai, a.band);
+      mouthIM.setMatrixAt(ai, mouthMatrix(hm, mouthOpen(a)));
       drawLimbs(LIV, ai, bodyAt, _q, a.yaw, bodySc, hands[0].pos, hands[1].pos, a.fur, a.legPh, Math.min(1, hs / 1.5), ko ? 0.08 : 0);
       ai++;
       fingerTargets(a, dt);
@@ -2165,7 +2306,7 @@ function updateVisuals(dt) {
       shadowIM.setMatrixAt(si++, _mm.compose(_p.copy(h.p).setY(h.p.y + 0.015), _q.identity(), _s.set(s, 1, s)));
     }
   }
-  apesIM.count = bandsIM.count = mouthIM.count = ai; limbCount(LIV, ai); handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
+  bandsIM.count = mouthIM.count = ai; apesIM.count = RIG.ready ? 0 : ai; limbCount(LIV, RIG.ready ? 0 : ai); handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
   // (fingers for your own hands are added below; counts are set at the end)
   for (const im of [apesIM, bandsIM, mouthIM, handsIM, starsIM, shadowIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   // your hands
@@ -3304,11 +3445,13 @@ function drawBody(it, n) {
   }
   _mm.compose(it.p, _bq, _s.set(1, 1, 1));
   deadIM.ape.setMatrixAt(n, _mm); deadIM.ape.setColorAt(n, fur);
-  wearCos(who ? who.cos : null, _mm);
-  deadIM.band.setMatrixAt(n, _mm); deadIM.band.setColorAt(n, band);
-  deadIM.xs.setMatrixAt(n, _mm);
   // limp arms flung out, legs splayed
   for (let k = 0; k < 2; k++) DEAD_HANDS[k].set(k ? 0.62 : -0.62, -0.25, 0.05).applyQuaternion(_bq).add(it.p);
+  const hm = skinPose('d' + n, _mm, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15) || _mm;
+  wearCos(who ? who.cos : null, hm);
+  deadIM.band.setMatrixAt(n, hm); deadIM.band.setColorAt(n, band);
+  deadIM.xs.setMatrixAt(n, hm);
+  _mm.compose(it.p, _bq, ONE);
   drawLimbs(DEADL, n, it.p, _bq, it.yw || 0, ONE, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15);
   for (let k = 0; k < 2; k++) deadIM.hands.setMatrixAt(n * 2 + k, _mm.compose(DEAD_HANDS[k], _bq, ONE));
 }
@@ -3334,7 +3477,7 @@ function renderItems() {
   let bn = 0;
   for (const it of items) if (it.type === 'crate' && bn < 8) { const pulse = 1 + Math.sin(now * 5 + it.id) * 0.15; beamIM.setMatrixAt(bn++, _mm.compose(it.p, _q.identity(), _s.set(pulse, 1, pulse))); }
   beamIM.count = bn; beamIM.instanceMatrix.needsUpdate = true;
-  deadIM.ape.count = deadIM.band.count = deadIM.xs.count = dn; deadIM.hands.count = dn * 2; limbCount(DEADL, dn);
+  deadIM.band.count = deadIM.xs.count = dn; deadIM.ape.count = RIG.ready ? 0 : dn; deadIM.hands.count = dn * 2; limbCount(DEADL, RIG.ready ? 0 : dn);
   for (const im of Object.values(deadIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   gloves.forEach((g, i) => {
     const e = Math.sin(Math.min(1, g.t / 0.4) * Math.PI) * 1.7;
@@ -3416,6 +3559,7 @@ const shopBtnIM = inst(mergeParts([{ geo: ico(0.12, 1), c: F, tint: true, m: M(0
 shopBtnIM.count = 3;
 const shopApe = { ape: inst(apeGeo, 1), band: inst(bandGeo, 1), stand: inst(mergeParts([{ geo: cyl(0.16, 0.2, 0.12, 12), c: [0.45, 0.3, 0.18], layer: 'darkwood' }]), 1) };
 for (const im of Object.values(shopApe)) im.count = 1;
+const SHOP_HANDS = [new THREE.Vector3(), new THREE.Vector3()];
 const SHOP_APE_AT = new THREE.Vector3(LB.x + 0.35, LB.y + 1.0, LB.z + 9.55);
 shopApe.stand.setMatrixAt(0, M(SHOP_APE_AT.x, SHOP_APE_AT.y + 0.06, SHOP_APE_AT.z));
 function shopPress(b) {
@@ -3465,8 +3609,12 @@ function shopTick(dt, show) {
   // the display ape turns slowly, wearing the item on show
   _q.setFromAxisAngle(_yAxis, Math.sin(now * 0.6) * 0.9);
   _mm.compose(_p.copy(SHOP_APE_AT).setY(SHOP_APE_AT.y + 0.5), _q, ONE);
-  shopApe.ape.setMatrixAt(0, _mm); shopApe.ape.setColorAt(0, human.fur || raw(0.5, 0.34, 0.22)); shopApe.band.setMatrixAt(0, _mm); shopApe.band.setColorAt(0, human.band || raw(0.9, 0.18, 0.15));
-  wearCos([SHOP.i], _mm);
+  shopApe.ape.setMatrixAt(0, _mm); shopApe.ape.setColorAt(0, human.fur || raw(0.5, 0.34, 0.22));
+  SHOP_HANDS[0].set(-0.33, -0.32, -0.08).applyMatrix4(_mm); SHOP_HANDS[1].set(0.33, -0.32, -0.08).applyMatrix4(_mm);
+  const hm = skinPose('shop', _mm, SHOP_HANDS[0], SHOP_HANDS[1], human.fur || raw(0.5, 0.34, 0.22), 0, 0, 0) || _mm;
+  shopApe.ape.count = RIG.ready ? 0 : 1;
+  shopApe.band.setMatrixAt(0, hm); shopApe.band.setColorAt(0, human.band || raw(0.9, 0.18, 0.15));
+  wearCos([SHOP.i], hm);
   for (const im of Object.values(shopApe)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   SHOP_BTNS.forEach((b, i) => {
     b.flash -= dt;
@@ -3781,13 +3929,16 @@ function yardTick(dt) {
     const yaw = humanFacing();
     _q.setFromAxisAngle(_yAxis, yaw);
     selfIM.ape.setMatrixAt(0, _mm.compose(human.pos, _q, _s.set(1, 1, 1))); selfIM.ape.setColorAt(0, human.fur);
-    selfIM.band.setMatrixAt(0, _mm); selfIM.band.setColorAt(0, human.band);
-    selfIM.mouth.setMatrixAt(0, mouthMatrix(_mm, mouthOpen(human)));
-    myCos().forEach((id, k) => { const im = selfCos[k]; if (COS[id]) { if (im.geometry !== COS[id].geo) im.geometry = COS[id].geo; im.setMatrixAt(0, _mm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0; });
     const hs = Math.hypot(human.V.x, human.V.z);
     human.legPh = ((human.legPh || 0) + Math.min(3, hs) * dt * 7) % 6.2832;
+    const hm = skinPose('self', _mm, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0, 1, SELF_LAYER) || _mm;
+    if (RIG.ready) selfIM.ape.count = 0;
+    selfIM.band.setMatrixAt(0, hm); selfIM.band.setColorAt(0, human.band);
+    selfIM.mouth.setMatrixAt(0, mouthMatrix(hm, mouthOpen(human)));
+    myCos().forEach((id, k) => { const im = selfCos[k]; if (COS[id]) { if (im.geometry !== COS[id].geo) im.geometry = COS[id].geo; im.setMatrixAt(0, hm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0; });
+    _mm.compose(human.pos, _q, ONE);
     drawLimbs(SELFL, 0, human.pos, _q, yaw, ONE, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0);
-    limbCount(SELFL, 1);
+    limbCount(SELFL, RIG.ready ? 0 : 1);
     for (const im of Object.values(selfIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   }
 }
@@ -3841,7 +3992,7 @@ yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel();
 // ================= main loop =================
 let last = -1, hudT = 0;
 function update(dt, frame) {
-  now += dt;
+  now += dt; RIG.frame++;
   for (const h of human.hands) h.prev.copy(h.pos);
   if (renderer.xr.isPresenting && frame && human.kind === 'vr') {
     if (readXR(frame)) {
@@ -3888,6 +4039,8 @@ renderer.setAnimationLoop((t, frame) => {
   const dt = last < 0 ? 1 / 60 : clamp(ts - last, 0.001, 0.05);
   last = ts;
   update(dt, frame);
+  scene.updateMatrixWorld();
+  applySkins();
   renderShadows();
   renderMirror();
   renderer.render(scene, camera);
@@ -3912,8 +4065,9 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
   .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); });
 human.kind = 'pc'; human.active = true;
 startPlay();
+loadApeModel();
 
-window.AR = { wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
