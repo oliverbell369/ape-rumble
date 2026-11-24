@@ -111,7 +111,7 @@ const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
 const PHOTON_VERSION = 'wrecked-0.7';
 const PHOTON_REGION = 'eu';
 const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, RTC: 15 };
-const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, looks: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
+const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, lookNames: {}, looks: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
 // ================= renderer / scene =================
@@ -909,7 +909,7 @@ const cyl = (r1, r2, h, s) => new THREE.CylinderGeometry(r1, r2, h, s);
 const SKIN = [0.86, 0.7, 0.56], DARK = [0.12, 0.09, 0.08], WHITEC = [0.96, 0.95, 0.92];
 const F = [1, 1, 1];
 // Our ape: hunched furry torso, head with a pale face mask, big round chimp ears, heavy brow. Front is -Z.
-const apeGeo = mergeParts([
+const APE_PARTS = [
   { geo: ico(0.3, 1), c: F, layer: 'fur', tint: true, m: M(0, -0.08, 0.02, 0.25, 0, 0, 1.05, 1.0, 0.9) },
   { geo: ico(0.19, 1), c: F, layer: 'fur', tint: true, m: M(0, 0.2, -0.1, 0, 0, 0, 1, 0.95, 1) },
   { geo: ico(0.13, 1), c: SKIN, m: M(0, 0.17, -0.22, 0, 0, 0, 1.15, 1.05, 0.65) },
@@ -924,7 +924,15 @@ const apeGeo = mergeParts([
   { geo: new THREE.BoxGeometry(0.1, 0.012, 0.02), c: DARK, m: M(0, 0.07, -0.34) },
   { geo: ico(0.014, 0), c: DARK, m: M(0.025, 0.125, -0.345) },
   { geo: ico(0.014, 0), c: DARK, m: M(-0.025, 0.125, -0.345) },
-]);
+];
+const MOUTH_PART = APE_PARTS.find((pt) => pt.geo.type === 'BoxGeometry' && pt.c === DARK);
+const apeGeo = mergeParts(APE_PARTS);
+const apeFaceGeo = mergeParts(APE_PARTS.filter((pt) => pt !== MOUTH_PART));
+// the mouth on its own, so it can open when that player talks
+const mouthGeo = mergeParts([{ geo: ico(0.05, 1), c: [0.14, 0.03, 0.04], m: M(0, 0, 0, 0, 0, 0, 1.05, 1, 0.38) }]);
+const MOUTH_AT = new THREE.Vector3(0, 0.068, -0.334), _ml = new THREE.Matrix4(), _mq = new THREE.Quaternion(), _msc = new THREE.Vector3(), _mm2 = new THREE.Matrix4();
+const mouthMatrix = (base, open) => _mm2.multiplyMatrices(base, _ml.compose(MOUTH_AT, _mq, _msc.set(1, 0.08 + 1.0 * open, 1)));
+const mouthOpen = (a) => clamp(((a.talk || 0) - 0.04) * 3.5, 0, 1);
 const bandGeo = mergeParts([{ geo: cyl(0.195, 0.195, 0.055, 12), c: F, tint: true, m: M(0, 0.245, -0.1, -0.12, 0, 0) },
   { geo: new THREE.BoxGeometry(0.05, 0.1, 0.04), c: F, tint: true, m: M(0.05, 0.2, 0.09, 0.3, 0, 0.3) }]);
 const armGeo = mergeParts([{ geo: cyl(0.055, 0.045, 1, 6).translate(0, 0.5, 0), c: F, layer: 'fur', tint: true }]);
@@ -938,7 +946,7 @@ function inst(geo, n) {
   scene.add(im);
   return im;
 }
-const apesIM = inst(apeGeo, MAXA), bandsIM = inst(bandGeo, MAXA), armsIM = inst(armGeo, MAXA * 2 + 2), handsIM = inst(handGeo, MAXA * 2), starsIM = inst(starGeo, MAXA * 3);
+const apesIM = inst(apeFaceGeo, MAXA), mouthIM = inst(mouthGeo, MAXA), bandsIM = inst(bandGeo, MAXA), armsIM = inst(armGeo, MAXA * 2 + 2), handsIM = inst(handGeo, MAXA * 2), starsIM = inst(starGeo, MAXA * 3);
 const shadowIM = new THREE.InstancedMesh(new THREE.CircleGeometry(0.34, 12).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), MAXA);
 shadowIM.frustumCulled = false; shadowIM.count = 0; scene.add(shadowIM);
@@ -1084,9 +1092,9 @@ const mirrorCam = new THREE.PerspectiveCamera(64, 4 / 3, 0.1, 60);
 mirrorCam.position.set(MIRROR.x, LB.y + 1.1, MIRROR.z + 0.05); mirrorCam.lookAt(MIRROR.x, LB.y + 0.75, LB.z + 2);
 const SELF_LAYER = 5;
 mirrorCam.layers.enable(SELF_LAYER);
-const selfIM = { ape: null, band: null, arms: null, hands: null };
+const selfIM = { ape: null, mouth: null, band: null, arms: null, hands: null };
 // your own ape, only drawn for the mirror camera
-selfIM.ape = inst(apeGeo, 1); selfIM.band = inst(bandGeo, 1); selfIM.arms = inst(armGeo, 2); selfIM.hands = inst(handGeo, 2);
+selfIM.ape = inst(apeFaceGeo, 1); selfIM.mouth = inst(mouthGeo, 1); selfIM.band = inst(bandGeo, 1); selfIM.arms = inst(armGeo, 2); selfIM.hands = inst(handGeo, 2);
 for (const im of Object.values(selfIM)) im.layers.set(SELF_LAYER);
 const yardLabels = () => {
   const draw = (p, lines, bg = 'rgba(22,18,13,0.9)') => {
@@ -1995,6 +2003,7 @@ function updateVisuals(dt) {
       const sq = a.squashT > 0 ? 1 : 0;
       apesIM.setMatrixAt(ai, _mm.compose(sq ? _p.copy(a.pos).setY(a.pos.y - 0.18) : a.pos, _q, sq ? _s.set(1.4, 0.4, 1.4) : _s.set(1, 1, 1))); apesIM.setColorAt(ai, a.fur);
       bandsIM.setMatrixAt(ai, _mm); bandsIM.setColorAt(ai, a.band);
+      mouthIM.setMatrixAt(ai, mouthMatrix(_mm, mouthOpen(a)));
       ai++;
       const hands = a.isBot ? a.hands : human.hands;
       fingerTargets(a, dt);
@@ -2018,9 +2027,9 @@ function updateVisuals(dt) {
       shadowIM.setMatrixAt(si++, _mm.compose(_p.copy(h.p).setY(h.p.y + 0.015), _q.identity(), _s.set(s, 1, s)));
     }
   }
-  apesIM.count = bandsIM.count = ai; armsIM.count = armI; handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
+  apesIM.count = bandsIM.count = mouthIM.count = ai; armsIM.count = armI; handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
   // (fingers for your own hands are added below; counts are set at the end)
-  for (const im of [apesIM, bandsIM, armsIM, handsIM, starsIM, shadowIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
+  for (const im of [apesIM, bandsIM, mouthIM, armsIM, handsIM, starsIM, shadowIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   // your hands
   const show = human.kind !== 'none';
   myHandsIM.count = show ? 2 : 0;
@@ -2214,7 +2223,7 @@ function buildMap() {
   const list = net.lbc.myRoomActorsArray().slice().sort((a, b) => a.actorNr - b.actorNr);
   net.map = {}; net.names = {};
   list.forEach((a, k) => {
-    net.names[a.actorNr] = (a.name || `Player ${a.actorNr}`).slice(0, 12);
+    net.names[a.actorNr] = (net.lookNames[a.actorNr] || a.name || `Player ${a.actorNr}`).slice(0, 12);
     if (k < 6) net.map[a.actorNr] = k;
   });
 }
@@ -2288,7 +2297,7 @@ function onNetEvent(code, d, nr) {
     case EV.RTC: onRtc(d, nr); break;
     case EV.LOOK: {
       // a player's name and fur colour, sent when they change them (and every few seconds)
-      if (typeof d.n === 'string' && cleanNick(d.n)) net.names[nr] = cleanNick(d.n);
+      if (typeof d.n === 'string' && cleanNick(d.n)) net.names[nr] = net.lookNames[nr] = cleanNick(d.n);
       if (Array.isArray(d.c) && d.c.length === 3) net.looks[nr] = d.c.map((v) => clamp(+v || 0, 0, 1));
       const b = allBots[d.s];
       if (b && b.player && slotOwnerNr(d.s) === nr) { b.name = net.names[nr] || b.name; if (net.looks[nr]) b.fur = raw(...net.looks[nr]); }
@@ -2534,7 +2543,6 @@ function voiceTick(dt) {
     L.forwardX.setTargetAtTime(_vf.x, t, 0.02); L.forwardY.setTargetAtTime(_vf.y, t, 0.02); L.forwardZ.setTargetAtTime(_vf.z, t, 0.02);
     L.upX.setTargetAtTime(_vu.x, t, 0.02); L.upY.setTargetAtTime(_vu.y, t, 0.02); L.upZ.setTargetAtTime(_vu.z, t, 0.02); }
   else { L.setPosition(_p.x, _p.y, _p.z); L.setOrientation(_vf.x, _vf.y, _vf.z, _vu.x, _vu.y, _vu.z); }
-  let n = 0;
   for (const pr of voice.peers.values()) {
     if (!pr.panner) continue;
     const b = voiceApe(pr.nr);
@@ -2543,19 +2551,55 @@ function voiceTick(dt) {
     if (pr.panner.positionX) { pr.panner.positionX.setTargetAtTime(at.x, t, 0.03); pr.panner.positionY.setTargetAtTime(at.y, t, 0.03); pr.panner.positionZ.setTargetAtTime(at.z, t, 0.03); }
     else pr.panner.setPosition(at.x, at.y, at.z);
     pr.gain.gain.setTargetAtTime(voice.muted.has(pr.nr) ? 0 : b ? 1.8 : 0.6, t, 0.05);
-    pr.level = pr.level * 0.7 + levelOf(pr.an) * 0.3;
-    // little sound bars over apes that are talking
-    if (b && pr.level > 0.08 && !voice.muted.has(pr.nr) && n < 6) {
-      _q.setFromAxisAngle(_yAxis, Math.atan2(_p.x - b.pos.x, _p.z - b.pos.z));
-      speakIM.setMatrixAt(n++, _mm.compose(_t2.copy(b.pos).setY(b.pos.y + 0.62), _q, _s.set(1, 0.4 + Math.min(1.6, pr.level * 3), 1)));
-    }
+    pr.level += (levelOf(pr.an) - pr.level) * (1 - Math.exp(-dt * 18));
+    if (b && !voice.muted.has(pr.nr)) b.talkT = pr.level;
   }
-  speakIM.count = n; speakIM.instanceMatrix.needsUpdate = true;
   // your own mic level (shown on the computer)
   if (voice.stream && !voice.micAn) { try { voice.micAn = AC.createAnalyser(); voice.micAn.fftSize = 256; AC.createMediaStreamSource(voice.stream).connect(voice.micAn); } catch (e) { voice.micAn = null; } }
-  voice.level = voice.micAn && voice.want ? voice.level * 0.7 + levelOf(voice.micAn) * 0.3 : 0;
+  voice.level = voice.micAn && voice.want ? voice.level + (levelOf(voice.micAn) - voice.level) * (1 - Math.exp(-dt * 18)) : 0;
+  human.talkT = voice.level;
 }
-const speakIM = inst(mergeParts([-0.06, 0, 0.06].map((x, i) => ({ geo: new THREE.BoxGeometry(0.03, i === 1 ? 0.12 : 0.08, 0.03), c: [0.95, 0.95, 0.95], m: M(x, 0, 0) }))), 6);
+// ----- name tags over every other ape, with a speaker icon that lights up while that player talks -----
+const tags = allBots.map(() => { const tg = makePanel(256, 128, 0.5, 0.25); tg.mesh.visible = false; tg.sig = ''; scene.add(tg.mesh); return tg; });
+function drawTag(tg, name, icon) {
+  const { ctx, c } = tg; ctx.clearRect(0, 0, c.width, c.height);
+  if (icon) {
+    // speaker: dark when quiet, bright with sound waves while talking, crossed out when muted
+    const lit = icon === 'talk', col = lit ? '#ffffff' : icon === 'muted' ? '#6b6b6b' : 'rgba(35,35,35,0.85)';
+    ctx.save(); ctx.translate(110, 30);
+    if (lit) { ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 14; }
+    ctx.fillStyle = col; ctx.strokeStyle = lit ? '#ffffff' : 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(9, -8); ctx.lineTo(22, -20); ctx.lineTo(22, 20); ctx.lineTo(9, 8); ctx.lineTo(0, 8); ctx.closePath(); ctx.fill(); if (!lit) ctx.stroke();
+    if (lit) { ctx.lineWidth = 5; ctx.lineCap = 'round'; for (const r of [12, 22]) { ctx.beginPath(); ctx.arc(24, 0, r, -0.9, 0.9); ctx.stroke(); } }
+    if (icon === 'muted') { ctx.strokeStyle = '#ff4a3d'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(28, -12); ctx.lineTo(48, 12); ctx.moveTo(48, -12); ctx.lineTo(28, 12); ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.font = `700 40px ${FB}`; ctx.textAlign = 'center';
+  const w = Math.min(250, ctx.measureText(name).width + 28);
+  ctx.fillStyle = 'rgba(15,12,9,0.75)'; rr(ctx, 128 - w / 2, 64, w, 54, 27); ctx.fill();
+  ctx.fillStyle = '#f3ead8'; ctx.fillText(name, 128, 104, 236);
+  tg.tex.needsUpdate = true;
+}
+function tagsTick(dt) {
+  camera.getWorldPosition(_p);
+  for (const a of [human, ...allBots]) {
+    // mouths open with the voice: quick to open, a little slower to close
+    const tg = a.talkT || 0; a.talk = (a.talk || 0) + (tg - (a.talk || 0)) * (1 - Math.exp(-dt * (tg > (a.talk || 0) ? 30 : 14))); a.talkT = 0;
+    if (a.talk > 0.06) a.talkHold = now + 0.3;
+  }
+  allBots.forEach((b, k) => {
+    const tg = tags[k];
+    const show = human.kind !== 'none' && actors.includes(b) && b.active && !b.out && !b.dead && b.pos.distanceTo(_p) < 30;
+    tg.mesh.visible = show;
+    if (!show) return;
+    const nr = b.player ? slotOwnerNr(k) : -1;
+    const icon = !b.player ? '' : voice.muted.has(nr) ? 'muted' : now < (b.talkHold || 0) ? 'talk' : 'quiet';
+    const sig = b.name + '|' + icon;
+    if (sig !== tg.sig) { tg.sig = sig; drawTag(tg, b.name, icon); }
+    tg.mesh.position.set(b.pos.x, b.pos.y + 0.72, b.pos.z);
+    tg.mesh.lookAt(_p);
+  });
+}
 
 // ================= crates, tools and blood =================
 // Crates drop onto the map during a fight; slap one open to get a tool. Hold grip to hold it,
@@ -3477,6 +3521,7 @@ function yardTick(dt) {
     _q.setFromAxisAngle(_yAxis, yaw);
     selfIM.ape.setMatrixAt(0, _mm.compose(human.pos, _q, _s.set(1, 1, 1))); selfIM.ape.setColorAt(0, human.fur);
     selfIM.band.setMatrixAt(0, _mm); selfIM.band.setColorAt(0, human.band);
+    selfIM.mouth.setMatrixAt(0, mouthMatrix(_mm, mouthOpen(human)));
     for (let k = 0; k < 2; k++) {
       rotY(_t3.set(k === 0 ? -0.27 : 0.27, -0.06, -0.02), yaw, _t2).add(human.pos);
       setSeg(selfIM.arms, k, _t2, human.hands[k].pos); selfIM.arms.setColorAt(k, human.fur);
@@ -3565,6 +3610,7 @@ function update(dt, frame) {
   updateVisuals(dt);
   updateCamera();
   voiceTick(dt);
+  tagsTick(dt);
   hudT -= dt;
   if (hudT <= 0) {
     hudT = 0.15;
@@ -3603,7 +3649,7 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
 human.kind = 'pc'; human.active = true;
 startPlay();
 
-window.AR = { voice, startMic, setMic, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
