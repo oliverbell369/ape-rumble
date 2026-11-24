@@ -3028,6 +3028,56 @@ const TOOL_GEO = {
 };
 const toolIM = {};
 for (const t of [...CRATE_TOOLS, 'crate']) { toolIM[t] = inst(TOOL_GEO[t], 16); toolIM[t].count = 0; }
+// ----- the creator's Meshy models for props (they replace the built-in shapes once loaded) -----
+function propMat(map) {
+  map.colorSpace = THREE.NoColorSpace; map.needsUpdate = true;
+  return new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: { map: { value: map }, fogColor: { value: hexToV3(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR }, lightDir: { value: LIGHT_DIR }, ...SUN },
+    vertexShader: `
+      out vec2 vUv; out vec3 vN; out vec3 vW; out float vDepth;
+      void main() {
+        vUv = uv;
+        mat4 im = modelMatrix * instanceMatrix;
+        vec4 wp = im * vec4(position, 1.0); vW = wp.xyz;
+        vN = normalize(mat3(im) * normal);
+        vec4 mv = viewMatrix * wp; vDepth = -mv.z; gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      out vec4 outColor; uniform sampler2D map; uniform vec3 fogColor, lightDir; uniform float fogNear, fogFar;
+      in vec2 vUv; in vec3 vN; in vec3 vW; in float vDepth;
+      ${SUN_GLSL}
+      void main() {
+        vec3 n = normalize(vN);
+        vec3 col = texture(map, vUv).rgb * sunLight(n, lightDir, sunShadow(vW, n), 0.5);
+        outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), 1.0);
+      }`,
+  });
+}
+function swapToolMesh(t, geo, mat) {
+  const old = toolIM[t], im = new THREE.InstancedMesh(geo, mat, 16);
+  im.frustumCulled = false; im.count = 0; scene.add(im); toolIM[t] = im;
+  scene.remove(old);
+}
+async function loadProps() {
+  // crate: a box wearing pictures of the creator's crate (side faces left half, top/bottom right half)
+  try {
+    const tex = await new THREE.TextureLoader().loadAsync('models/crate.jpg?v=1');
+    const g = new THREE.BoxGeometry(0.6, 0.6, 0.6), uv = g.attributes.uv;
+    for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setX(i, uv.getX(i) * 0.5 + (f === 2 || f === 3 ? 0.5 : 0)); }
+    swapToolMesh('crate', g, propMat(tex));
+  } catch (e) { console.warn('crate model failed', e); }
+  // mallet: the creator's hammer, handle in the hand, head out in front (the game holds tools pointing along -z)
+  try {
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const gl = await new GLTFLoader().loadAsync('models/mallet.glb?v=1');
+    let mesh = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
+    const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+    geo.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0.95, 0)).applyMatrix4(new THREE.Matrix4().makeScale(0.4, 0.4, 0.4))
+      .applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2)).applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, 0.08));
+    swapToolMesh('mallet', geo, propMat(mesh.material.map));
+  } catch (e) { console.warn('mallet model failed', e); }
+}
 // wrecked apes: a body with X'd-out eyes and limp arms
 const DEADL = mkLimbs(8);
 const deadIM = { ape: inst(apeGeo, 8), band: inst(bandGeo, 8), hands: inst(handGeo, 16),
@@ -4121,8 +4171,9 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
 human.kind = 'pc'; human.active = true;
 startPlay();
 loadApeModel();
+loadProps();
 
-window.AR = { toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
