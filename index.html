@@ -64,7 +64,7 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   <div id="xhair"></div>
   <div id="hko" hidden></div>
   <div id="hmsg"></div>
-  <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab apes or tools, let go to throw · Click swings a tool · Enter starts a match in the Yard</div>
+  <div id="hhint">WASD move · Space hop · Click slap · Hold right-click to grab apes or tools, let go to throw · Click swings a tool · Enter (or the button by the sign) toggles AFK in the Yard</div>
   <div class="hud-bot"><span id="hbarlabel">Dizzy</span><div class="bar"><i id="hdizzy"></i></div></div>
 </div>
 
@@ -111,7 +111,7 @@ const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
 const PHOTON_VERSION = 'wrecked-0.7';
 const PHOTON_REGION = 'eu';
 const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, RTC: 15, CREDIT: 16 };
-const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, lookNames: {}, looks: {}, lookCos: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
+const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, afkNrs: {}, lookNames: {}, looks: {}, lookCos: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
 // ================= renderer / scene =================
@@ -1279,7 +1279,7 @@ const bagIM = inst(mergeParts([
   { geo: cyl(0.305, 0.305, 0.06, 10), c: [0.25, 0.16, 0.1], m: M(0, -0.3, 0) },
 ]), 1);
 const bagRopeIM = inst(mergeParts([{ geo: cyl(0.03, 0.03, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 1);
-padIM.count = 1; startBtnIM.count = 1; bagIM.count = 1; bagRopeIM.count = 1;
+padIM.count = 0; startBtnIM.count = 1; bagIM.count = 1; bagRopeIM.count = 1;
 padIM.setMatrixAt(0, M(PAD.x, PAD.y + 0.03, PAD.z));
 // campfire flames: glowing cones that flicker, and a warm glow on the ground
 const FIRE = new THREE.Vector3(LB.x, LB.y + 0.12, LB.z + 1);
@@ -1478,7 +1478,7 @@ function skinHuman(k) {
 }
 function setupSlots() {
   const map = net.on ? net.map || {} : null;
-  mySlot = map ? (map[net.myNr] ?? -1) : 0;
+  mySlot = map ? (map[net.myNr] ?? -1) : human.afk && !inLobby() ? -1 : 0;
   const seatNr = new Map();
   if (map) for (const nr in map) seatNr.set(map[nr], +nr);
   actors = []; bots = [];
@@ -1502,6 +1502,21 @@ function setupSlots() {
 const G = { state: 'menu', demo: true, round: 0, timeLeft: ROUND_TIME, countdown: 0, endT: 0, winner: null, lastCount: 4, feed: [], feedT: 0,
   lobbyN: 0, matchRound: 0, matchWinner: null, welcomeT: 0 };
 const inLobby = () => G.state === 'lobby' || G.state === 'starting';
+// AFK: you sit out matches and stay in the Yard (human.afkYard while a match runs without you)
+const LOBBY_WAIT = 20;
+const yardHere = () => inLobby() || !!human.afkYard;
+const isAfk = (nr) => (nr === net.myNr ? !!human.afk : !!net.afkNrs[nr]);
+function readyPlayers() { return net.on && net.lbc ? net.lbc.myRoomActorsArray().filter((a) => !isAfk(a.actorNr)).length : human.afk ? 0 : 1; }
+function toggleAfk() {
+  human.afk = !human.afk;
+  sfx(human.afk ? 'beep' : 'go', START_BTN);
+  feed(human.afk ? "You're AFK: you'll stay in the Yard" : (inLobby() ? "You're in! You'll join the next match" : "You're in! You'll join the next round"));
+  sendLook(); drawPadPanel();
+}
+function sitOutInYard() {
+  human.out = true; human.afkYard = true;
+  if (human.pos.distanceTo(LB) > 25) placeHuman(LOBBY_SPAWNS[0], 0);
+}
 let now = 0;
 const _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3(), _t3 = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
 function rotY(v, yaw, out) { const c = Math.cos(yaw), s = Math.sin(yaw); return out.set(v.x * c + v.z * s, v.y, -v.x * s + v.z * c); }
@@ -1524,6 +1539,7 @@ function placeHuman(floorPt, yaw) {
   }
 }
 function resetActor(a, i, pts = SPAWNS) {
+  if (a === human) human.afkYard = false;
   a.lastBy = -1; a.out = false; a.dead = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.bleedT = 0; a.squashT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
   const sp = pts[(i < 0 ? 0 : i) % pts.length];
   const cx = pts === SPAWNS ? 0 : LB.x, cz = pts === SPAWNS ? 0 : LB.z + 1;
@@ -1533,7 +1549,7 @@ function resetActor(a, i, pts = SPAWNS) {
 }
 function startRound() {
   if (net.on && !net.host) return;
-  if (net.on) buildMap();
+  if (net.on) buildMap(true);
   setupSlots();
   G.round++; if (!G.demo) G.matchRound++;
   G.state = 'countdown'; G.countdown = 3.2; G.lastCount = 4; G.timeLeft = ROUND_TIME; G.winner = null; G.feed = [];
@@ -1544,7 +1560,7 @@ function startRound() {
   actors.forEach((a, k) => {
     a.active = a === human ? human.kind !== 'none' : true;
     if (!a.active) return;
-    if (a === human && mySlot < 0) { a.out = true; placeHuman(OUT_LEDGE, Math.PI); return; }
+    if (a === human && mySlot < 0) { if (human.afk) sitOutInYard(); else { a.out = true; placeHuman(OUT_LEDGE, Math.PI); } return; }
     resetActor(a, net.on ? a.i : order[k]);
     if (a.remote) { a.snapT = 0; a.holding = null; }
   });
@@ -1561,7 +1577,7 @@ function placeInLobby() {
 }
 function goLobby() {
   if (net.on && !net.host) return;
-  G.state = 'lobby'; G.lobbyN++; G.round = 0; G.matchRound = 0; G.winner = null; G.matchWinner = null; G.feed = [];
+  G.state = 'starting'; G.countdown = LOBBY_WAIT; G.lastCount = LOBBY_WAIT + 1; G.lobbyN++; G.round = 0; G.matchRound = 0; G.winner = null; G.matchWinner = null; G.feed = [];
   PJ_reset();
   if (net.on) buildMap();
   setupSlots();
@@ -1636,8 +1652,9 @@ function updateGame(dt) {
   } else if (G.state === 'starting') {
     G.countdown -= dt;
     const c = Math.ceil(G.countdown);
-    if (c !== G.lastCount) { G.lastCount = c; if (c > 0) sfx('beep'); }
-    if (auth && G.countdown <= 0) startMatch();
+    if (c !== G.lastCount) { G.lastCount = c; if (c > 0 && c <= 5) sfx('beep'); }
+    // nobody ready (everyone AFK): keep waiting
+    if (auth && G.countdown <= 0) { if (readyPlayers() > 0) startMatch(); else { G.countdown = LOBBY_WAIT; G.lastCount = LOBBY_WAIT + 1; if (net.on) sendState(); } }
   }
   G.welcomeT -= dt;
   if (auth && net.on && before !== G.state + G.round) sendState();
@@ -1645,6 +1662,7 @@ function updateGame(dt) {
     if (!a.active) continue;
     if (a.remote) { a.tiltV.x += (-a.tilt.x * 60 - a.tiltV.x * 7) * dt; a.tiltV.y += (-a.tilt.y * 60 - a.tiltV.y * 7) * dt; a.tilt.x += a.tiltV.x * dt; a.tilt.y += a.tiltV.y * dt; continue; }
     if (inLobby()) { if ((a === human ? human.head.y : a.pos.y) < LB.y - 6) resetActor(a, a === human ? mySlot : a.i, LOBBY_SPAWNS); }
+    else if (a === human && human.afkYard) { if (human.head.y < LB.y - 6) placeHuman(LOBBY_SPAWNS[0], 0); }
     else if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
     else if (a === human && a.out && human.head.y < FALL_Y) placeHuman(OUT_LEDGE, Math.PI);
     if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
@@ -2001,7 +2019,7 @@ function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
 // ================= human: computer controls =================
 const keys = {};
 const mouse = { left: false, right: false, drag: false, lx: 0, ly: 0 };
-addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code === 'Enter' && inLobby()) requestStart(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code === 'Enter' && !e.repeat && yardHere()) toggleAfk(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
@@ -2013,7 +2031,7 @@ canvas.addEventListener('mousedown', (e) => {
   if (e.button === 0) {
     const R = human.hands[1];
     if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
-    else if (pcClickComputer() || pcClickShop()) { /* pressed a key or button */ }
+    else if (pcClickComputer() || pcClickShop() || pcClickAfk()) { /* pressed a key or button */ }
     else { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
   }
   if (e.button === 2) mouse.right = true;
@@ -2330,8 +2348,8 @@ function updateVisuals(dt) {
   if (wrist.mesh.visible) { wrist.mesh.position.copy(human.hands[0].pos).y += 0.1; wrist.mesh.lookAt(human.head); }
   camera.getWorldPosition(_p);
   sky.position.copy(_p);
-  board.mesh.position.copy(inLobby() ? LOBBY_BOARD : MATCH_BOARD);
-  if (inLobby()) board.mesh.rotation.set(0, 0, 0); else board.mesh.lookAt(_p.x, board.mesh.position.y, _p.z);
+  board.mesh.position.copy(yardHere() ? LOBBY_BOARD : MATCH_BOARD);
+  if (yardHere()) board.mesh.rotation.set(0, 0, 0); else board.mesh.lookAt(_p.x, board.mesh.position.y, _p.z);
   flash = Math.max(0, flash - dt);
   const vo = human.ko > 0 ? 0.55 : flash * 1.6;
   vignette.visible = human.kind !== 'none' && vo > 0.01;
@@ -2341,12 +2359,13 @@ function updateVisuals(dt) {
 // ================= HUD =================
 const fmtTime = (t) => { t = Math.max(0, Math.ceil(t)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 function banner() {
-  if (G.state === 'starting') return `Match starting in ${Math.max(1, Math.ceil(G.countdown))}`;
+  if (G.state === 'starting') return G.countdown <= 5 && !human.afk ? `Match starting in ${Math.max(1, Math.ceil(G.countdown))}` : '';
   if (G.state === 'matchEnd') return G.matchWinner ? (G.matchWinner === human ? 'You win the match!' : `${G.matchWinner.name} wins the match!`) : 'The match is a draw!';
   if (G.state === 'lobby') return '';
   if (G.state === 'countdown') return G.countdown > 0.2 ? String(Math.ceil(G.countdown)) : 'RUMBLE!';
   if (G.state === 'fight' && G.timeLeft > ROUND_TIME - 1) return 'RUMBLE!';
   if (G.state === 'end') return G.winner ? (G.winner === human ? 'You win!' : `${G.winner.name} wins!`) : 'Nobody wins!';
+  if (human.afkYard) return '';
   if (human.out && human.kind !== 'none') return human.dead ? 'You got wrecked! Next round soon' : 'You fell! Next round soon';
   if (human.heldBy) return human.kind === 'pc' ? 'Grabbed! Click to slap them till they let go' : 'Grabbed! Slap them till they let go!';
   if (human.ko > 0) return human.kind === 'pc' ? 'Dizzy! Mash keys to shake it off' : 'Dizzy! Shake your arms!';
@@ -2357,7 +2376,7 @@ function drawBoard() {
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.fillStyle = 'rgba(22,18,13,0.88)'; rr(ctx, 0, 0, c.width, c.height, 44); ctx.fill();
   ctx.fillStyle = '#ffc23a'; ctx.font = `76px ${FD}`; ctx.textAlign = 'left';
-  const lob = inLobby();
+  const lob = yardHere();
   ctx.fillText(lob ? 'THE YARD' : G.demo ? `ROUND ${G.round}` : `ROUND ${G.matchRound} OF ${MATCH_ROUNDS}`, 48, 100);
   ctx.textAlign = 'right'; ctx.fillStyle = '#f3ead8';
   ctx.fillText(lob ? (G.state === 'starting' ? String(Math.max(1, Math.ceil(G.countdown))) : '') : G.state === 'countdown' ? banner() : G.state === 'end' || G.state === 'matchEnd' ? 'NEXT…' : fmtTime(G.timeLeft), 976, 100);
@@ -2372,9 +2391,9 @@ function drawBoard() {
     ctx.fillText(lob ? (a === human ? 'you' : 'here') : a.dead ? 'wrecked' : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
     ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   });
-  if (lob && G.state === 'lobby') {
+  if (lob && G.state === 'starting') {
     ctx.fillStyle = '#b9ad94'; ctx.font = `600 28px ${FB}`; ctx.textAlign = 'center';
-    ctx.fillText('Stand on the START pad or slap the red button to play', 512, 488);
+    ctx.fillText(`Next match in ${Math.max(1, Math.ceil(G.countdown))} · slap the AFK button to sit out`, 512, 488);
   }
   if (G.state === 'end' || G.state === 'matchEnd') {
     ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 60, 190, 904, 160, 30); ctx.fill();
@@ -2389,7 +2408,7 @@ function drawWrist() {
   coinIcon(ctx, 30, 136, 13); ctx.textAlign = 'left'; ctx.fillStyle = '#ffc23a'; ctx.font = `36px ${FD}`; ctx.fillText(wallet.coins.toLocaleString(), 52, 150);
   ctx.fillStyle = '#f3ead8'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left';
   const stuck = H.ko > 0;
-  ctx.fillText(inLobby() ? (G.state === 'starting' ? `GO IN ${Math.max(1, Math.ceil(G.countdown))}` : 'YARD') : H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
+  ctx.fillText(H.afk && yardHere() ? 'AFK' : inLobby() ? (G.state === 'starting' ? `GO IN ${Math.max(1, Math.ceil(G.countdown))}` : 'YARD') : H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
   ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(inLobby() ? `${alive().length} here` : `${alive().length} left`, 240, 50);
   ctx.fillStyle = 'rgba(255,255,255,0.15)'; rr(ctx, 16, 80, 224, 22, 11); ctx.fill();
   ctx.fillStyle = stuck ? '#ffc23a' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, stuck ? H.struggle : H.dizzy / 100)), 22, 11); ctx.fill();
@@ -2500,12 +2519,14 @@ function humanFacing() {
   _t3.set(0, 0, -1).applyQuaternion(xrIn.headQ);
   return human.yaw + Math.atan2(-_t3.x, -_t3.z);
 }
-function buildMap() {
+function buildMap(forMatch) {
   const list = net.lbc.myRoomActorsArray().slice().sort((a, b) => a.actorNr - b.actorNr);
   net.map = {}; net.names = {};
-  list.forEach((a, k) => {
+  let k = 0;
+  list.forEach((a) => {
     net.names[a.actorNr] = (net.lookNames[a.actorNr] || a.name || `Player ${a.actorNr}`).slice(0, 12);
-    if (k < 6) net.map[a.actorNr] = k;
+    if (forMatch && isAfk(a.actorNr)) return;   // AFK players don't get a seat in the match
+    if (k < 6) net.map[a.actorNr] = k++;
   });
 }
 function sendState() {
@@ -2531,7 +2552,7 @@ function applyState(d) {
     G.round = d.r; G.feed = [];
     for (const a of actors) {
       a.active = true;
-      if (a === human) { if (mySlot >= 0) resetActor(human, mySlot); else { human.out = true; placeHuman(OUT_LEDGE, Math.PI); } }
+      if (a === human) { if (mySlot >= 0) resetActor(human, mySlot); else if (human.afk) sitOutInYard(); else { human.out = true; placeHuman(OUT_LEDGE, Math.PI); } }
       else { resetActor(a, a.i); a.holding = null; a.snapT = 0; }
     }
     flash = 0.25;
@@ -2581,6 +2602,7 @@ function onNetEvent(code, d, nr) {
       // a player's name and fur colour, sent when they change them (and every few seconds)
       if (typeof d.n === 'string' && cleanNick(d.n)) net.names[nr] = net.lookNames[nr] = cleanNick(d.n);
       if (Array.isArray(d.c) && d.c.length === 3) net.looks[nr] = d.c.map((v) => clamp(+v || 0, 0, 1));
+      net.afkNrs[nr] = d.k === 1;
       if (Array.isArray(d.w) && d.w.length === 2) net.lookCos[nr] = [COS[d.w[0]]?.slot === 'head' ? d.w[0] : -1, COS[d.w[1]]?.slot === 'face' ? d.w[1] : -1];
       const b = allBots[d.s];
       if (b && b.player && slotOwnerNr(d.s) === nr) { b.name = net.names[nr] || b.name; if (net.looks[nr]) b.fur = raw(...net.looks[nr]); if (net.lookCos[nr]) b.cos = net.lookCos[nr]; }
@@ -2616,8 +2638,8 @@ function becomeHost() {
 }
 function sendLook() {
   net.lookT = 4;
-  if (!net.on || mySlot < 0) return;
-  netSendAll(EV.LOOK, { s: mySlot, n: net.nick, c: look.rgb ? look.rgb.map(r2) : null, w: myCos() });
+  if (!net.on) return;   // (sent even without a seat, so an AFK player can say they're back)
+  netSendAll(EV.LOOK, { s: mySlot, n: net.nick, c: look.rgb ? look.rgb.map(r2) : null, w: myCos(), k: human.afk ? 1 : 0 });
 }
 function netTick(dt) {
   if (!net.on || !net.lbc) return;
@@ -3629,9 +3651,17 @@ function shopTick(dt, show) {
   const it = COS[SHOP.i], sig = [SHOP.i, wallet.coins, wallet.owned.length, wallet.wear.head, wallet.wear.face, SHOP.msgT > 0 ? SHOP.msg : ''].join('|');
   if (sig !== SHOP.sig && (!show || human.pos.distanceTo(shopBoard.mesh.position) < 16 || !SHOP.sig)) { SHOP.sig = sig; drawShop(); }
 }
+// on a computer: click the AFK button you're looking at
+function pcClickAfk() {
+  if (!yardHere() || human.kind !== 'pc') return false;
+  camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
+  _t3.subVectors(START_BTN, _t1); const t = _t3.dot(_t2);
+  if (t > 0 && t < 3 && _t3.addScaledVector(_t2, -t).length() < 0.25 && yard.btnCD <= 0) { yard.btnCD = 0.4; toggleAfk(); return true; }
+  return false;
+}
 // on a computer: click a shop button you're looking at
 function pcClickShop() {
-  if (!inLobby() || human.kind !== 'pc') return false;
+  if (!yardHere() || human.kind !== 'pc') return false;
   camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
   for (const b of SHOP_BTNS) {
     _t3.subVectors(b.pos, _t1); const t = _t3.dot(_t2);
@@ -3847,7 +3877,7 @@ function keyAt(p) {
 }
 // on a computer: click a key you are looking at
 function pcClickComputer() {
-  if (!inLobby() || human.kind !== 'pc') return false;
+  if (!yardHere() || human.kind !== 'pc') return false;
   camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
   if (_t2.y >= -0.05) return false;
   const t = (COMP.top - _t1.y) / _t2.y;
@@ -3860,14 +3890,14 @@ function drawPadPanel() {
   const { ctx, c } = padPanel;
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.fillStyle = 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill(); ctx.textAlign = 'center';
-  if (G.state === 'starting') {
-    ctx.fillStyle = '#ffc23a'; ctx.font = `110px ${FD}`; ctx.fillText(String(Math.max(1, Math.ceil(G.countdown))), c.width / 2, 150);
-    ctx.fillStyle = '#f3ead8'; ctx.font = `600 30px ${FB}`; ctx.fillText('Match starting…', c.width / 2, 215);
-  } else {
-    ctx.fillStyle = '#ffc23a'; ctx.font = `92px ${FD}`; ctx.fillText('START', c.width / 2, 120);
-    ctx.fillStyle = '#f3ead8'; ctx.font = `600 26px ${FB}`; ctx.fillText('Stand on the pad or slap the red button', c.width / 2, 180);
-    ctx.fillStyle = '#b9ad94'; ctx.fillText('Best of 3 rounds · bots fill empty seats', c.width / 2, 222);
-  }
+  if (inLobby()) {
+    ctx.fillStyle = '#b9ad94'; ctx.font = `600 26px ${FB}`; ctx.fillText('NEXT MATCH IN', c.width / 2, 42);
+    ctx.fillStyle = '#ffc23a'; ctx.font = `92px ${FD}`; ctx.fillText(String(Math.max(1, Math.ceil(G.countdown))), c.width / 2, 128);
+  } else { ctx.fillStyle = '#ffc23a'; ctx.font = `56px ${FD}`; ctx.fillText('MATCH ON', c.width / 2, 110); }
+  ctx.fillStyle = human.afk ? '#ff9a3d' : '#6dff96'; ctx.font = `700 36px ${FB}`;
+  ctx.fillText(human.afk ? "YOU'RE AFK" : "YOU'RE IN", c.width / 2, 182);
+  ctx.fillStyle = '#f3ead8'; ctx.font = `600 24px ${FB}`;
+  ctx.fillText(human.afk ? 'Slap the button to play' : 'Slap the button to go AFK', c.width / 2, 226);
   padPanel.tex.needsUpdate = true;
 }
 function drawBagPanel() {
@@ -3880,7 +3910,7 @@ function drawBagPanel() {
 }
 let yardDrawT = 0;
 function yardTick(dt) {
-  const show = inLobby() && human.kind !== 'none';
+  const show = yardHere() && human.kind !== 'none';
   // punching bag swings on a spring
   yard.bagV.x += (-yard.bagO.x * 7 - yard.bagV.x * 0.9) * dt; yard.bagV.y += (-yard.bagO.y * 7 - yard.bagV.y * 0.9) * dt;
   yard.bagO.x += yard.bagV.x * dt; yard.bagO.y += yard.bagV.y * dt;
@@ -3890,11 +3920,9 @@ function yardTick(dt) {
   _q.setFromUnitVectors(_yAxis, _t2.subVectors(BAG_PIVOT, _t1).normalize());
   bagIM.setMatrixAt(0, _mm.compose(yard.bagC, _q, _s.set(1, 1, 1))); bagIM.instanceMatrix.needsUpdate = true;
   // pad glows (and fills up while you stand on it)
-  const onPad = show && G.state === 'lobby' && !human.out && Math.hypot(human.pos.x - PAD.x, human.pos.z - PAD.z) < 1.35 && human.pos.y < PAD.y + 1.4;
-  yard.padT = onPad ? yard.padT + dt : 0;
-  const glow = G.state === 'starting' ? 1 : 0.45 + 0.25 * Math.sin(now * 4) + Math.min(1, yard.padT / 1.5) * 0.5;
-  padIM.setColorAt(0, raw(1, 0.62 + 0.2 * glow, 0.1 + 0.15 * glow)); padIM.instanceColor.needsUpdate = true;
-  if (onPad && yard.padT > 1.5) { yard.padT = 0; requestStart(); }
+  // AFK button: green while you're in, orange while you're AFK
+  const pulse = 0.85 + 0.15 * Math.sin(now * 4);
+  startBtnIM.setColorAt(0, human.afk ? raw(1 * pulse, 0.45 * pulse, 0.05) : raw(0.15, 0.85 * pulse, 0.25)); startBtnIM.instanceColor.needsUpdate = true;
   yard.btnCD -= dt;
   for (const k of KB) { if (k.flash > 0 && (k.flash -= dt) <= 0) kbDirty = true; k.cd -= dt; }
   termTick(dt); fireTick(dt); shopTick(dt, show);
@@ -3902,7 +3930,7 @@ function yardTick(dt) {
     for (const h of localHands()) {
       const sp = h.vel.length();
       // red start button
-      if (yard.btnCD <= 0 && h.pos.distanceTo(START_BTN) < 0.3 && sp > 1) { yard.btnCD = 1; sfx('slap', START_BTN); pulseHand(h.k, 0.8, 60); requestStart(); }
+      if (yard.btnCD <= 0 && h.pos.distanceTo(START_BTN) < 0.3 && sp > 1) { yard.btnCD = 1; sfx('slap', START_BTN); pulseHand(h.k, 0.8, 60); toggleAfk(); }
       // computer keyboard: tap a key by bringing your hand down onto it
       if (human.kind === 'vr' && h.vel.y < -0.35 && h.pos.y < COMP.top + 0.1 && h.pos.y > COMP.top - 0.05 && (h.kbCD || 0) <= now) {
         const k = keyAt(h.pos);
@@ -3922,7 +3950,7 @@ function yardTick(dt) {
   if (yardDrawT <= 0) { yardDrawT = 0.25; drawPadPanel(); }
   if (show && human.pos.distanceTo(screenPanel.mesh.position) < 14) updateComputerPanels();
   // your own ape for the mirror
-  const me = show && !human.out;
+  const me = show && (!human.out || human.afkYard);
   for (const im of Object.values(selfIM)) im.count = me && im !== selfIM.hands ? 1 : 0;
   if (!me) { limbCount(SELFL, 0); for (const im of selfCos) im.count = 0; }
   if (me) {
@@ -3975,7 +4003,7 @@ function renderShadows() {
   for (const o of hiddenForShadow) o.visible = true;
 }
 function renderMirror() {
-  if (!inLobby() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
+  if (!yardHere() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
   if ((yard.mirrorN = (yard.mirrorN + 1) % 3) !== 0) return;
   const xr = renderer.xr.enabled, prevTarget = renderer.getRenderTarget();
   renderer.xr.enabled = false;
@@ -4007,7 +4035,7 @@ function update(dt, frame) {
   for (const a of actors) if (a.remote) updateProxy(a, dt);
   syncHandTools();
   updateTips(dt);
-  if (G.state === 'fight' || inLobby()) {
+  if (G.state === 'fight' || yardHere()) {
     if (human.kind === 'vr') vrGrabs();
     if (human.active && !human.out && human.ko <= 0) handHits(human, human.hands);
     for (const b of bots) if (b.active && !b.out && b.ko <= 0) handHits(b, b.hands);
@@ -4067,7 +4095,7 @@ human.kind = 'pc'; human.active = true;
 startPlay();
 loadApeModel();
 
-window.AR = { RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
