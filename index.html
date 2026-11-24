@@ -3067,16 +3067,16 @@ async function loadProps() {
     for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setX(i, uv.getX(i) * 0.5 + (f === 2 || f === 3 ? 0.5 : 0)); }
     swapToolMesh('crate', g, propMat(tex));
   } catch (e) { console.warn('crate model failed', e); }
-  // mallet: the creator's hammer, handle in the hand, head out in front (the game holds tools pointing along -z)
-  try {
-    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-    const gl = await new GLTFLoader().loadAsync('models/mallet.glb?v=1');
-    let mesh = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
-    const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-    geo.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0.95, 0)).applyMatrix4(new THREE.Matrix4().makeScale(0.4, 0.4, 0.4))
-      .applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2)).applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, 0.08));
-    swapToolMesh('mallet', geo, propMat(mesh.material.map));
-  } catch (e) { console.warn('mallet model failed', e); }
+  // tools: each file is already set up for the hand (grip at the origin, pointing along -z)
+  let GLTFLoader;
+  try { ({ GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')); } catch (e) { return; }
+  for (const t of ['mallet', 'pan', 'plunger', 'chicken']) {
+    try {
+      const gl = await new GLTFLoader().loadAsync(`models/${t}.glb?v=3`);
+      let mesh = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
+      swapToolMesh(t, mesh.geometry.clone().applyMatrix4(mesh.matrixWorld), propMat(mesh.material.map));
+    } catch (e) { console.warn(t + ' model failed', e); }
+  }
 }
 // wrecked apes: a body with X'd-out eyes and limp arms
 const DEADL = mkLimbs(8);
