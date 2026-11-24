@@ -312,14 +312,21 @@ const START_BTN = new THREE.Vector3(LB.x + 9.35, LB.y + 1.15, LB.z);
 const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
 const BAG_PIVOT = new THREE.Vector3(LB.x + 7, LB.y + 3.0, LB.z - 6);
 const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
+// the sawmill's moving parts: saw blade (a hazard) and the water wheel behind the saw house
+const SAW = new THREE.Vector3(15.4, 2.25, 2.3), WHEEL = new THREE.Vector3(21.0, 0.0, 0);
 function buildLevel() {
   // main deck (top at y = 0) on posts that drop into the ravine
-  blk(0, -0.6, 0, 12, 0.6, 12, DECK);
-  for (const [x, z] of [[-5.6, -5.6], [5.6, -5.6], [-5.6, 5.6], [5.6, 5.6]]) blk(x, -30, z, 0.6, 29.4, 0.6, { mat: 'bark' });
+  blk(0, -0.6, 0, 14, 0.6, 14, DECK);
+  for (const [x, z] of [[-6.6, -6.6], [6.6, -6.6], [-6.6, 6.6], [6.6, 6.6], [0, -6.6], [0, 6.6], [-6.6, 0], [6.6, 0]]) blk(x, -30, z, 0.6, 29.4, 0.6, { mat: 'bark' });
   // swing frame holding the log
   blk(-5.6, 0, 0, 0.5, 10, 0.5, { mat: 'bark' });
   blk(5.6, 0, 0, 0.5, 10, 0.5, { mat: 'bark' });
   blk(0, 10, 0, 11.7, 0.5, 0.5, { mat: 'bark' });
+  // A-frame braces on the swing frame (you can climb them)
+  for (const x of [-5.6, 5.6]) for (const sz of [-1, 1]) box(x, 2.5, sz * 1.1, 0.32, 5.46, 0.32, { rx: sz * -0.414, mat: 'bark' });
+  // lumber pile on the deck (cover)
+  blk(-4.6, 0, 4.5, 2.0, 0.45, 0.9, { mat: 'planks' });
+  blk(-4.6, 0.45, 4.5, 1.6, 0.4, 0.8, { mat: 'planks' });
   // crates
   blk(-3.6, 0, -2.6, 1.1, 1.1, 1.1, { mat: 'darkwood' });
   blk(3.8, 0, 3.4, 1.0, 1.0, 1.0, { mat: 'darkwood' });
@@ -332,6 +339,10 @@ function buildLevel() {
   for (const [x, z] of [[12.3, -3], [16.7, -3], [12.3, 3], [16.7, 3]]) blk(x, 1.2, z, 0.35, 2.6, 0.35, { mat: 'bark' });
   box(14.5, 4.65, 1.755, 5.6, 0.25, 3.9, { rx: -0.45, mat: 'planks' });
   box(14.5, 4.65, -1.755, 5.6, 0.25, 3.9, { rx: 0.45, mat: 'planks' });
+  // the saw house: back wall (north half), saw table with a spinning blade, plank stack
+  blk(17.85, 1.2, -2.5, 0.2, 3.0, 4.0, { mat: 'planks' });
+  blk(SAW.x, 1.2, SAW.z, 1.8, 0.85, 0.9, { mat: 'darkwood' });
+  blk(13.0, 1.2, -2.9, 1.6, 0.5, 0.9, { mat: 'planks' });
   // west: narrow log bridge to a rock island with glowing crystals
   const aw = Math.atan2(1.5, 5);
   box(-8.6, 0.55, 0, 0.9, 0.5, 5.6, { rx: -aw, ry: Math.PI / 2, mat: 'bark' });
@@ -402,7 +413,7 @@ function buildLevel() {
   blk(BAG_PIVOT.x, Y + 3.15, BAG_PIVOT.z, 2.8, 0.3, 0.3, { mat: 'bark' });
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; LOBBY_SPAWNS.push(new THREE.Vector3(X + Math.cos(a) * 3, Y, Z + 1 + Math.sin(a) * 3)); }
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.5; SPAWNS.push(new THREE.Vector3(Math.cos(a) * 4, 0, Math.sin(a) * 4)); }
-  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; const s = 7.2 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))); EDGE_POINTS.push(new THREE.Vector3(Math.cos(a) * s, 0, Math.sin(a) * s)); }
+  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; const s = 8.2 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))); EDGE_POINTS.push(new THREE.Vector3(Math.cos(a) * s, 0, Math.sin(a) * s)); }
 }
 buildLevel();
 // moving parts you can grab and ride (positions are updated every frame)
@@ -665,6 +676,7 @@ function buildScenery() {
   for (const [dx, dz, s] of [[-14, -14, 1.6], [14, -13, 1.9], [-13, 14, 1.7], [15, 14, 1.5], [-15, 2, 1.8], [2, -15, 1.4]]) pine(LB.x + dx, LB.y - 0.3, LB.z + dz, s);
   cluster(LB.x - 14, LB.y - 0.3, LB.z + 8, 1.8); cluster(LB.x + 13.5, LB.y - 0.3, LB.z - 4, 1.4);
   buildYardDecor(add, r);
+  buildArenaDecor(add, r);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -838,6 +850,61 @@ function buildYardDecor(add, r) {
     const g = GREEN();
     for (let k = 0; k < 3; k++) add(new THREE.ConeGeometry(0.035, 0.2 + r() * 0.12, 3), M(X + x + (r() - 0.5) * 0.12, Y + 0.1, Z + z + (r() - 0.5) * 0.12, (r() - 0.5) * 0.5, r() * 3, (r() - 0.5) * 0.5), 'leaves', g);
   }
+}
+// ----- the sawmill arena's look: trestle bracing, log trim, frame pulleys, saw house, flume, flag -----
+function buildArenaDecor(add, r) {
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const seg = (a, b, rad, mat, c, sides = 6, glow = 0, rad2 = rad) => {
+    const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    add(new THREE.CylinderGeometry(rad2, rad, len, sides), new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)), mat, c, glow);
+  };
+  const bx = (x, y, z, w, h, d, mat, c, glow = 0, ry = 0) => add(new THREE.BoxGeometry(w, h, d), M(x, y, z, 0, ry, 0), mat, c, glow);
+  const WOOD = [1.0, 0.92, 0.82], DARK = [0.75, 0.68, 0.6], LAMP = [1.0, 0.75, 0.38];
+  // big logs framing the main deck's edges
+  for (const sd of [-1, 1]) {
+    add(new THREE.CylinderGeometry(0.3, 0.3, 14.6, 10), M(0, -0.32, sd * 7.15, 0, 0, Math.PI / 2), 'bark', WOOD);
+    add(new THREE.CylinderGeometry(0.3, 0.3, 14.6, 10), M(sd * 7.15, -0.32, 0, Math.PI / 2, 0, 0), 'bark', WOOD);
+  }
+  // trestle: cross-braces between the posts, all the way down into the ravine
+  const trestle = (pts, top, bottom) => {
+    for (let k = 0; k < pts.length; k++) {
+      const [ax, az] = pts[k], [bx2, bz] = pts[(k + 1) % pts.length];
+      for (let y = top; y > bottom; y -= 5) {
+        seg(V(ax, y, az), V(bx2, y - 5, bz), 0.13, 'bark', DARK, 5);
+        seg(V(bx2, y, bz), V(ax, y - 5, az), 0.13, 'bark', DARK, 5);
+        seg(V(ax, y - 0.1, az), V(bx2, y - 0.1, bz), 0.15, 'bark', DARK, 5);
+      }
+    }
+  };
+  trestle([[-6.6, -6.6], [6.6, -6.6], [6.6, 6.6], [-6.6, 6.6]], -1.2, -29);
+  trestle([[11.3, -4.2], [17.7, -4.2], [17.7, 4.2], [11.3, 4.2]], 0.0, -29);
+  // swing frame: pulley wheels where the ropes hang, iron caps on the beam
+  for (const x of [-1.6, 1.6]) {
+    add(new THREE.TorusGeometry(0.28, 0.07, 6, 14), M(x, 9.75, 0, 0, Math.PI / 2, 0), 'stone', [0.45, 0.45, 0.5]);
+    bx(x, 10.05, 0, 0.18, 0.7, 0.62, 'stone', [0.4, 0.4, 0.45]);
+  }
+  for (const x of [-5.6, 5.6]) bx(x, 10.0, 0, 0.62, 0.62, 0.62, 'stone', [0.35, 0.35, 0.4]);
+  // saw house: log back wall, plank shelves, sawdust, lanterns, a log on the saw table
+  for (let k = 0; k < 9; k++) seg(V(17.95, 1.35 + k * 0.33, -4.5), V(17.95, 1.35 + k * 0.33, -0.5), 0.17, 'bark', WOOD, 8);
+  seg(V(SAW.x - 1.4, SAW.y, SAW.z), V(SAW.x - 0.55, SAW.y, SAW.z), 0.2, 'bark', WOOD, 9);
+  add(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 9), M(SAW.x - 1.41, SAW.y, SAW.z, 0, 0, Math.PI / 2), 'planks', [1.3, 1.1, 0.8]);
+  for (let k = 0; k < 6; k++) add(new THREE.IcosahedronGeometry(0.25 + r() * 0.15, 1), M(SAW.x + 0.3 + r() * 0.8, 1.22, SAW.z - 0.9 + r() * 0.6, 0, r() * 3, 0, 1, 0.25, 1), 'dirt', [1.5, 1.25, 0.85]);
+  for (const [x, z] of [[12.3, -3], [16.7, -3], [12.3, 3], [16.7, 3]]) { bx(x + (x < 14 ? 0.24 : -0.24), 3.1, z, 0.22, 0.28, 0.22, 'crystal', LAMP, 1); }
+  // the flume: a wooden water channel on stilts from the canyon wall to the top of the water wheel
+  const fl0 = V(40, 4.1, 0), fl1 = V(WHEEL.x + 0.2, 2.95, 0);
+  const fd = new THREE.Vector3().subVectors(fl1, fl0), fn = fd.length(), fang = Math.atan2(fd.y, -fd.x);
+  const fm = (x, y, z, w, h, d) => add(new THREE.BoxGeometry(w, h, d), new THREE.Matrix4().compose(fl0.clone().add(fl1).multiplyScalar(0.5).add(V(x, y, z)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -fang)), V(1, 1, 1)), 'planks', WOOD);
+  fm(0, -0.25, 0, fn, 0.1, 0.9); fm(0, 0, 0.45, fn, 0.5, 0.08); fm(0, 0, -0.45, fn, 0.5, 0.08);
+  for (const x of [26, 32, 38]) { const y = fl0.y + (fl1.y - fl0.y) * (40 - x) / (40 - fl1.x) - 0.3; for (const z of [-0.5, 0.5]) seg(V(x, -30, z), V(x, y, z), 0.12, 'bark', DARK, 5); seg(V(x, y - 1.2, -0.5), V(x, y - 1.2, 0.5), 0.1, 'bark', DARK, 5); }
+  // axle posts for the water wheel
+  for (const z of [-0.95, 0.95]) { seg(V(WHEEL.x, -30, z), V(WHEEL.x, WHEEL.y, z), 0.2, 'bark', DARK, 6); bx(WHEEL.x, WHEEL.y, z, 0.5, 0.5, 0.2, 'stone', [0.4, 0.4, 0.45]); }
+  // lookout: a flag on a pole
+  seg(V(1.7, 4.6, -12.7), V(1.7, 8.4, -12.7), 0.05, 'bark', WOOD, 5);
+  bx(2.45, 7.95, -12.7, 1.4, 0.8, 0.04, 'stone', [0.9, 0.16, 0.12]);
+  bx(2.45, 7.95, -12.68, 0.5, 0.5, 0.04, 'stone', [0.08, 0.08, 0.08]);
+  // lanterns on the main deck's corner posts (just under the deck edge so they don't get in the way)
+  for (const [x, z] of [[-7.1, -7.1], [7.1, -7.1], [-7.1, 7.1], [7.1, 7.1]]) { bx(x, -0.75, z, 0.3, 0.36, 0.3, 'crystal', LAMP, 1); bx(x, -0.5, z, 0.4, 0.08, 0.4, 'darkwood', DARK); }
 }
 const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 12), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
@@ -1296,6 +1363,72 @@ const logIM = inst(mergeParts([
 ]), 1);
 const ropeIM = inst(mergeParts([{ geo: cyl(0.035, 0.035, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 2);
 logIM.count = 1; ropeIM.count = 2;
+
+// ----- sawmill moving parts: water wheel, saw blade, and water (river, waterfall, flume stream) -----
+const wheelIM = inst(mergeParts([
+  { geo: new THREE.TorusGeometry(2.55, 0.1, 6, 28), c: [0.95, 0.85, 0.7], layer: 'bark', m: M(0, 0, 0.42) },
+  { geo: new THREE.TorusGeometry(2.55, 0.1, 6, 28), c: [0.95, 0.85, 0.7], layer: 'bark', m: M(0, 0, -0.42) },
+  { geo: cyl(0.35, 0.35, 1.3, 10), c: [0.6, 0.55, 0.5], layer: 'darkwood', m: M(0, 0, 0, Math.PI / 2, 0, 0) },
+  { geo: cyl(0.08, 0.08, 2.2, 6), c: [0.4, 0.4, 0.45], m: M(0, 0, 0, Math.PI / 2, 0, 0) },
+  ...Array.from({ length: 8 }, (_, i) => ({ geo: new THREE.BoxGeometry(0.14, 5.0, 0.14), c: [0.95, 0.85, 0.7], layer: 'bark', m: M(0, 0, (i % 2 ? 0.42 : -0.42), 0, 0, (i >> 1) * Math.PI / 4 + (i % 2) * Math.PI / 8) })),
+  ...Array.from({ length: 16 }, (_, i) => { const a = (i / 16) * Math.PI * 2; return { geo: new THREE.BoxGeometry(0.55, 0.08, 0.9), c: [0.85, 0.72, 0.55], layer: 'planks', m: M(Math.cos(a) * 2.35, Math.sin(a) * 2.35, 0, 0, 0, a) }; }),
+]), 1);
+const sawIM = inst(mergeParts([
+  { geo: cyl(0.5, 0.5, 0.025, 28), c: [0.75, 0.77, 0.8], m: M(0, 0, 0, Math.PI / 2, 0, 0) },
+  { geo: cyl(0.12, 0.12, 0.05, 10), c: [0.3, 0.3, 0.33], m: M(0, 0, 0, Math.PI / 2, 0, 0) },
+  ...Array.from({ length: 20 }, (_, i) => { const a = (i / 20) * Math.PI * 2; return { geo: new THREE.ConeGeometry(0.05, 0.12, 3), c: [0.85, 0.87, 0.9], m: M(Math.cos(a) * 0.52, Math.sin(a) * 0.52, 0, Math.PI / 2, 0, a - Math.PI / 2 + 0.5) }; }),
+]), 1);
+wheelIM.count = sawIM.count = 1;
+const waterMat = (deep, light, alpha, speed, stripes) => new THREE.ShaderMaterial({
+  transparent: alpha < 1, depthWrite: alpha >= 1, side: THREE.DoubleSide,
+  uniforms: { t: { value: 0 }, deep: { value: new THREE.Color(deep) }, light: { value: new THREE.Color(light) }, fogColor: { value: new THREE.Color(FOG_HEX) }, fogNear: { value: FOG_NEAR }, fogFar: { value: FOG_FAR } },
+  vertexShader: `varying vec2 vUv; varying float vDepth; void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vDepth = -mv.z; gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform float t; uniform vec3 deep, light, fogColor; uniform float fogNear, fogFar; varying vec2 vUv; varying float vDepth;
+    float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      vec2 q = vec2(floor(vUv.x * ${stripes.toFixed(1)}), vUv.y * ${(stripes * 0.4).toFixed(1)} - t * ${speed.toFixed(2)});
+      float s = h(vec2(q.x, floor(q.y + h(vec2(q.x, 1.0)) * 7.0)));
+      float f = smoothstep(0.55, 0.95, s) * (0.6 + 0.4 * sin(q.y * 3.0 + q.x));
+      vec3 col = mix(deep, light, f);
+      gl_FragColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth) * 0.85), ${alpha.toFixed(2)});
+    }`,
+});
+const WATER = [];
+function waterPlane(w, h, mat, pos, rot) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.copy(pos); m.rotation.copy(rot); m.userData.noCast = true; scene.add(m); WATER.push(mat); return m; }
+// river along the bottom of the ravine, flowing north
+const river = waterPlane(64, 300, waterMat(0x1f5f6e, 0xbfe8ee, 1, 0.35, 40), new THREE.Vector3(0, -29, 0), new THREE.Euler(-Math.PI / 2, 0, 0));
+river.renderOrder = -1;
+// the big waterfall at the far end of the ravine
+waterPlane(18, 62, waterMat(0x6fb4c8, 0xffffff, 0.92, 1.6, 26), new THREE.Vector3(0, -1, -124), new THREE.Euler(0, 0, 0));
+const foam = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }));
+foam.position.set(0, -29, -122); foam.scale.set(12, 3, 5); foam.userData.noCast = true; scene.add(foam);
+// water in the flume, the stream pouring onto the wheel, and the long fall from the wheel into the river
+const fl0 = new THREE.Vector3(40, 4.1, 0), fl1 = new THREE.Vector3(WHEEL.x + 0.2, 2.95, 0), flMid = fl0.clone().add(fl1).multiplyScalar(0.5);
+{ const m = waterPlane(fl0.distanceTo(fl1), 0.8, waterMat(0x3f8fa3, 0xdff6fa, 1, -1.2, 10), flMid.setY(flMid.y - 0.12), new THREE.Euler());
+  const along = new THREE.Vector3().subVectors(fl1, fl0).normalize(), side = new THREE.Vector3(0, 0, 1), nrm = new THREE.Vector3().crossVectors(along, side).negate();
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, side, nrm)); }
+waterPlane(0.7, 2.6, waterMat(0x5fa8bc, 0xffffff, 0.85, 2.2, 6), new THREE.Vector3(WHEEL.x + 0.25, 1.7, 0), new THREE.Euler(0, Math.PI / 2, 0));
+waterPlane(1.0, 29, waterMat(0x5fa8bc, 0xffffff, 0.8, 2.6, 7), new THREE.Vector3(WHEEL.x + 1.4, -15.5, 0), new THREE.Euler(0, Math.PI / 2, 0));
+let wheelA = 0, sawA = 0;
+function arenaTick(dt) {
+  wheelA -= dt * 0.55; sawA -= dt * 24;
+  wheelIM.setMatrixAt(0, _mm.compose(WHEEL, _q.setFromAxisAngle(_t1.set(0, 0, 1), wheelA), ONE)); wheelIM.instanceMatrix.needsUpdate = true;
+  sawIM.setMatrixAt(0, _mm.compose(SAW, _q.setFromAxisAngle(_t1.set(0, 0, 1), sawA), ONE)); sawIM.instanceMatrix.needsUpdate = true;
+  for (const m of WATER) m.uniforms.t.value = now;
+  // the saw blade: touch it and it throws you back, cuts you (bleeding) and makes you dizzy
+  if (G.state !== 'fight') return;
+  for (const a of actors) {
+    if (!a.active || a.out || a.remote || a.heldBy) continue;
+    if (Math.abs(a.pos.z - SAW.z) > 0.6 || Math.abs(a.pos.x - SAW.x) > 0.75 || Math.abs(a.pos.y - SAW.y) > 0.75 || (a.hitCD.get(-3) || 0) > now) continue;
+    a.hitCD.set(-3, now + 0.8);
+    _v.set(a.pos.x - SAW.x, 0, a.pos.z - SAW.z); if (_v.lengthSq() < 1e-4) _v.set(0, 0, 1);
+    _v.setLength(5.5); _v.y = 3.2; push(a, _v);
+    a.dizzy += 28; a.lastHit = now; a.bleedT = 2; a.tiltV.x += _v.x; a.tiltV.y += _v.z;
+    if (a.dizzy >= 100 && a.ko <= 0) { a.ko = FIGHT.koTime; dropAll(a); sfx('ko', a === human ? null : a.pos); }
+    fxAt('blood', a.pos, _v, a.css); sfx('stab', a === human ? null : a.pos, 1.3); sfx('clang', a === human ? null : SAW, 0.5);
+    if (a === human) { pulseAll(1, 150); flash = 0.3; }
+  }
+}
 
 // ----- Yard props -----
 const padIM = inst(mergeParts([{ geo: cyl(1.3, 1.3, 0.05, 24), c: F, tint: true }, { geo: cyl(1.45, 1.45, 0.03, 24), c: [0.2, 0.16, 0.12], m: M(0, -0.01, 0) }]), 1);
@@ -3356,7 +3489,7 @@ function clearItems(lobby) {
   if (lobby) for (const [i, type] of CRATE_TOOLS.entries()) { const it = mkItem(type, rackSpot(i), null); it.rack = true; }
 }
 const rackSpot = (i) => new THREE.Vector3(LB.x - 8.6 + i * 0.62, LB.y + 0.95, LB.z + 9.55);
-const CRATE_SPOTS = [() => [rand(-4.5, 4.5), 0, rand(-4.5, 4.5)], () => [rand(-4.5, 4.5), 0, rand(-4.5, 4.5)], () => [rand(12, 17), 1.2, rand(-3, 3)], () => [rand(-17, -12), 1.5, rand(-2, 2)], () => [rand(-1, 1), 4.6, rand(-12.5, -9.5)]];
+const CRATE_SPOTS = [() => [rand(-5.5, 5.5), 0, rand(-5.5, 5.5)], () => [rand(-5.5, 5.5), 0, rand(-5.5, 5.5)], () => [rand(12, 17), 1.2, rand(-3, 3)], () => [rand(-17, -12), 1.5, rand(-2, 2)], () => [rand(-1, 1), 4.6, rand(-12.5, -9.5)]];
 const _ip = new THREE.Vector3();
 function itemsTick(dt) {
   const auth = !net.on || net.host;
@@ -4123,6 +4256,7 @@ function update(dt, frame) {
   updateHeld(dt);
   bodyBump();
   updateLog(dt);
+  arenaTick(dt);
   yardTick(dt);
   netTick(dt);
   coinTick();
