@@ -313,6 +313,12 @@ const PAD = new THREE.Vector3(LB.x + 7.2, LB.y, LB.z);
 const START_BTN = new THREE.Vector3(LB.x + 9.35, LB.y + 1.15, LB.z);
 // the computer on the west side of the Yard: COMP is the middle of the keyboard, top = key tops
 const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
+// the shop room: a separate room you teleport to from the Yard (far away, out of sight)
+const SR = new THREE.Vector3(LB.x - 220, LB.y, LB.z);
+// one pedestal per shop item: six down each side wall
+const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 4.3, z: SR.z - 2.6 + j * 1.15, side }; });
+const SHOP_SPAWN = new THREE.Vector3(SR.x, SR.y, SR.z + 2.4), SHOP_EXIT = new THREE.Vector3(SR.x, SR.y, SR.z + 4.1);
+const STALL_PAD = new THREE.Vector3(LB.x + 1.5, LB.y, LB.z + 8.2);
 const BAG_PIVOT = new THREE.Vector3(LB.x + 7, LB.y + 3.0, LB.z - 6);
 const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
 // the sawmill's moving parts: saw blade (a hazard) and the water wheel behind the saw house
@@ -411,7 +417,18 @@ function buildLevel() {
   blk(START_BTN.x + 0.2, Y + 1.72, Z, 0.08, 0.9, 1.7, { mat: 'darkwood' });
   // start button post
   blk(START_BTN.x + 0.15, Y, Z, 0.35, 0.95, 0.35, { mat: 'darkwood' });
-  // shop stall (closed for now)
+  // ----- the shop room -----
+  {
+    const X = SR.x, Y = SR.y, Z = SR.z;
+    blk(X, Y - 0.3, Z, 10.4, 0.3, 10.4, { mat: 'planks' });
+    for (const sd of [-1, 1]) { blk(X, Y, Z + sd * 5.1, 10.4, 4, 0.2, { mat: 'darkwood' }); blk(X + sd * 5.1, Y, Z, 0.2, 4, 10.4, { mat: 'darkwood' }); }
+    blk(X, Y + 4, Z, 10.4, 0.3, 10.4, { hidden: true });
+    // counter at the back, pedestals along the side walls
+    blk(X, Y, Z - 3.6, 3.6, 1.0, 0.8, { top: 'planks', side: 'darkwood' });
+    blk(X + 2.5, Y, Z - 3.7, 0.6, 1.0, 0.6, { top: 'planks', side: 'darkwood' });
+    for (const p of SHOP_PEDS) blk(p.x, Y, p.z, 0.55, 0.95, 0.55, { top: 'planks', side: 'darkwood' });
+  }
+  // shop stall in the Yard (a doorway to the shop room)
   blk(X + 1.5, Y, Z + 9.6, 3.6, 1.0, 0.8, { mat: 'planks' });
   for (const dx of [-0.3, 3.3]) blk(X + dx, Y, Z + 10.2, 0.25, 2.7, 0.25, { mat: 'bark' });
   box(X + 1.5, Y + 2.85, Z + 9.7, 4.4, 0.2, 2.2, { rx: 0.3, mat: 'planks' });
@@ -1760,6 +1777,7 @@ function resetActor(a, i, pts = SPAWNS) {
   // an AFK player who's already in the Yard stays where they are
   const stay = a === human && human.afkYard && pts === LOBBY_SPAWNS && human.pos.distanceTo(LB) < 30 && human.head.y > LB.y - 2;
   if (a === human) human.afkYard = false;
+  a.wounds = [];
   a.lastBy = -1; a.out = false; a.dead = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.bleedT = 0; a.squashT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
   const sp = pts[(i < 0 ? 0 : i) % pts.length];
   const cx = pts === SPAWNS ? 0 : LB.x, cz = pts === SPAWNS ? 0 : LB.z + 1;
@@ -1928,6 +1946,12 @@ function hit(attacker, target, hv, speed, from, tool) {
   push(target, _v);
   const lobbyHit = inLobby();
   if (!lobbyHit) target.dizzy += s * FIGHT.dizzyPerSpeed * (TM ? TM.d : 1) * (target.ko > 0 ? 0.3 : 1) + (TM ? TM.flat : 0);
+  if (tool && tool !== 'slip') {
+    const dl = rotY(_t1.copy(hv).negate(), -target.yaw, _t2);
+    const wd = [r2(dl.x), 0, r2(dl.z)];
+    addWound(target, wd);
+    if (net.on) netSendAll(EV.FX, { k: 'wound', p: [0, 0, 0], d: wd, c: actorSlot(target) });
+  }
   if (tool === 'mallet') target.squashT = 2.5;
   if (tool === 'knife') {
     target.bleedT = 3;
@@ -1935,7 +1959,8 @@ function hit(attacker, target, hv, speed, from, tool) {
     rotY(_t1.copy(hv).setY(0).normalize().multiplyScalar(-0.24), -target.yaw, target.woundL || (target.woundL = new THREE.Vector3()));
     target.woundL.y = rand(-0.15, 0.08);
   }
-  if (!lobbyHit && G.state === 'fight' && tool === 'knife' && wasDizzy) { die(target); return true; }
+  // the knife only finishes off an ape that's already dizzy, and it takes a proper stab
+  if (!lobbyHit && G.state === 'fight' && tool === 'knife' && wasDizzy && s >= 3.5) { die(target); return true; }
   if (tool === 'slip' && !lobbyHit && target.ko <= 0) { target.ko = 1.2; target.tiltV.x += 30; }
   target.lastHit = now;
   target.tiltV.x += hv.x * 0.9; target.tiltV.y += hv.z * 0.9;
@@ -2269,7 +2294,7 @@ function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
 // ================= human: computer controls =================
 const keys = {};
 const mouse = { left: false, right: false, drag: false, lx: 0, ly: 0 };
-addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code !== 'Enter') wake(); if (human.kind === 'pc' && e.code === 'Enter' && !e.repeat && yardHere()) toggleAfk(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code === 'KeyM' && !e.repeat) toggleShop(); if (human.kind === 'pc' && e.code !== 'Enter') wake(); if (human.kind === 'pc' && e.code === 'Enter' && !e.repeat && yardHere()) toggleAfk(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.right = false; mouse.drag = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -2282,7 +2307,7 @@ canvas.addEventListener('mousedown', (e) => {
   if (e.button === 0) {
     const R = human.hands[1];
     if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
-    else if (pcClickComputer() || pcClickShop() || pcClickAfk()) { /* pressed a key or button */ }
+    else if (pcClickComputer() || pcClickShop() || pcClickPed() || pcClickAfk()) { /* pressed a key or button */ }
     else { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
   }
   if (e.button === 2) mouse.right = true;
@@ -2638,7 +2663,7 @@ function updateVisuals(dt) {
       const hs = Math.hypot(a.vel.x, a.vel.z);
       a.legPh = ((a.legPh || 0) + Math.min(3, hs) * dt * 7) % 6.2832;
       const hm = skinPose('a' + a.i, _mm, hands[0].pos, hands[1].pos, a.fur, a.legPh, Math.min(1, hs / 1.5), ko ? 0.08 : 0) || _mm;
-      wearCos(a.cos, hm);
+      wearCos(a.cos, hm); drawWounds(a, hm);
       bandsIM.setMatrixAt(ai, hm); bandsIM.setColorAt(ai, a.band);
       mouthIM.setMatrixAt(ai, mouthMatrix(hm, mouthOpen(a)));
       drawLimbs(LIV, ai, bodyAt, _q, a.yaw, bodySc, hands[0].pos, hands[1].pos, a.fur, a.legPh, Math.min(1, hs / 1.5), ko ? 0.08 : 0);
@@ -2816,6 +2841,7 @@ function readXR(frame) {
     h.trigV = pad?.buttons[0]?.value ?? (h.trigger ? 1 : 0); h.gripV = pad?.buttons[1]?.value ?? (h.grip ? 1 : 0);
     h.thumb = !!pad && [3, 4, 5].some((i) => pad.buttons[i] && (pad.buttons[i].touched || pad.buttons[i].pressed));
     if (k === 1 && pad) xrIn.stickX = pad.axes[2] ?? pad.axes[0] ?? 0;
+    if (k === 0) xrIn.shopBtn = !!pad && (!!pad.buttons[5]?.pressed || pad.buttons.slice(6).some((b) => b && b.pressed));
   }
   return true;
 }
@@ -3305,7 +3331,7 @@ const TOOLS = {
   pan:      { tip: 0.42, r: 0.24, minSp: 2.2, uses: 8, snd: 'clang' },
   plunger:  { tip: 0.5, r: 0.2, minSp: 2.0, uses: 4, snd: 'pop' },
   chicken:  { tip: 0.42, r: 0.22, minSp: 1.8, uses: 40, snd: 'squeak' },
-  knife:    { tip: 0.28, r: 0.13, minSp: 2.0, uses: 6, snd: 'stab' },
+  knife:    { tip: 0.28, r: 0.13, minSp: 2.0, uses: 3, snd: 'stab' },
   launcher: { tip: 0.27, r: 0, minSp: 99, uses: 5, snd: 'boing' },
   banana:   { tip: 0.1, r: 0, minSp: 99, uses: 1, snd: 'slip' },
   corpse:   { tip: 0.6, r: 0.42, minSp: 2.0, uses: 99999, snd: 'bonk' },
@@ -3331,7 +3357,7 @@ function die(a) {
 // how each tool changes a hit: knockback x, dizziness x, extra dizziness
 const TOOL_FX = {
   mallet: { k: 1.6, d: 1.5, flat: 0 }, pan: { k: 1.3, d: 2.0, flat: 0 }, plunger: { k: 0.3, d: 0.3, flat: 0 },
-  chicken: { k: 0.8, d: 0.4, flat: 0 }, knife: { k: 0.45, d: 0.3, flat: 35 }, launcher: { k: 1, d: 0, flat: 10 },
+  chicken: { k: 0.8, d: 0.4, flat: 0 }, knife: { k: 0.45, d: 0.3, flat: 8 }, launcher: { k: 1, d: 0, flat: 10 },
   throw: { k: 1, d: 1, flat: 0 }, slip: { k: 0, d: 0, flat: 0 }, corpse: { k: 1.8, d: 1.2, flat: 0 },
 };
 const WORLD = { i: 7, name: 'Banana', isBot: false };
@@ -3600,7 +3626,7 @@ function bloodAtlas() {
 const splatGeo = new THREE.PlaneGeometry(2, 2);
 const splatCell = new THREE.InstancedBufferAttribute(new Float32Array(SMAX * 4), 4);
 splatGeo.setAttribute('aCell', splatCell);
-const splatIM = new THREE.InstancedMesh(splatGeo, new THREE.ShaderMaterial({
+const splatMat = new THREE.ShaderMaterial({
   glslVersion: THREE.GLSL3, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
   uniforms: { map: { value: bloodAtlas() }, ...FOG_UNI() },
   vertexShader: `
@@ -3630,7 +3656,51 @@ const splatIM = new THREE.InstancedMesh(splatGeo, new THREE.ShaderMaterial({
       col += vec3(1.0, 0.82, 0.8) * spec * 1.3 + vec3(0.55, 0.35, 0.35) * sky * 0.35;
       outColor = vec4(mix(col, fogColor, smoothstep(fogNear, fogFar, vDepth)), a);
     }`,
-}), SMAX);
+});
+const splatIM = new THREE.InstancedMesh(splatGeo, splatMat, SMAX);
+// wounds: bloody marks stuck on apes' faces, made by hits with weapons. They're kept in the ape's own frame
+// (head centre WOUND_HC, roughly an egg of radii WOUND_R), so they move, tumble and flop with the ape.
+const WMAX = 60, woundGeo = new THREE.PlaneGeometry(2, 2), woundCell = new THREE.InstancedBufferAttribute(new Float32Array(WMAX * 4), 4);
+woundGeo.setAttribute('aCell', woundCell);
+// (fresher, brighter blood than on the floor, so it shows on any fur colour)
+const woundMat = splatMat.clone();
+woundMat.fragmentShader = splatMat.fragmentShader.replace('vec3 core = vec3(0.26, 0.012, 0.012), rim = vec3(0.55, 0.04, 0.035);', 'vec3 core = vec3(0.5, 0.02, 0.02), rim = vec3(0.85, 0.07, 0.05);');
+woundMat.polygonOffsetFactor = -4; woundMat.polygonOffsetUnits = -4;
+const woundIM = new THREE.InstancedMesh(woundGeo, woundMat, WMAX);
+woundIM.frustumCulled = false; woundIM.count = 0; woundIM.userData.noCast = true; woundIM.renderOrder = 3; scene.add(woundIM);
+const WOUND_HC = new THREE.Vector3(0, 0.2, -0.1), WOUND_R = new THREE.Vector3(0.19, 0.185, 0.2);
+const _wn = new THREE.Vector3(), _wt = new THREE.Vector3(), _wb = new THREE.Vector3(), _wp = new THREE.Vector3(), _wm = new THREE.Matrix4(), _wm2 = new THREE.Matrix4();
+let woundN = 0;
+function addWound(a, dir) {
+  if (!a) return;
+  const w = a.wounds || (a.wounds = []);
+  // mostly on the face (forehead, cheeks, round the eyes), leaning toward the side the hit came from
+  const d = new THREE.Vector3(dir[0], 0, dir[2]); if (d.lengthSq() < 1e-4) d.set(0, 0, -1); d.normalize();
+  d.multiplyScalar(0.55).add(_wn.set(rand(-0.75, 0.75), 0, -1)); d.y = rand(-0.1, 0.65); d.normalize();
+  if (w.length >= 6) w.shift();
+  w.push({ d, r: rand(0.04, 0.062), k: Math.random() < 0.6 ? 3 : 2, age: 0, rot: rand(-0.4, 0.4) });
+}
+// draw an ape's wounds, given the matrix its body is drawn with
+function drawWounds(a, bodyM) {
+  if (!a.wounds || !a.wounds.length || !bloodOn) return;
+  for (const w of a.wounds) {
+    if (woundN >= WMAX) return;
+    w.age += FDT;
+    const d = w.d, R = WOUND_R, k = 1 / Math.sqrt((d.x / R.x) ** 2 + (d.y / R.y) ** 2 + (d.z / R.z) ** 2);
+    _wp.copy(d).multiplyScalar(k);
+    _wn.set(_wp.x / (R.x * R.x), _wp.y / (R.y * R.y), _wp.z / (R.z * R.z)).normalize();
+    _wp.add(WOUND_HC).addScaledVector(_wn, 0.006);
+    // drips run down the head
+    _wb.set(0, 1, 0).addScaledVector(_wn, -_wn.y); if (_wb.lengthSq() < 1e-4) _wb.set(0, 0, 1); _wb.normalize().applyAxisAngle(_wn, w.rot);
+    _wt.crossVectors(_wb, _wn);
+    const r = w.r * Math.min(1, 0.4 + w.age * 3);
+    _wm.makeBasis(_wt.multiplyScalar(r), _wb.multiplyScalar(w.k === 3 ? r * 1.25 : r), _wn).setPosition(_wp);
+    woundIM.setMatrixAt(woundN, _wm2.multiplyMatrices(bodyM, _wm));
+    woundCell.setXYZW(woundN, (w.k % 2) * 0.5, Math.floor(w.k / 2) * 0.5, 1, 0);
+    woundN++;
+  }
+}
+function woundsEnd() { woundIM.count = woundN; woundIM.instanceMatrix.needsUpdate = true; woundCell.needsUpdate = true; }
 splatIM.frustumCulled = false; splatIM.count = 0; splatIM.userData.noCast = true; splatIM.renderOrder = 2; scene.add(splatIM);
 const parts = [], drops = [], splats = [], gloves = [];
 const BLOOD_COL = [raw(0.42, 0.012, 0.012), raw(0.6, 0.03, 0.025), raw(0.3, 0.008, 0.008)];
@@ -3893,6 +3963,7 @@ function applyItems(list) {
 // ----- effects -----
 function spawnFx(kind, p, d, c, broadcast) {
   if (!p) return;
+  if (kind === 'wound') { if (Array.isArray(d) && typeof c === 'number' && c >= 0 && c < 6) addWound(slotActor(c), d); return; }
   if (broadcast && net.on) netSendAll(EV.FX, { k: kind, p, d, c });
   _p.set(p[0], p[1], p[2]);
   const dir = d ? _w.set(d[0], d[1], d[2]) : _w.set(0, 1, 0);
@@ -3997,7 +4068,7 @@ function drawBody(it, n) {
   _mm.compose(R.c, _bq, _s.set(1, 1, 1));
   deadIM.ape.setMatrixAt(n, _mm); deadIM.ape.setColorAt(n, fur);
   const hm = skinPose('d' + n, _mm, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15) || _mm;
-  wearCos(who ? who.cos : null, hm);
+  wearCos(who ? who.cos : null, hm); if (who) drawWounds(who, hm);
   deadIM.band.setMatrixAt(n, hm); deadIM.band.setColorAt(n, band);
   deadIM.xs.setMatrixAt(n, hm);
   _mm.compose(R.c, _bq, ONE);
@@ -4110,19 +4181,91 @@ function coinTick() {
 }
 // ----- the shop stall: a board, three buttons on the counter and a display ape wearing what you're looking at -----
 const SHOP = { i: 0, msg: '', msgT: 0, sig: '', btnCD: 0 };
-const shopBoard = panelAt(1024, 512, 2.2, 1.1, new THREE.Vector3(LB.x + 1.9, LB.y + 1.88, LB.z + 10.05), Math.PI);
+const shopBoard = panelAt(1024, 512, 2.6, 1.3, new THREE.Vector3(SR.x, SR.y + 2.2, SR.z - 4.98), 0);
 const SHOP_BTNS = [
-  { k: 'prev', x: 2.65, col: [0.25, 0.5, 0.95] },
-  { k: 'buy', x: 1.9, col: [0.2, 0.8, 0.3] },
-  { k: 'next', x: 1.15, col: [0.25, 0.5, 0.95] },
-].map((b) => Object.assign(b, { pos: new THREE.Vector3(LB.x + b.x, LB.y + 1.05, LB.z + 9.42), flash: 0 }));
+  { k: 'prev', x: -0.75, col: [0.25, 0.5, 0.95] },
+  { k: 'buy', x: 0, col: [0.2, 0.8, 0.3] },
+  { k: 'next', x: 0.75, col: [0.25, 0.5, 0.95] },
+].map((b) => Object.assign(b, { pos: new THREE.Vector3(SR.x + b.x, SR.y + 1.05, SR.z - 3.42), flash: 0 }));
 const shopBtnIM = inst(mergeParts([{ geo: ico(0.12, 1), c: F, tint: true, m: M(0, 0, 0, 0, 0, 0, 1, 0.45, 1) }, { geo: cyl(0.14, 0.15, 0.04, 14), c: [0.2, 0.17, 0.14], m: M(0, -0.03, 0) }]), 3);
 shopBtnIM.count = 3;
 const shopApe = { ape: inst(apeGeo, 1), band: inst(bandGeo, 1), stand: inst(mergeParts([{ geo: cyl(0.16, 0.2, 0.12, 12), c: [0.45, 0.3, 0.18], layer: 'darkwood' }]), 1) };
 for (const im of Object.values(shopApe)) im.count = 1;
 const SHOP_HANDS = [new THREE.Vector3(), new THREE.Vector3()];
-const SHOP_APE_AT = new THREE.Vector3(LB.x + 0.35, LB.y + 1.0, LB.z + 9.55);
+const SHOP_APE_AT = new THREE.Vector3(SR.x + 2.5, SR.y + 1.0, SR.z - 3.7);
 shopApe.stand.setMatrixAt(0, M(SHOP_APE_AT.x, SHOP_APE_AT.y + 0.06, SHOP_APE_AT.z));
+// ----- the shop room: every item on a pedestal with its name and price -----
+const pedHeadIM = inst(mergeParts([{ geo: ico(0.19, 2), c: [0.62, 0.58, 0.54], layer: 'fur', m: M(0, 0.2, -0.1) }, { geo: cyl(0.05, 0.08, 0.25, 8), c: [0.4, 0.3, 0.22], layer: 'darkwood', m: M(0, -0.04, -0.06) }]), 12);
+pedHeadIM.count = 12;
+const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 100, 0.8, 0.31, new THREE.Vector3(p.x - p.side * 0.29, SR.y + 0.72, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
+const shopPads = inst(mergeParts([{ geo: cyl(0.6, 0.6, 0.04, 20), c: F, tint: true }]), 2);
+shopPads.count = 2;
+const shopExitPanel = panelAt(512, 150, 1.6, 0.47, new THREE.Vector3(SR.x, SR.y + 2.6, SR.z + 4.98), Math.PI);
+const stallPanel = panelAt(1024, 512, 2.2, 1.1, new THREE.Vector3(LB.x + 1.9, LB.y + 1.88, LB.z + 10.05), Math.PI);
+const inShop = () => human.pos.distanceTo(SR) < 9;
+function drawPedLabel(i) {
+  const it = COS[i], L = PED_LABELS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, on = SHOP.i === i;
+  const sig = [owned, worn, on, wallet.coins >= it.price].join();
+  if (sig === L.sig) return; L.sig = sig;
+  const { ctx, c } = L; ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = on ? 'rgba(255,194,58,0.95)' : 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, c.width, c.height, 18); ctx.fill();
+  ctx.textAlign = 'center'; ctx.fillStyle = on ? '#2a1a05' : '#f3ead8'; ctx.font = `700 30px ${FB}`; ctx.fillText(it.name, 128, 40, 240);
+  ctx.font = `700 30px ${FB}`; ctx.fillStyle = on ? '#2a1a05' : worn ? '#6dff96' : owned ? '#b9ad94' : wallet.coins >= it.price ? '#ffc23a' : '#ff7a5c';
+  ctx.fillText(worn ? 'WEARING' : owned ? 'OWNED' : `${it.price.toLocaleString()} coins`, 128, 80);
+  L.tex.needsUpdate = true;
+}
+function drawShopSigns() {
+  const sign = (P, lines) => { const { ctx, c } = P; ctx.clearRect(0, 0, c.width, c.height); ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill(); ctx.textAlign = 'center';
+    lines.forEach(([t, f, col, y]) => { ctx.font = f; ctx.fillStyle = col; ctx.fillText(t, c.width / 2, y, c.width - 40); }); P.tex.needsUpdate = true; };
+  sign(stallPanel, [['WRECK SHOP', `110px ${FD}`, '#ffc23a', 150], ['Stand on the glowing pad', `700 54px ${FB}`, '#f3ead8', 270], ['or press Y on your left controller', `700 46px ${FB}`, '#b9ad94', 350], ['(M on a computer)', `600 36px ${FB}`, '#b9ad94', 420]]);
+  sign(shopExitPanel, [['BACK TO THE YARD', `56px ${FD}`, '#6dff96', 70], ['Stand on the pad or press Y', `600 28px ${FB}`, '#f3ead8', 120]]);
+}
+function goShop() {
+  if (!yardHere() || human.kind === 'none' || (human.out && !human.afkYard) || inShop()) return;
+  placeHuman(SHOP_SPAWN, 0); sfx('go'); flash = 0.3; shopPadT = 0;
+}
+function leaveShop() {
+  if (!inShop()) return;
+  placeHuman(STALL_PAD.clone().setZ(STALL_PAD.z - 1.4), 0); sfx('go'); flash = 0.3; shopPadT = 0;
+}
+function toggleShop() { if (inShop()) leaveShop(); else goShop(); }
+let shopPadT = 0, shopPadIn = false;
+function shopRoomTick(dt, show) {
+  // the pads glow; stand on one for a moment to go through
+  const pulse = 0.75 + 0.25 * Math.sin(now * 4);
+  shopPads.setMatrixAt(0, M(STALL_PAD.x, STALL_PAD.y + 0.02, STALL_PAD.z)); shopPads.setColorAt(0, raw(1, 0.7 * pulse, 0.15));
+  shopPads.setMatrixAt(1, M(SHOP_EXIT.x, SHOP_EXIT.y + 0.02, SHOP_EXIT.z)); shopPads.setColorAt(1, raw(0.2, 0.9 * pulse, 0.35));
+  shopPads.instanceMatrix.needsUpdate = true; shopPads.instanceColor.needsUpdate = true;
+  const onPad = (P) => Math.hypot(human.pos.x - P.x, human.pos.z - P.z) < 0.6 && human.pos.y < P.y + 2.2 && human.pos.y > P.y - 0.5;
+  const here = show && (onPad(STALL_PAD) || onPad(SHOP_EXIT));
+  // (you have to step off the pad you arrived on before it works again)
+  if (!here) { shopPadT = 0; shopPadIn = false; } else if (shopPadIn !== 'used') { shopPadT += dt; if (shopPadT > 0.8) { shopPadIn = 'used'; toggleShop(); } }
+  // items on their pedestals, turning slowly; touch one to look at it
+  SHOP_PEDS.forEach((p, i) => {
+    _q.setFromAxisAngle(_yAxis, -p.side * Math.PI / 2 + Math.sin(now * 0.8 + i) * 0.6);
+    _mm.compose(_p.set(p.x, SR.y + 0.95 + 0.06 + 0.02 * Math.sin(now * 2 + i), p.z), _q, ONE);
+    pedHeadIM.setMatrixAt(i, _mm); pedHeadIM.setColorAt(i, human.fur || raw(0.6, 0.55, 0.5));
+    wearCos([i], _mm);
+    drawPedLabel(i);
+  });
+  pedHeadIM.instanceMatrix.needsUpdate = true; pedHeadIM.instanceColor.needsUpdate = true;
+  if (show && inShop()) for (const h of localHands()) {
+    if (human.kind !== 'vr') break;
+    SHOP_PEDS.forEach((p, i) => {
+      if (SHOP.i !== i && Math.hypot(h.pos.x - p.x, h.pos.z - p.z) < 0.35 && Math.abs(h.pos.y - (SR.y + 1.2)) < 0.45) { SHOP.i = i; SHOP.msg = ''; sfx('tap', h.pos, 3); pulseHand(h.k, 0.4, 30); }
+    });
+  }
+}
+// on a computer: click an item you're looking at
+function pcClickPed() {
+  if (!inShop() || human.kind !== 'pc') return false;
+  camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
+  for (const [i, p] of SHOP_PEDS.entries()) {
+    _t3.set(p.x, SR.y + 1.2, p.z).sub(_t1); const t = _t3.dot(_t2);
+    if (t > 0 && t < 8 && _t3.addScaledVector(_t2, -t).length() < 0.32) { SHOP.i = i; SHOP.msg = ''; sfx('tap', null, 1); return true; }
+  }
+  return false;
+}
 function shopPress(b) {
   b.flash = 0.25; sfx('tap', b.pos, 3);
   const it = COS[SHOP.i];
@@ -4162,13 +4305,13 @@ function drawShop() {
   // button labels sit right above the three buttons on the counter
   const lab = [['PREV', 0.16], [owned ? (worn ? 'TAKE OFF' : 'WEAR') : 'BUY', 0.5], ['NEXT', 0.84]];
   for (const [t, u] of lab) { ctx.fillStyle = t === 'BUY' || t === 'WEAR' ? '#3fa356' : t === 'TAKE OFF' ? '#8a3a32' : '#3f6fd0'; rr(ctx, u * 1024 - 120, 400, 240, 76, 38); ctx.fill(); ctx.fillStyle = '#f3ead8'; ctx.font = `700 40px ${FB}`; ctx.fillText(t, u * 1024, 452); }
-  ctx.fillStyle = '#b9ad94'; ctx.font = `600 22px ${FB}`; ctx.fillText('Earn coins in matches: slaps, dizzies, knock-offs, wrecks and wins', 512, 500);
+  ctx.fillStyle = '#b9ad94'; ctx.font = `600 22px ${FB}`; ctx.fillText('Touch an item on the walls to look at it · earn coins in matches', 512, 500);
   shopBoard.tex.needsUpdate = true;
 }
 function shopTick(dt, show) {
   SHOP.btnCD -= dt; SHOP.msgT -= dt;
   // the display ape turns slowly, wearing the item on show
-  _q.setFromAxisAngle(_yAxis, Math.sin(now * 0.6) * 0.9);
+  _q.setFromAxisAngle(_yAxis, Math.PI + Math.sin(now * 0.6) * 0.9);
   _mm.compose(_p.copy(SHOP_APE_AT).setY(SHOP_APE_AT.y + 0.5), _q, ONE);
   shopApe.ape.setMatrixAt(0, _mm); shopApe.ape.setColorAt(0, human.fur || raw(0.5, 0.34, 0.22));
   SHOP_HANDS[0].set(-0.33, -0.32, -0.08).applyMatrix4(_mm); SHOP_HANDS[1].set(0.33, -0.32, -0.08).applyMatrix4(_mm);
@@ -4465,7 +4608,7 @@ function yardTick(dt) {
   startBtnIM.setColorAt(0, human.afk ? raw(1 * pulse, 0.45 * pulse, 0.05) : raw(0.15, 0.85 * pulse, 0.25)); startBtnIM.instanceColor.needsUpdate = true;
   yard.btnCD -= dt;
   for (const k of KB) { if (k.flash > 0 && (k.flash -= dt) <= 0) kbDirty = true; k.cd -= dt; }
-  termTick(dt); fireTick(dt); shopTick(dt, show);
+  termTick(dt); fireTick(dt); shopTick(dt, show); shopRoomTick(dt, show);
   if (show) {
     for (const h of localHands()) {
       const sp = h.vel.length();
@@ -4570,7 +4713,7 @@ function renderMirror() {
   renderer.setRenderTarget(prevTarget);
   MIRROR_HIDE.forEach((o, i) => { o.visible = was[i]; });
 }
-yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel();
+yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); drawShopSigns();
 
 // ================= main loop =================
 const perf = { t0: 0, n: 0, slow: 0, done: false };
@@ -4595,6 +4738,8 @@ function update(dt, frame) {
       if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); keepPlace(); }
       if (G.state === 'countdown' && !human.out) { /* free to look around, movement locked */ for (const h of human.hands) { h.L.copy(xrIn.hands[h.k].pos); h.q.copy(xrIn.hands[h.k].q); h.ok = xrIn.hands[h.k].ok; handTarget(h, h.pos); } human.headL.copy(xrIn.head); headWorld(human.head); human.pos.copy(human.head).setY(human.head.y - 0.1); }
       else vrStep(dt, xrIn);
+      if (xrIn.shopBtn && !xrIn.shopWas) toggleShop();
+      xrIn.shopWas = xrIn.shopBtn;
     }
   } else if (human.kind === 'pc') pcStep(dt);
   for (const h of human.hands) h.vel.subVectors(h.pos, h.prev).multiplyScalar(1 / Math.max(dt, 1e-3));
@@ -4609,7 +4754,7 @@ function update(dt, frame) {
     if (human.active && !human.out && human.ko <= 0) handHits(human, human.hands);
     for (const b of bots) if (b.active && !b.out && b.ko <= 0) handHits(b, b.hands);
   }
-  cosBegin();
+  cosBegin(); woundN = 0;
   itemsTick(dt);
   fxTick(dt);
   updateHeld(dt);
@@ -4620,7 +4765,7 @@ function update(dt, frame) {
   netTick(dt);
   coinTick();
   updateVisuals(dt);
-  cosEnd();
+  cosEnd(); woundsEnd();
   updateCamera();
   voiceTick(dt);
   tagsTick(dt);
@@ -4661,13 +4806,13 @@ document.addEventListener('pointerlockchange', () => { if (human.kind === 'pc') 
 })();
 // canvas text only uses a web font once it has loaded, so load them and redraw every panel
 if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Paint"', '600 40px "Barlow Condensed"', '700 40px "Barlow Condensed"', '40px VT323'].map((f) => document.fonts.load(f).catch(() => null)))
-  .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); });
+  .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); drawShopSigns(); for (const L of PED_LABELS) L.sig = ''; });
 human.kind = 'pc'; human.active = true; human.afk = true; human.autoAfk = true;
 startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { SR, SHOP_PEDS, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
