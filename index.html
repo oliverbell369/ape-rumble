@@ -111,7 +111,7 @@ const LIGHT_DIR = new THREE.Vector3(0.55, 0.66, 0.42).normalize();
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
 const PHOTON_VERSION = 'wrecked-1.0';
 const PHOTON_REGION = 'eu';
-const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, RTC: 15, CREDIT: 16 };
+const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, RTC: 15, CREDIT: 16, GPOSE: 17 };
 const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, afkNrs: {}, lookNames: {}, logOff: 0, looks: {}, lookCos: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
@@ -1081,7 +1081,7 @@ const limbCount = (set, n) => { for (const [nm, im] of Object.entries(set)) { im
 const _qI = new THREE.Quaternion();
 const handGeo = mergeParts([{ geo: ico(0.055, 1), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.72, 0.95, 1.0) }]);
 const starGeo = mergeParts([{ geo: new THREE.OctahedronGeometry(0.05, 0), c: [1, 0.86, 0.25] }]);
-const MAXA = 8;
+const MAXA = 12;
 function inst(geo, n) {
   const im = new THREE.InstancedMesh(geo, apeMat, n);
   im.frustumCulled = false; im.count = 0;
@@ -1323,8 +1323,8 @@ const myHandsIM = inst(mergeParts([
   { geo: cyl(0.04, 0.045, 0.1, 7), c: F, layer: 'fur', tint: true, m: M(0, 0, 0.09, Math.PI / 2, 0, 0) },
 ]), 2);
 // three chunky ape fingers per hand: index (trigger), the rest (grip) and thumb (resting on the buttons)
-const fingerIM = inst(mergeParts([{ geo: cyl(0.017, 0.015, 1, 6).translate(0, 0.5, 0), c: SKIN }]), 120);
-const tipIM = inst(mergeParts([{ geo: ico(0.018, 1), c: [0.78, 0.6, 0.47] }]), 60);
+const fingerIM = inst(mergeParts([{ geo: cyl(0.017, 0.015, 1, 6).translate(0, 0.5, 0), c: SKIN }]), 156);
+const tipIM = inst(mergeParts([{ geo: ico(0.018, 1), c: [0.78, 0.6, 0.47] }]), 78);
 const FING = {
   base: [[0.012, 0.022, -0.04], [0.012, -0.022, -0.04], [0.03, 0.034, -0.004]],
   len: [[0.042, 0.036], [0.044, 0.038], [0.036, 0.03]],
@@ -1333,7 +1333,7 @@ const FING = {
 const _fq = new THREE.Quaternion(), _fp = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], _fd = new THREE.Vector3(), _fm = new THREE.Matrix4();
 const _fx = new THREE.Vector3(), _fy = new THREE.Vector3(), _fz = new THREE.Vector3();
 // finger sets: everyone else's hands, your own first-person hands, and (later) your reflection's hands
-const FS_WORLD = { f: fingerIM, t: tipIM, n: 0, tn: 0, nf: 120, nt: 60 };
+const FS_WORLD = { f: fingerIM, t: tipIM, n: 0, tn: 0, nf: 156, nt: 78 };
 const FS_MINE = { f: inst(fingerIM.geometry, 12), t: inst(tipIM.geometry, 6), n: 0, tn: 0, nf: 12, nt: 6 };
 function fsEnd(S) { S.f.count = S.n; S.t.count = S.tn; S.f.instanceMatrix.needsUpdate = true; S.t.instanceMatrix.needsUpdate = true; }
 // side: +1 right hand, -1 left. Hand space: fingers point -Z, palm faces -side*X. curls: [index, grip, thumb] 0..1
@@ -1650,6 +1650,36 @@ function mkBot(i) {
 }
 // six seats; in each round a seat is you, a bot simulated here, or a copy of someone else's ape
 const allBots = [0, 1, 2, 3, 4, 5].map(mkBot);
+// Guests: players who have no seat in the match that's running (AFK in the Yard, or waiting on the out ledge
+// for the next round). They send their position too, so everyone still sees them; they just aren't part of
+// the fight (no slapping, grabbing or tools) until they get a seat.
+const guestPool = [0, 1, 2, 3, 4, 5].map((k) => Object.assign(mkBot(0), { i: 10 + k, guest: true, remote: true, player: true, active: false, nr: 0 }));
+const guestOf = (nr) => guestPool.find((g) => g.active && g.nr === nr) || null;
+function guestLook(g) {
+  const d = APES[g.nr % 6], lk = net.looks[g.nr];
+  g.name = net.names[g.nr] || net.lookNames[g.nr] || 'Player';
+  g.fur = lk ? raw(...lk) : raw(...d.fur); g.band = raw(...d.band); g.css = d.css;
+  g.cos = net.lookCos[g.nr] || NO_COS;
+}
+function onGuestPose(d, nr) {
+  if (!net.on || nr === net.myNr || (net.map && net.map[nr] !== undefined)) return;
+  let g = guestOf(nr);
+  if (!g) {
+    g = guestPool.find((x) => !x.active); if (!g) return;
+    g.active = true; g.nr = nr; g.snapT = 0; g.dizzy = 0; g.tilt.set(0, 0); g.tiltV.set(0, 0); guestLook(g);
+  }
+  snap(g, d.p, d.v, d.y, d.h, 0);
+  if (Array.isArray(d.c) && d.c.length === 6) for (let i = 0; i < 6; i++) g.fingT[i < 3 ? 0 : 1][i % 3] = d.c[i];
+}
+function dropGuest(nr) { const g = guestOf(nr); if (g) { g.active = false; g.nr = 0; } }
+function guestsTick(dt) {
+  for (const g of guestPool) {
+    if (!g.active) continue;
+    // gone quiet, left, or seated again (then their normal ape takes over)
+    if (!net.on || (net.map && net.map[g.nr] !== undefined) || now - g.snapT > 2.5) { g.active = false; g.nr = 0; continue; }
+    updateProxy(g, dt);
+  }
+}
 let actors = [human, ...allBots.slice(1)];
 let bots = allBots.slice(1);
 const slotActor = (k) => (k === mySlot ? human : allBots[k]);
@@ -1676,7 +1706,7 @@ function setupSlots() {
     actors.push(b);
     if (!b.remote) bots.push(b);
   }
-  if (mySlot < 0) { skinHuman(0); human.i = 9; actors.push(human); }
+  if (mySlot < 0) { skinHuman(net.on ? net.myNr % 6 : 0); human.i = 9; actors.push(human); }
 }
 
 // ================= game state =================
@@ -2485,7 +2515,8 @@ function fingerTargets(a, dt) {
 function updateVisuals(dt) {
   let ai = 0, hi = 0, si = 0, sti = 0;
   FS_WORLD.n = FS_WORLD.tn = FS_MINE.n = FS_MINE.tn = 0;
-  for (const a of actors) {
+  const drawn = guestPool.some((g) => g.active) ? actors.concat(guestPool.filter((g) => g.active)) : actors;
+  for (const a of drawn) {
     if (!a.active) continue;
     // wrecked apes are drawn as their body item instead (and fallen ones are far below)
     if (a !== human && (a.dead || (a.out && a.pos.y < WATER_Y - 0.4))) continue;
@@ -2818,6 +2849,7 @@ function onNetEvent(code, d, nr) {
     case EV.FEED: if (typeof d.m === 'string') feed(d.m.slice(0, 40)); break;
     case EV.START: if (net.host) requestStart(); break;
     case EV.RTC: onRtc(d, nr); break;
+    case EV.GPOSE: onGuestPose(d, nr); break;
     case EV.CREDIT: if (d && typeof d.n === 'number' && d.n > 0 && d.n <= 50 && !inLobby()) addCoins(Math.round(d.n), typeof d.w === 'string' ? d.w.slice(0, 40) : ''); break;
     case EV.LOOK: {
       // a player's name and fur colour, sent when they change them (and every few seconds)
@@ -2827,6 +2859,7 @@ function onNetEvent(code, d, nr) {
       if (Array.isArray(d.w) && d.w.length === 2) net.lookCos[nr] = [COS[d.w[0]]?.slot === 'head' ? d.w[0] : -1, COS[d.w[1]]?.slot === 'face' ? d.w[1] : -1];
       const b = allBots[d.s];
       if (b && b.player && slotOwnerNr(d.s) === nr) { b.name = net.names[nr] || b.name; if (net.looks[nr]) b.fur = raw(...net.looks[nr]); if (net.lookCos[nr]) b.cos = net.lookCos[nr]; }
+      const g = guestOf(nr); if (g) guestLook(g);
       break;
     }
   }
@@ -2897,6 +2930,10 @@ function netTick(dt) {
       netSendAll(EV.POSE, { s: mySlot, p: pack3(human.pos), v: pack3(human.V), y: r2(humanFacing()),
         h: [...pack3(human.hands[0].pos), ...pack3(human.hands[1].pos)], f: flagsOf(human),
         c: [...human.fing[0], ...human.fing[1]].map((v) => Math.round(v * 10) / 10) });
+    } else if (human.active && human.kind !== 'none') {
+      // no seat right now: still show the others where we are
+      netSendAll(EV.GPOSE, { p: pack3(human.pos), v: pack3(human.V), y: r2(humanFacing()),
+        h: [...pack3(human.hands[0].pos), ...pack3(human.hands[1].pos)], c: [...human.fing[0], ...human.fing[1]].map((v) => Math.round(v * 10) / 10) });
     }
     const liveBots = bots.filter((b) => b.active);
     if (net.host && liveBots.length) {
@@ -2909,6 +2946,7 @@ function netTick(dt) {
 function netLeave() {
   const l = net.lbc;
   net.lbc = null; net.on = false; net.connecting = false; net.host = true; net.map = null; net.hasOffset = false; net.logOff = 0; net.afkNrs = {};
+  for (const g of guestPool) { g.active = false; g.nr = 0; }
   closeAllPeers();
   if (l) try { l.disconnect(); } catch (e) { /* already closed */ }
 }
@@ -2973,7 +3011,7 @@ function connectOnline() {
   lbc.onActorLeave = (a) => {
     if (!mine()) return;
     feed(`${(a.name || 'A player').slice(0, 12)} left`);
-    closePeer(a.actorNr);
+    closePeer(a.actorNr); dropGuest(a.actorNr);
     if (net.map && net.map[a.actorNr] !== undefined) {
       const k = net.map[a.actorNr];
       delete net.map[a.actorNr];
@@ -3086,7 +3124,7 @@ function closePeer(nr) {
 function closeAllPeers() { for (const nr of [...voice.peers.keys()]) closePeer(nr); voice.early.clear(); }
 // how loud an analyser is hearing (0..1)
 function levelOf(an) { an.getByteTimeDomainData(voice.buf); let s2 = 0; for (let i = 0; i < 128; i++) { const v = (voice.buf[i] - 128) / 128; s2 += v * v; } return Math.min(1, Math.sqrt(s2 / 128) * 6); }
-const voiceApe = (nr) => { const k = net.map ? net.map[nr] : undefined; const b = k !== undefined ? allBots[k] : null; return b && b.player && b.active ? b : null; };
+const voiceApe = (nr) => { const k = net.map ? net.map[nr] : undefined; const b = k !== undefined ? allBots[k] : null; return b && b.player && b.active ? b : guestOf(nr); };
 const _vf = new THREE.Vector3(), _vu = new THREE.Vector3();
 function voiceTick(dt) {
   if (!AC) return;
@@ -3114,7 +3152,8 @@ function voiceTick(dt) {
   human.talkT = voice.level;
 }
 // ----- name tags over every other ape, with a speaker icon that lights up while that player talks -----
-const tags = allBots.map(() => { const tg = makePanel(256, 128, 0.5, 0.25); tg.mesh.visible = false; tg.sig = ''; scene.add(tg.mesh); return tg; });
+const TAGGED = [...allBots, ...guestPool], TALKERS = [human, ...TAGGED];
+const tags = TAGGED.map(() => { const tg = makePanel(256, 128, 0.5, 0.25); tg.mesh.visible = false; tg.sig = ''; scene.add(tg.mesh); return tg; });
 function drawTag(tg, name, icon) {
   const { ctx, c } = tg; ctx.clearRect(0, 0, c.width, c.height);
   if (icon) {
@@ -3136,17 +3175,17 @@ function drawTag(tg, name, icon) {
 }
 function tagsTick(dt) {
   camera.getWorldPosition(_p);
-  for (const a of [human, ...allBots]) {
+  for (const a of TALKERS) {
     // mouths open with the voice: quick to open, a little slower to close
     const tg = a.talkT || 0; a.talk = (a.talk || 0) + (tg - (a.talk || 0)) * (1 - Math.exp(-dt * (tg > (a.talk || 0) ? 30 : 14))); a.talkT = 0;
     if (a.talk > 0.06) a.talkHold = now + 0.3;
   }
-  allBots.forEach((b, k) => {
+  TAGGED.forEach((b, k) => {
     const tg = tags[k];
-    const show = human.kind !== 'none' && actors.includes(b) && b.active && !b.out && !b.dead && b.pos.distanceTo(_p) < 30;
+    const show = human.kind !== 'none' && (b.guest || actors.includes(b)) && b.active && !b.out && !b.dead && b.pos.distanceTo(_p) < 30;
     tg.mesh.visible = show;
     if (!show) return;
-    const nr = b.player ? slotOwnerNr(k) : -1;
+    const nr = b.guest ? b.nr : b.player ? slotOwnerNr(k) : -1;
     const icon = !b.player ? '' : voice.muted.has(nr) ? 'muted' : now < (b.talkHold || 0) ? 'talk' : 'quiet';
     const sig = b.name + '|' + icon;
     if (sig !== tg.sig) { tg.sig = sig; drawTag(tg, b.name, icon); }
@@ -4436,6 +4475,7 @@ function update(dt, frame) {
   updateGame(dt);
   for (const b of bots) updateBot(b, dt);
   for (const a of actors) if (a.remote) updateProxy(a, dt);
+  guestsTick(dt);
   syncHandTools();
   updateTips(dt);
   if (G.state === 'fight' || yardHere()) {
@@ -4501,7 +4541,7 @@ startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
