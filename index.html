@@ -111,7 +111,7 @@ const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8
 const LIGHT_DIR = new THREE.Vector3(0.55, 0.66, 0.42).normalize();
 // online play (Photon Realtime)
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
-const PHOTON_VERSION = 'wrecked-1.0';
+const PHOTON_VERSION = 'wrecked-1.1';
 const PHOTON_REGION = 'eu';
 const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, RTC: 15, CREDIT: 16, GPOSE: 17 };
 const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, afkNrs: {}, lookNames: {}, logOff: 0, looks: {}, lookCos: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
@@ -1999,7 +1999,7 @@ function release(target, throwVel) {
     if (throwVel) sfx('throw', target.pos);
     return;
   }
-  if (throwVel) { if (target === human) human.V.copy(throwVel); else { target.vel.copy(throwVel); target.thrownT = 0.8; } sfx('throw', target.pos); }
+  if (throwVel) { if (target === human) { human.V.copy(throwVel); human.thrownT = 0.8; } else { target.vel.copy(throwVel); target.thrownT = 0.8; } sfx('throw', target.pos); }
   if (holder.remote) netSendAll(EV.FREED, { s: target.i });
 }
 function dropHeld(h) { if (h.holding) release(h.holding, null); h.holding = null; }
@@ -2053,7 +2053,7 @@ function handHits(attacker, handList) {
     if (sp < FIGHT.slapMin) continue;
     for (const t of actors) {
       if (t === attacker || !t.active || t.out || t.heldBy === attacker) continue;
-      if (h.pos.distanceToSquared(t.pos) < 0.5 * 0.5) hit(attacker, t, h.vel, sp, k);
+      if (reachD(h.pos, t) < 0.5) hit(attacker, t, h.vel, sp, k);
     }
   }
 }
@@ -2244,7 +2244,7 @@ function vrGrabs() {
     if (h.grip && !h.gripWas) { const cr = items.find((it) => it.type === 'crate' && it.p.distanceTo(h.pos) < 0.55); if (cr) { openCrate(cr); pulseHand(h.k, 0.7, 60); continue; } }
     if (h.grip && !h.gripWas && !h.anchored && !h.holding) {
       let best = null, bd = FIGHT.reach;
-      for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = h.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
+      for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = reachD(h.pos, t); if (d < bd) { bd = d; best = t; } }
       if (best && grab(H, h, best)) pulseHand(h.k, 0.6, 60);
     } else if (!h.grip && h.holding) {
       _v.copy(h.vel).multiplyScalar(FIGHT.throwMul); _v.y += 1.0;
@@ -2342,7 +2342,7 @@ function pcStep(dt) {
   mouse.rightWas = mouse.right;
   if (mouse.right && !R.holding && H.ko <= 0 && !H.out) {
     let best = null, bd = 1.0;
-    for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = R.pos.distanceTo(t.pos); if (d < bd) { bd = d; best = t; } }
+    for (const t of actors) { if (t === H || !t.active || t.out) continue; const d = reachD(R.pos, t); if (d < bd) { bd = d; best = t; } }
     if (best) grab(H, R, best);
   } else if (!mouse.right && R.holding) {
     _e.set(human.pitch + 0.25, human.yaw, 0, 'YXZ');
@@ -2442,7 +2442,7 @@ function updateBot(b, dt) {
     botTools(b, t);
     if (t && !b.holding) {
       const d = t.pos.distanceTo(b.pos);
-      if (t.ko > 0 && d < 1.1) { grab(b, b.hands[1], t); b.think = 0; }
+      if (t.ko > 0 && reachD(b.pos, t) < 1.1) { grab(b, b.hands[1], t); b.think = 0; }
       else if (d < 1.25 && b.slapCD <= 0 && b.slapT < 0) {
         if (Math.random() < 0.12 && d < 0.95) { grab(b, b.hands[1], t); b.holdT = 0; b.think = 0; }
         else { b.slapT = 0; b.slapHand = b.hands[1].tool ? 1 : 1 - b.slapHand; b.slapDir.subVectors(t.pos, b.pos).normalize(); b.slapCD = rand(0.45, 0.95) / b.skill; }
@@ -2513,6 +2513,76 @@ function animBot(b, dt) {
   for (const h of b.hands) h.vel.subVectors(h.pos, h.prev).multiplyScalar(1 / Math.max(dt, 1e-3));
 }
 
+// ================= ragdolls =================
+// Dizzy, thrown and wrecked apes go floppy. This only changes how they LOOK: their real position keeps its
+// normal physics (so they can't float or fall through anything). Lying apes are laid on the floor found
+// right under them; in the air they tumble; held ones dangle from the hand holding them. The arms are
+// little swinging chains that flop around and rest on the floor.
+let FDT = 1 / 60;
+const RAG_X = new THREE.Vector3(1, 0, 0), _rq = new THREE.Quaternion(), _rq2 = new THREE.Quaternion(), _rv = new THREE.Vector3(), _rS = new THREE.Vector3(), _rT = new THREE.Vector3();
+function ragOf(o) {
+  return o.rag || (o.rag = { q: new THREE.Quaternion(), w: new THREE.Vector3(), c: new THREE.Vector3(), hp: [new THREE.Vector3(), new THREE.Vector3()], hq: [new THREE.Vector3(), new THREE.Vector3()], b: 0, on: false, lying: false, init: false });
+}
+// o: ape or body; floorReach: how far below the centre the floor may be and still count as lying on it
+function ragStep(o, pos, vel, yaw, want, thrown, holdAt, qN, h0, h1, dt, lie, floorReach) {
+  const R = ragOf(o);
+  if (!R.init) { R.init = true; R.q.copy(qN); R.c.copy(pos); R.hp[0].copy(h0); R.hq[0].copy(h0); R.hp[1].copy(h1); R.hq[1].copy(h1); }
+  const g = sweepSphere(_rS.set(pos.x, pos.y + 0.1, pos.z), _rT.set(pos.x, pos.y - floorReach - 0.3, pos.z), 0.05, true);
+  const floorY = g && g.n.y > 0.6 ? g.p.y : null;
+  const onFloor = floorY !== null && pos.y - floorY < floorReach && !holdAt;
+  if (thrown && !onFloor) R.fly = true; else if (onFloor && !thrown) R.fly = false;
+  const on = want || !!R.fly;
+  if (on && !R.on) { R.w.set(0, 0, 0); if (R.b < 0.02) { R.q.copy(qN); R.c.copy(pos); R.hp[0].copy(h0); R.hq[0].copy(h0); R.hp[1].copy(h1); R.hq[1].copy(h1); } }
+  R.on = on; R.lying = on && onFloor;
+  R.b += ((on ? 1 : 0) - R.b) * (1 - Math.exp(-(on ? 12 : 5) * dt));
+  if (on) {
+    if (holdAt) {
+      // dangling: hangs from the hand holding it, swinging a bit with the movement
+      _rv.subVectors(holdAt, pos); if (_rv.lengthSq() < 1e-6) _rv.set(0, 1, 0); _rv.normalize().addScaledVector(vel, -0.04).normalize();
+      _rq.setFromUnitVectors(_yAxis, _rv); R.q.slerp(_rq, 1 - Math.exp(-7 * dt)); R.w.set(0, 0, 0);
+      R.c.copy(pos);
+    } else if (onFloor && !R.fly) {
+      // flat on its back on the floor right underneath
+      _rq.setFromAxisAngle(_yAxis, yaw).multiply(_rq2.setFromAxisAngle(RAG_X, Math.PI * 0.47));
+      R.q.slerp(_rq, 1 - Math.exp(-6 * dt)); R.w.multiplyScalar(Math.exp(-8 * dt));
+      _rT.set(pos.x, floorY + lie, pos.z);
+      R.c.x = pos.x; R.c.z = pos.z; R.c.y += (_rT.y - R.c.y) * (1 - Math.exp(-14 * dt));
+      R.c.y = clamp(R.c.y, floorY + lie - 0.02, Math.max(floorY + lie, pos.y));
+    } else {
+      // tumbling through the air: spins the way it's flying
+      _rv.crossVectors(_yAxis, vel);
+      R.w.addScaledVector(_rv, dt * 1.6).multiplyScalar(Math.exp(-1.2 * dt));
+      if (R.w.length() > 11) R.w.setLength(11);
+      const ang = R.w.length() * dt;
+      if (ang > 1e-5) { _rq.setFromAxisAngle(_rv.copy(R.w).normalize(), ang); R.q.premultiply(_rq); }
+      R.c.copy(pos);
+    }
+  } else {
+    // getting back up
+    if (R.b > 0.01) { R.q.slerp(qN, 1 - Math.exp(-9 * dt)); R.c.lerp(pos, 1 - Math.exp(-10 * dt)); } else { R.q.copy(qN); R.c.copy(pos); }
+  }
+  R.q.normalize();
+  if (![R.q.x, R.q.y, R.q.z, R.q.w, R.c.x, R.c.y, R.c.z].every(Number.isFinite)) { R.q.copy(qN); R.c.copy(pos); R.w.set(0, 0, 0); }
+  // floppy arms
+  for (let k = 0; k < 2; k++) {
+    const hp = R.hp[k], hq = R.hq[k], game = k ? h1 : h0;
+    if (!on) {
+      if (R.b > 0.01) hp.lerp(game, 1 - Math.exp(-10 * dt)); else hp.copy(game);
+      hq.copy(hp); continue;
+    }
+    _rS.set(k ? 0.27 : -0.27, -0.06, -0.02).applyQuaternion(R.q).add(R.c);
+    _rv.subVectors(hp, hq).multiplyScalar(0.97); if (_rv.length() > 0.4) _rv.setLength(0.4);
+    hq.copy(hp); hp.add(_rv); hp.y -= GRAV * dt * dt;
+    _rT.subVectors(hp, _rS); const L = _rT.length();
+    if (L > 0.58) hp.copy(_rS).addScaledVector(_rT, 0.58 / L); else if (L < 0.2) hp.copy(_rS).addScaledVector(L > 1e-4 ? _rT.multiplyScalar(1 / L) : _rT.set(k ? 1 : -1, 0, 0), 0.2);
+    pushSphere(hp, 0.05, null, null);
+    if (![hp.x, hp.y, hp.z].every(Number.isFinite)) { hp.copy(_rS); hq.copy(_rS); }
+  }
+  return R;
+}
+// where an ape can be grabbed or slapped: its real position, or the floppy body lying on the floor
+const reachD = (p, t) => Math.min(p.distanceTo(t.pos), t.rag && t.rag.b > 0.5 ? p.distanceTo(t.rag.c) : 99);
+
 // ================= visuals =================
 const _mm = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _a = new THREE.Vector3();
 let flash = 0;
@@ -2548,16 +2618,22 @@ function updateVisuals(dt) {
     if (a !== human && (a.dead || (a.out && a.pos.y < WATER_Y - 0.4))) continue;
     const isMe = a === human && human.kind !== 'none';
     if (!isMe) {
-      // body: yaw, then wobble tilt; knocked-out apes flop onto their backs
+      // body: yaw, then wobble tilt
       _q.setFromAxisAngle(_yAxis, a.yaw);
-      const ko = a.ko > 0 || (a.heldBy && a.ko > 0);
-      const tx = clamp(a.tilt.y * 0.12, -0.7, 0.7) + (ko ? -1.25 : 0), tz = clamp(-a.tilt.x * 0.12, -0.7, 0.7);
+      const ko = a.ko > 0;
+      const tx = clamp(a.tilt.y * 0.12, -0.7, 0.7), tz = clamp(-a.tilt.x * 0.12, -0.7, 0.7);
       _q2.setFromEuler(_e.set(tx, 0, tz, 'XYZ'));
       _q.premultiply(_q2);
-      const sq = a.squashT > 0 ? 1 : 0;
-      const bodyAt = sq ? _p.copy(a.pos).setY(a.pos.y - 0.18) : a.pos, bodySc = sq ? _bsq : ONE;
+      const hands0 = a.isBot ? a.hands : human.hands;
+      // dizzy, thrown or dangling from a hand: floppy
+      const holdAt = a.heldBy && a.heldHand ? a.heldHand.pos : null;
+      const R = ragStep(a, a.pos, a.vel, a.yaw, ko || (!!holdAt && a.ko > 0), a.thrownT > 0, holdAt && a.ko > 0 ? holdAt : null, _q, hands0[0].pos, hands0[1].pos, dt, 0.2, a.player ? 2.0 : 0.8);
+      const ragged = R.b > 0.01;
+      if (ragged) _q.copy(R.q);
+      const hands = ragged ? R.hp.map((pos) => ({ pos })) : hands0;
+      const sq = !ragged && a.squashT > 0 ? 1 : 0;
+      const bodyAt = ragged ? R.c : sq ? _p.copy(a.pos).setY(a.pos.y - 0.18) : a.pos, bodySc = sq ? _bsq : ONE;
       apesIM.setMatrixAt(ai, _mm.compose(bodyAt, _q, bodySc)); apesIM.setColorAt(ai, a.fur);
-      const hands = a.isBot ? a.hands : human.hands;
       // legs waddle with walking speed
       const hs = Math.hypot(a.vel.x, a.vel.z);
       a.legPh = ((a.legPh || 0) + Math.min(3, hs) * dt * 7) % 6.2832;
@@ -2574,8 +2650,8 @@ function updateVisuals(dt) {
         drawFingers(hands[k].pos, _q, k === 0 ? -1 : 1, a.fing[k]);
       }
       if (a.ko > 0) for (let k = 0; k < 3; k++) {
-        const an = now * 4 + k * 2.09;
-        _p.set(a.pos.x + Math.cos(an) * 0.28, a.pos.y + 0.5, a.pos.z + Math.sin(an) * 0.28);
+        const an = now * 4 + k * 2.09, c = ragged ? R.c : a.pos;
+        _p.set(c.x + Math.cos(an) * 0.28, c.y + (R.lying ? 0.38 : 0.5), c.z + Math.sin(an) * 0.28);
         starsIM.setMatrixAt(sti++, _mm.compose(_p, _q.setFromAxisAngle(_yAxis, now * 6), _s.set(1, 1, 1)));
       }
     }
@@ -2780,7 +2856,7 @@ function leaveVR() {
 // else's ape are sent to the game that owns that ape, which applies them.
 const r2 = (v) => Math.round(v * 100) / 100;
 const pack3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
-const flagsOf = (a) => (a.ko > 0 ? 1 : 0) | (a.out ? 2 : 0) | (a.dizzy > 60 ? 4 : 0) | (a.hang ? 8 : 0) | (a.squashT > 0 ? 16 : 0) | (a.bleedT > 0 ? 32 : 0);
+const flagsOf = (a) => (a.ko > 0 ? 1 : 0) | (a.out ? 2 : 0) | (a.dizzy > 60 ? 4 : 0) | (a.hang ? 8 : 0) | (a.squashT > 0 ? 16 : 0) | (a.bleedT > 0 ? 32 : 0) | (a.thrownT > 0 ? 64 : 0);
 function setNetStatus(msg) { net.status = msg; const el = $('netstatus'); el.textContent = msg; el.hidden = !msg; }
 function slotOwnerNr(k) {
   if (net.map) for (const nr in net.map) if (net.map[nr] === k) return +nr;
@@ -2851,7 +2927,7 @@ function snap(b, p, v, yaw, h, f) {
   if (!b.snapT) { b.pos.copy(b.snapP); b.yaw = yaw; b.hands[0].pos.copy(b.snapH[0]); b.hands[1].pos.copy(b.snapH[1]); }
   b.snapT = now;
   b.ko = f & 1 ? 1 : 0; b.out = !!(f & 2); b.dizzy = f & 4 ? 80 : 0; b.hang = !!(f & 8);
-  b.squashT = f & 16 ? 0.3 : 0; b.bleedT = f & 32 ? 0.3 : 0;
+  b.squashT = f & 16 ? 0.3 : 0; b.bleedT = f & 32 ? 0.3 : 0; b.thrownT = f & 64 ? 0.3 : 0;
 }
 function onNetEvent(code, d, nr) {
   switch (code) {
@@ -3215,7 +3291,8 @@ function tagsTick(dt) {
     const icon = !b.player ? '' : voice.muted.has(nr) ? 'muted' : now < (b.talkHold || 0) ? 'talk' : 'quiet';
     const sig = b.name + '|' + icon;
     if (sig !== tg.sig) { tg.sig = sig; drawTag(tg, b.name, icon); }
-    tg.mesh.position.set(b.pos.x, b.pos.y + 0.72, b.pos.z);
+    const tc = b.rag && b.rag.b > 0.3 ? b.rag.c : b.pos;
+    tg.mesh.position.set(tc.x, tc.y + (b.rag && b.rag.lying ? 0.55 : 0.72), tc.z);
     tg.mesh.lookAt(_p);
   });
 }
@@ -3586,6 +3663,7 @@ function updateTips(dt) {
         body.p.addScaledVector(body.v, dt);
         _t1.subVectors(body.p, h.pos); const L = _t1.length();
         if (L > 0.55) { _t1.multiplyScalar(1 / L); body.p.copy(h.pos).addScaledVector(_t1, 0.55); const vr = body.v.dot(_t1); if (vr > 0) body.v.addScaledVector(_t1, -vr); }
+        pushSphere(body.p, 0.2, null, body.v);   // dragged along the floor, never through it
         h.tip.copy(body.p); h.tipVel.copy(body.v);
       }
       if (h.plungeT > 0) { h.plungeT -= dt; const held = a === human ? h.holding : a.holding; if (h.plungeT <= 0 && held) release(held, _v.copy(h.vel).multiplyScalar(0.6)); }
@@ -3608,7 +3686,7 @@ function toolHits(attacker, h, k) {
   if (sp < T.minSp) return;
   for (const t of actors) {
     if (t === attacker || !t.active || t.out || t.heldBy === attacker) continue;
-    if (h.tip.distanceToSquared(t.pos) > (T.r + 0.3) * (T.r + 0.3)) continue;
+    if (reachD(h.tip, t) > T.r + 0.3) continue;
     if (!hit(attacker, t, h.tipVel, sp, k, it.type)) continue;
     sfx(T.snd, t === human ? null : t.pos, 1);
     _w.subVectors(h.tip, t.pos).normalize();
@@ -3894,26 +3972,21 @@ function fxTick(dt) {
 const DEAD_HANDS = [new THREE.Vector3(), new THREE.Vector3()];
 function drawBody(it, n) {
   const d = APES[it.c] || APES[0], who = it.c >= 0 && it.c < 6 ? slotActor(it.c) : null, fur = who ? who.fur : raw(...d.fur), band = raw(...d.band);
-  if (it.st === 2) {
-    // hanging from someone's hand: head toward the hand
-    const a = it.s === mySlot ? human : allBots[it.s];
-    const hp = a && a.hands[it.h] ? a.hands[it.h].pos : it.p;
-    _bu.subVectors(hp, it.p).normalize();
-    _bq.setFromUnitVectors(_yAxis, _bu);
-  } else {
-    // lying on its back
-    _bq.setFromAxisAngle(_yAxis, it.yw || 0); _q2.setFromAxisAngle(_t1.set(1, 0, 0), -1.35); _bq.multiply(_q2);
-  }
-  _mm.compose(it.p, _bq, _s.set(1, 1, 1));
+  // a wrecked body is always a ragdoll: lying on the floor, tumbling when thrown, dangling when carried
+  let holdAt = null;
+  if (it.st === 2) { const a = it.s === mySlot ? human : allBots[it.s]; holdAt = a && a.hands[it.h] ? a.hands[it.h].pos : null; }
+  _bq.setFromAxisAngle(_yAxis, it.yw || 0);
+  for (let k = 0; k < 2; k++) DEAD_HANDS[k].set(k ? 0.55 : -0.55, -0.1, 0).applyQuaternion(_bq).add(it.p);
+  const R = ragStep(it, it.p, it.v, it.yw || 0, true, false, holdAt, _bq, DEAD_HANDS[0], DEAD_HANDS[1], FDT, 0.2, 0.8);
+  _bq.copy(R.q); DEAD_HANDS[0].copy(R.hp[0]); DEAD_HANDS[1].copy(R.hp[1]);
+  _mm.compose(R.c, _bq, _s.set(1, 1, 1));
   deadIM.ape.setMatrixAt(n, _mm); deadIM.ape.setColorAt(n, fur);
-  // limp arms flung out, legs splayed
-  for (let k = 0; k < 2; k++) DEAD_HANDS[k].set(k ? 0.62 : -0.62, -0.25, 0.05).applyQuaternion(_bq).add(it.p);
   const hm = skinPose('d' + n, _mm, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15) || _mm;
   wearCos(who ? who.cos : null, hm);
   deadIM.band.setMatrixAt(n, hm); deadIM.band.setColorAt(n, band);
   deadIM.xs.setMatrixAt(n, hm);
-  _mm.compose(it.p, _bq, ONE);
-  drawLimbs(DEADL, n, it.p, _bq, it.yw || 0, ONE, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15);
+  _mm.compose(R.c, _bq, ONE);
+  drawLimbs(DEADL, n, R.c, _bq, it.yw || 0, ONE, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15);
   for (let k = 0; k < 2; k++) deadIM.hands.setMatrixAt(n * 2 + k, _mm.compose(DEAD_HANDS[k], _bq, ONE));
 }
 function renderItems() {
@@ -4488,7 +4561,7 @@ function perfWatch(ts, gap) {
 }
 let last = -1, hudT = 0;
 function update(dt, frame) {
-  now += dt; RIG.frame++;
+  now += dt; RIG.frame++; FDT = dt;
   for (const h of human.hands) h.prev.copy(h.pos);
   if (renderer.xr.isPresenting && frame && human.kind === 'vr') {
     if (readXR(frame)) {
@@ -4567,7 +4640,7 @@ startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
