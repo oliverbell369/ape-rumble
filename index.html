@@ -109,10 +109,10 @@ const hexToV3 = (hex) => new THREE.Vector3(((hex >> 16) & 255) / 255, ((hex >> 8
 const LIGHT_DIR = new THREE.Vector3(0.55, 0.66, 0.42).normalize();
 // online play (Photon Realtime)
 const PHOTON_APP_ID = '93cabdc9-913e-40c3-90df-37cf906b11b4';
-const PHOTON_VERSION = 'wrecked-0.7';
+const PHOTON_VERSION = 'wrecked-1.0';
 const PHOTON_REGION = 'eu';
 const EV = { POSE: 1, BOTS: 2, STATE: 3, HIT: 4, GRAB: 5, RELEASE: 6, FREED: 7, FEED: 8, START: 9, ITEMS: 10, ITEMREQ: 11, FX: 12, LOOK: 13, RTC: 15, CREDIT: 16 };
-const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, afkNrs: {}, lookNames: {}, looks: {}, lookCos: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
+const net = { want: false, on: false, connecting: false, lbc: null, host: true, myNr: 0, code: '', nick: 'Ape', map: null, names: {}, afkNrs: {}, lookNames: {}, logOff: 0, looks: {}, lookCos: {}, lookT: 0, hostOffset: 0, hasOffset: false, poseT: 0, stateT: 0, status: '' };
 let mySlot = 0;
 
 // ================= renderer / scene =================
@@ -1244,7 +1244,7 @@ function mkSkin(layer) {
   root.add(new THREE.Mesh(headCapGeo()));
   root.traverse((o) => {
     if (o.isBone) { s.bones[o.name] = o; s.W[o.name] = new THREE.Matrix4(); }
-    if (o.isMesh) { o.material = s.mat; o.frustumCulled = false; if (layer) { o.layers.set(layer); SELF_OBJS.push(o); } }
+    if (o.isMesh) { o.material = s.mat; o.frustumCulled = false; if (layer) o.layers.set(layer); }
   });
   scene.add(root);
   return s;
@@ -1332,9 +1332,12 @@ const FING = {
 };
 const _fq = new THREE.Quaternion(), _fp = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], _fd = new THREE.Vector3(), _fm = new THREE.Matrix4();
 const _fx = new THREE.Vector3(), _fy = new THREE.Vector3(), _fz = new THREE.Vector3();
-let fingN = 0, tipN = 0;
+// finger sets: everyone else's hands, your own first-person hands, and (later) your reflection's hands
+const FS_WORLD = { f: fingerIM, t: tipIM, n: 0, tn: 0, nf: 120, nt: 60 };
+const FS_MINE = { f: inst(fingerIM.geometry, 12), t: inst(tipIM.geometry, 6), n: 0, tn: 0, nf: 12, nt: 6 };
+function fsEnd(S) { S.f.count = S.n; S.t.count = S.tn; S.f.instanceMatrix.needsUpdate = true; S.t.instanceMatrix.needsUpdate = true; }
 // side: +1 right hand, -1 left. Hand space: fingers point -Z, palm faces -side*X. curls: [index, grip, thumb] 0..1
-function drawFingers(pos, quat, side, c) {
+function drawFingers(pos, quat, side, c, S = FS_WORLD) {
   for (let f = 0; f < 3; f++) {
     const b = FING.base[f];
     _fp[0].set(-side * b[0], b[1], b[2]);
@@ -1349,13 +1352,13 @@ function drawFingers(pos, quat, side, c) {
       prev = _fp[seg + 1];
     }
     for (let i = 0; i < 3; i++) _fp[i].applyQuaternion(quat).add(pos);
-    for (let seg = 0; seg < 2 && fingN < 120; seg++) {
+    for (let seg = 0; seg < 2 && S.n < S.nf; seg++) {
       _a.subVectors(_fp[seg + 1], _fp[seg]);
       const len = Math.max(0.005, _a.length());
       _fq.setFromUnitVectors(_yAxis, _a.multiplyScalar(1 / len));
-      fingerIM.setMatrixAt(fingN++, _fm.compose(_fp[seg], _fq, _s.set(FING.thick[f], len, FING.thick[f])));
+      S.f.setMatrixAt(S.n++, _fm.compose(_fp[seg], _fq, _s.set(FING.thick[f], len, FING.thick[f])));
     }
-    if (tipN < 60) tipIM.setMatrixAt(tipN++, _fm.compose(_fp[2], _fq, _s.set(FING.thick[f], 1, FING.thick[f])));
+    if (S.tn < S.nt) S.t.setMatrixAt(S.tn++, _fm.compose(_fp[2], _fq, _s.set(FING.thick[f], 1, FING.thick[f])));
   }
 }
 // orientation for hands we only know the position of (bots, other players): fingers point down the arm
@@ -1524,16 +1527,18 @@ mirrorScreen.position.copy(MIRROR); scene.add(mirrorScreen);
 const mirrorCam = new THREE.PerspectiveCamera(64, 4 / 3, 0.1, 60);
 mirrorCam.position.set(MIRROR.x, LB.y + 1.1, MIRROR.z + 0.05); mirrorCam.lookAt(MIRROR.x, LB.y + 0.75, LB.z + 2);
 const SELF_LAYER = 5;
-const SELF_OBJS = [];   // things only mirrors see (your own ape)
 mirrorCam.layers.enable(SELF_LAYER);
 const selfIM = { ape: null, mouth: null, band: null, hands: null };
 // your own ape, only drawn for the mirror camera
 selfIM.ape = inst(apeFaceGeo, 1); selfIM.mouth = inst(mouthGeo, 1); selfIM.band = inst(bandGeo, 1); selfIM.hands = inst(handGeo, 2);
 const SELFL = mkLimbs(1);
 const selfCos = [inst(COS[0].geo, 1), inst(COS[8].geo, 1)];
-for (const im of selfCos) { im.layers.set(SELF_LAYER); im.count = 0; SELF_OBJS.push(im); }
-for (const im of Object.values(SELFL)) { im.layers.set(SELF_LAYER); SELF_OBJS.push(im); }
-for (const im of Object.values(selfIM)) { im.layers.set(SELF_LAYER); SELF_OBJS.push(im); }
+for (const im of selfCos) { im.layers.set(SELF_LAYER); im.count = 0; }
+for (const im of Object.values(SELFL)) im.layers.set(SELF_LAYER);
+for (const im of Object.values(selfIM)) im.layers.set(SELF_LAYER);
+// your reflection's fingers
+const FS_SELF = { f: inst(fingerIM.geometry, 12), t: inst(tipIM.geometry, 6), n: 0, tn: 0, nf: 12, nt: 6 };
+FS_SELF.f.layers.set(SELF_LAYER); FS_SELF.t.layers.set(SELF_LAYER);
 const yardLabels = () => {
   const draw = (p, lines, bg = 'rgba(22,18,13,0.9)') => {
     const { ctx, c } = p; ctx.clearRect(0, 0, c.width, c.height);
@@ -1561,7 +1566,7 @@ const wrist = makePanel(256, 168, 0.16, 0.105);
 wrist.mesh.material.depthTest = false; wrist.mesh.renderOrder = 10; wrist.mesh.visible = false; scene.add(wrist.mesh);
 const vignette = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8), new THREE.MeshBasicMaterial({ color: 0x1a0d00, transparent: true, opacity: 0, side: THREE.BackSide, depthTest: false, fog: false }));
 vignette.renderOrder = 20; vignette.visible = false; camera.add(vignette);
-vignette.layers.set(7); camera.layers.enable(7);
+// (hidden while the mirror and shadow pictures are drawn)
 
 // ================= audio =================
 let AC = null, noiseBuf = null;
@@ -1681,10 +1686,14 @@ const inLobby = () => G.state === 'lobby' || G.state === 'starting';
 // AFK: you sit out matches and stay in the Yard (human.afkYard while a match runs without you)
 const LOBBY_WAIT = 20;
 const yardHere = () => inLobby() || !!human.afkYard;
-const isAfk = (nr) => (nr === net.myNr ? !!human.afk : !!net.afkNrs[nr]);
+const isAfk = (nr) => (nr === net.myNr ? !!human.afk : net.afkNrs[nr] !== false);   // (not heard from yet = not ready)
+// Until you actually start playing (a click, a key or Enter VR) you count as AFK, so a page that has only
+// just been opened, or a headset that was taken off, isn't pulled into a match while nobody is there.
+function wake() { if (!human.autoAfk) return; human.autoAfk = false; if (human.afk) { human.afk = false; sendLook(); drawPadPanel(); } }
+function autoAfk() { if (human.afk) return; human.afk = true; human.autoAfk = true; sendLook(); }
 function readyPlayers() { return net.on && net.lbc ? net.lbc.myRoomActorsArray().filter((a) => !isAfk(a.actorNr)).length : human.afk ? 0 : 1; }
 function toggleAfk() {
-  human.afk = !human.afk;
+  human.afk = !human.afk; human.autoAfk = false;
   sfx(human.afk ? 'beep' : 'go', START_BTN);
   feed(human.afk ? "You're AFK: you'll stay in the Yard" : (inLobby() ? "You're in! You'll join the next match" : "You're in! You'll join the next round"));
   sendLook(); drawPadPanel();
@@ -1702,7 +1711,7 @@ const alive = () => actors.filter((a) => a.active && !a.out);
 
 function placeHuman(floorPt, yaw) {
   const H = human;
-  H.yaw = yaw; H.V.set(0, 0, 0); H.hist.length = 0; H.wasAnch = false;
+  H.yaw = yaw; H.V.set(0, 0, 0); H.hist.length = 0; H.wasAnch = false; H.noGrab = 0; H.fallT = 0;
   rotY(H.headL, yaw, _t1);
   H.P.set(floorPt.x, floorPt.y + 0.68, floorPt.z).sub(_t1);
   headWorld(H.head); H.pos.copy(H.head).setY(H.head.y - 0.1);
@@ -1715,12 +1724,14 @@ function placeHuman(floorPt, yaw) {
   }
 }
 function resetActor(a, i, pts = SPAWNS) {
+  // an AFK player who's already in the Yard stays where they are
+  const stay = a === human && human.afkYard && pts === LOBBY_SPAWNS && human.pos.distanceTo(LB) < 30 && human.head.y > LB.y - 2;
   if (a === human) human.afkYard = false;
   a.lastBy = -1; a.out = false; a.dead = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.bleedT = 0; a.squashT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
   const sp = pts[(i < 0 ? 0 : i) % pts.length];
   const cx = pts === SPAWNS ? 0 : LB.x, cz = pts === SPAWNS ? 0 : LB.z + 1;
   const yaw = Math.atan2(sp.x - cx, sp.z - cz);
-  if (a === human) placeHuman(sp, yaw);
+  if (a === human) { if (!stay) placeHuman(sp, yaw); }
   else { a.pos.set(sp.x, sp.y + 0.56, sp.z); a.vel.set(0, 0, 0); a.yaw = yaw; a.holding = null; a.slapT = -1; a.goal = null; for (const h of a.hands) h.pos.copy(a.pos); }
 }
 function startRound() {
@@ -1794,6 +1805,7 @@ function eliminate(a) {
   a.out = true; a.ko = 0;
   if (now - (a.lastByT || -99) < 8) creditTo(a.lastBy, 15, `knocked ${apeName(a)} off`);
   if (a.heldBy) release(a, null);
+  for (const h of a.hands) if (h.tool) dropTool(a, h, _v.set(0, -1, 0));
   feed(`${a.name === 'You' ? 'You' : a.name} fell!`);
   if (net.on) netSendAll(EV.FEED, { m: `${a === human ? net.nick : a.name} fell!` });
   sfx('fall', a === human ? null : a.pos, 0.7);
@@ -1841,8 +1853,13 @@ function updateGame(dt) {
     if (inLobby()) { if ((a === human ? human.head.y : a.pos.y) < LB.y - 6) resetActor(a, a === human ? mySlot : a.i, LOBBY_SPAWNS); }
     else if (a === human && human.afkYard) { if (human.head.y < LB.y - 6) placeHuman(LOBBY_SPAWNS[0], 0); }
     else if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
-    else if (a === human && a.out && (human.head.y < WATER_Y || (human.fallT && now - human.fallT > 6))) { human.fallT = 0; human.noGrab = 0; placeHuman(OUT_LEDGE, Math.PI); }
+    else if (a === human && a.out && (human.head.y < WATER_Y || (human.fallT && now - human.fallT > 6))) { if (human.head.y < WATER_Y) fxAt('splash', _t1.set(human.pos.x, WATER_Y - 0.3, human.pos.z), null); placeHuman(OUT_LEDGE, Math.PI); }
     if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
+    else if (G.state === 'fight' && !a.out && a.dizzy >= 100) {
+      a.ko = FIGHT.koTime; dropAll(a);
+      creditTo(a.lastBy, 10, `made ${apeName(a)} dizzy`);
+      feed(`${a === human ? 'You are' : a.name + ' is'} dizzy!`); sfx('ko', a === human ? null : a.pos);
+    }
     else if (now - a.lastHit > 2.5) a.dizzy = Math.max(0, a.dizzy - 6 * dt);
     if (a.thrownT > 0) a.thrownT -= dt;
     if (a.bleedT > 0 && !inLobby()) a.dizzy += 4 * dt;
@@ -2008,7 +2025,7 @@ function handHits(attacker, handList) {
   }
 }
 function updateLog(dt) {
-  const lt = now + (net.on && !net.host ? net.hostOffset : 0);
+  const lt = now + (net.on ? (net.host ? net.logOff : net.hostOffset) : 0);
   LOG.theta = LOG.A * Math.sin(lt * LOG.w);
   const th = LOG.theta, om = LOG.A * LOG.w * Math.cos(lt * LOG.w);
   LOG.c.set(0, LOG.pivot.y - LOG.L * Math.cos(th), LOG.L * Math.sin(th));
@@ -2084,7 +2101,7 @@ function vrStep(dt, inp) {
   let flail = 0;
   for (let k = 0; k < 2; k++) {
     const h = H.hands[k], s = inp.hands[k];
-    h.ok = s.ok; if (!s.ok) continue;
+    h.ok = s.ok; if (!s.ok) { h.anchored = false; continue; }
     flail += Math.min(6, h.Lp.distanceTo(s.pos) / Math.max(dt, 1e-3)); h.Lp.copy(s.pos);
     h.L.copy(s.pos); h.q.copy(s.q); h.trigger = s.trigger; h.gripWas = h.grip; h.grip = s.grip; h.gamepad = s.gamepad;
   }
@@ -2196,12 +2213,13 @@ function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
 // ================= human: computer controls =================
 const keys = {};
 const mouse = { left: false, right: false, drag: false, lx: 0, ly: 0 };
-addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code === 'Enter' && !e.repeat && yardHere()) toggleAfk(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code !== 'Enter') wake(); if (human.kind === 'pc' && e.code === 'Enter' && !e.repeat && yardHere()) toggleAfk(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.right = false; mouse.drag = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   if (human.kind !== 'pc') return;
-  initAudio();
+  initAudio(); wake();
   if (voice.want && !voice.stream) startMic();
   if (!document.pointerLockElement) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* drag to look */ } }
   addStruggle(0.12);
@@ -2240,7 +2258,7 @@ function pcStep(dt) {
   if (keys.KeyQ) H.yaw += 2.2 * dt;
   if (keys.KeyE) H.yaw -= 2.2 * dt;
   if (!H.heldBy) {
-    const can = H.ko <= 0 && !H.out;
+    const can = H.ko <= 0 && (!H.out || !H.fallT) && !(G.state === 'countdown' && !H.out);
     const f = can ? (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) : 0;
     const s = can ? (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) : 0;
     const sn = Math.sin(H.yaw), cs = Math.cos(H.yaw);
@@ -2320,7 +2338,7 @@ function updateBot(b, dt) {
       b.vel.y -= GRAV * dt; b.pos.addScaledVector(b.vel, dt);
       for (const h of b.hands) { h.prev.copy(h.pos); h.pos.addScaledVector(b.vel, dt); h.pos.y += dt * 0.6; }
       b.tiltV.x += dt * 30;
-      if (b.pos.y <= WATER_Y - 1) { b.pos.set(0, -60, 0); b.vel.set(0, 0, 0); }
+      if (b.pos.y <= WATER_Y - 1) { fxAt('splash', _t1.set(b.pos.x, WATER_Y - 0.3, b.pos.z), null); b.pos.set(0, -60, 0); b.vel.set(0, 0, 0); }
     }
     return;
   }
@@ -2466,13 +2484,10 @@ function fingerTargets(a, dt) {
 }
 function updateVisuals(dt) {
   let ai = 0, hi = 0, si = 0, sti = 0;
-  fingN = 0; tipN = 0;
+  FS_WORLD.n = FS_WORLD.tn = FS_MINE.n = FS_MINE.tn = 0;
   for (const a of actors) {
     if (!a.active) continue;
     // wrecked apes are drawn as their body item instead (and fallen ones are far below)
-    // a splash when an ape hits the river
-    if ((a.wasY ?? 0) > WATER_Y && a.pos.y <= WATER_Y && a.pos.y > WATER_Y - 3 && !inLobby()) spawnFx('splash', [a.pos.x, WATER_Y - 0.3, a.pos.z], null, null, false);
-    a.wasY = a.pos.y;
     if (a !== human && (a.dead || (a.out && a.pos.y < WATER_Y - 0.4))) continue;
     const isMe = a === human && human.kind !== 'none';
     if (!isMe) {
@@ -2514,7 +2529,9 @@ function updateVisuals(dt) {
       shadowIM.setMatrixAt(si++, _mm.compose(_p.copy(h.p).setY(h.p.y + 0.015), _q.identity(), _s.set(s, 1, s)));
     }
   }
-  mouthIM.count = ai; bandsIM.count = apesIM.count = RIG.ready ? 0 : ai;   // the model has no headband (fur colour + name tag say who's who) limbCount(LIV, RIG.ready ? 0 : ai); handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
+  // (the model has no headband: fur colour and the name tag say who's who)
+  mouthIM.count = ai; bandsIM.count = apesIM.count = RIG.ready ? 0 : ai;
+  limbCount(LIV, RIG.ready ? 0 : ai); handsIM.count = hi; starsIM.count = sti; shadowIM.count = si;
   // (fingers for your own hands are added below; counts are set at the end)
   for (const im of [apesIM, bandsIM, mouthIM, handsIM, starsIM, shadowIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   // your hands
@@ -2527,12 +2544,11 @@ function updateVisuals(dt) {
       const h = human.hands[k];
       if (human.kind === 'vr') _q.copy(_q2).multiply(h.q); else _q.setFromEuler(_e.set(human.pitch, human.yaw, 0, 'YXZ'));
       myHandsIM.setMatrixAt(k, _mm.compose(h.pos, _q, _s.set(1, 1, 1))); myHandsIM.setColorAt(k, human.fur);
-      drawFingers(h.pos, _q, k === 0 ? -1 : 1, human.fing[k]);
+      drawFingers(h.pos, _q, k === 0 ? -1 : 1, human.fing[k], FS_MINE);
     }
     myHandsIM.instanceMatrix.needsUpdate = true; myHandsIM.instanceColor.needsUpdate = true;
   }
-  fingerIM.count = fingN; tipIM.count = tipN;
-  fingerIM.instanceMatrix.needsUpdate = true; tipIM.instanceMatrix.needsUpdate = true;
+  fsEnd(FS_WORLD); fsEnd(FS_MINE);
   // wrist display + board
   wrist.mesh.visible = human.kind === 'vr' && human.hands[0].ok;
   if (wrist.mesh.visible) { wrist.mesh.position.copy(human.hands[0].pos).y += 0.1; wrist.mesh.lookAt(human.head); }
@@ -2590,7 +2606,7 @@ function drawBoard() {
     ctx.fillStyle = a.css; rr(ctx, x, y, 56, 56, 14); ctx.fill();
     ctx.fillStyle = '#f3ead8'; ctx.font = `52px ${FD}`; ctx.fillText(a.name, x + 76, y + 46);
     ctx.font = `600 34px ${FB}`; ctx.fillStyle = '#b9ad94'; ctx.textAlign = 'right';
-    ctx.fillText(lob ? (a === human ? 'you' : 'here') : over ? `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}` : a.dead ? 'wrecked' : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
+    ctx.fillText(lob ? (human.afkYard ? (a === human ? 'AFK' : a.out ? 'out' : 'fighting') : a === human ? 'you' : 'here') : over ? `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}` : a.dead ? 'wrecked' : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
     if (over && a === G.winner) { ctx.fillStyle = '#ffc23a'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left'; ctx.fillText('★', x + 8, y + 42); }
     ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   });
@@ -2678,9 +2694,14 @@ async function enterVR() {
   try {
     const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
     session.addEventListener('end', leaveVR);
+    // headset taken off: sit out the next rounds and stop being the host; back on: you're in again
+    session.addEventListener('visibilitychange', () => {
+      if (session.visibilityState === 'hidden') { autoAfk(); passHost(); }
+      else if (session.visibilityState === 'visible') wake();
+    });
     await renderer.xr.setSession(session);
     camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0);
-    human.kind = 'vr'; human.active = true; G.demo = false; firstVRFrame = true;
+    human.kind = 'vr'; human.active = true; G.demo = false; firstVRFrame = true; wake();
     $('start').hidden = true; $('hud').hidden = true;
   } catch (e) {
     const el = $('vrstatus'); el.hidden = false;
@@ -2691,6 +2712,7 @@ async function enterVR() {
 function keepPlace() { placeHuman(_t1.set(human.pos.x, human.pos.y - 0.56, human.pos.z), human.yaw); }
 function leaveVR() {
   human.kind = 'pc'; human.headL.set(0, 1, 0); keepPlace();
+  autoAfk();   // headset off: sit out until you come back
   $('hud').hidden = false; $('start').hidden = false;
 }
 
@@ -2732,7 +2754,7 @@ function sendState() {
   if (!net.on || !net.host) return;
   net.stateT = 0.5;
   const seats = [0, 1, 2, 3, 4, 5];
-  netSendAll(EV.STATE, { r: G.round, st: G.state, cd: r2(G.countdown), tl: r2(G.timeLeft), et: r2(G.endT), t: r2(now), map: net.map, names: net.names,
+  netSendAll(EV.STATE, { r: G.round, st: G.state, cd: r2(G.countdown), tl: r2(G.timeLeft), et: r2(G.endT), t: r2(now + net.logOff), map: net.map, names: net.names,
     wins: seats.map((k) => slotActor(k).wins), w: G.winner ? G.winner.i : -1, lb: G.lobbyN, mr: G.matchRound, mw: G.matchWinner ? G.matchWinner.i : -1 });
 }
 function applyState(d) {
@@ -2785,7 +2807,7 @@ function onNetEvent(code, d, nr) {
       break;
     }
     case EV.BOTS: if (!net.host) for (const e of d) { const b = allBots[e[0]]; if (b && !b.player) snap(b, e.slice(1, 4), e.slice(4, 7), e[7], e.slice(8, 14), e[14]); } break;
-    case EV.STATE: if (!net.host) applyState(d); break;
+    case EV.STATE: if (!net.host) { net.stallT = 0; applyState(d); } break;
     case EV.HIT: { const t = slotActor(d.to), a = d.from === WORLD.i ? WORLD : slotActor(d.from); if (t && !t.remote && a) hit(a, t, new THREE.Vector3(d.v[0], d.v[1], d.v[2]), d.sp, d.k, d.tl || undefined); break; }
     case EV.ITEMS: if (!net.host) applyItems(d); break;
     case EV.ITEMREQ: if (net.host) hostItemOp(d.op, d); break;
@@ -2830,11 +2852,32 @@ function aiReset(b) {
   b.think = 0; b.goal = null; b.target = null; b.hang = false; b.slapT = -1; b.holding = null; b.heldBy = null; b.snapT = 0;
 }
 function becomeHost() {
+  // keep the shared clock (the swinging log runs on it) where the old host had it
+  net.logOff = net.hasOffset ? net.hostOffset : 0;
   setupSlots();
   for (const b of bots) aiReset(b);
   feed('You are now the host');
   sendState();
 }
+// The host runs the bots and the round clock, so a host whose game is paused freezes the match for everyone.
+// A host that knows it's about to pause hands the job over; if a host just goes silent, the next player takes it.
+function passHost() {
+  if (!net.on || !net.host || !net.lbc) return;
+  const others = net.lbc.myRoomActorsArray().filter((a) => a.actorNr !== net.myNr);
+  if (!others.length) return;
+  const pick = others.find((a) => !isAfk(a.actorNr)) || others[0];
+  try { net.lbc.myRoom().setMasterClient(pick.actorNr); } catch (e) { /* stays host */ }
+}
+function hostWatch(dt) {
+  if (net.host) { net.stallT = 0; return; }
+  net.stallT = (net.stallT || 0) + dt;
+  if (net.stallT < 5) return;
+  net.stallT = 0;
+  const master = net.lbc.myRoomMasterActorNr();
+  const next = net.lbc.myRoomActorsArray().map((a) => a.actorNr).filter((nr) => nr !== master).sort((a, b) => a - b)[0];
+  if (next === net.myNr) { try { net.lbc.myRoom().setMasterClient(net.myNr); feed('The host went quiet, so you took over'); } catch (e) { /* keep waiting */ } }
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden && !renderer.xr.isPresenting) { passHost(); if (human.kind === 'pc') autoAfk(); } });
 function sendLook() {
   net.lookT = 4;
   if (!net.on) return;   // (sent even without a seat, so an AFK player can say they're back)
@@ -2846,6 +2889,7 @@ function netTick(dt) {
   const wasHost = net.host;
   net.host = net.lbc.myRoomMasterActorNr() === net.myNr;
   if (net.host && !wasHost) becomeHost();
+  hostWatch(dt);
   net.poseT -= dt; net.stateT -= dt;
   if (net.poseT <= 0) {
     net.poseT = 0.1;
@@ -2864,7 +2908,7 @@ function netTick(dt) {
 }
 function netLeave() {
   const l = net.lbc;
-  net.lbc = null; net.on = false; net.connecting = false; net.host = true; net.map = null; net.hasOffset = false;
+  net.lbc = null; net.on = false; net.connecting = false; net.host = true; net.map = null; net.hasOffset = false; net.logOff = 0; net.afkNrs = {};
   closeAllPeers();
   if (l) try { l.disconnect(); } catch (e) { /* already closed */ }
 }
@@ -2874,6 +2918,12 @@ function netDrop(msg) {
   setNetStatus(msg);
   feed('Playing offline');
   if (human.kind !== 'none') goLobby();
+  // try to get back online by ourselves (a few times, a little longer apart each time)
+  if (net.want && (net.retries || 0) < 5) {
+    const n = net.retries = (net.retries || 0) + 1;
+    clearTimeout(net.retryTimer);
+    net.retryTimer = setTimeout(() => { if (net.want && !net.on && !net.connecting) { feed('Reconnecting…'); connectOnline(); } }, 2500 * n);
+  }
 }
 function startPlay() {
   net.want = true;
@@ -2902,10 +2952,10 @@ function connectOnline() {
     } else if (st === LBC.State.Disconnected) netDrop('Lost the connection to online play, so you are playing offline with bots.');
   };
   lbc.onError = (code, msg) => { if (mine()) netDrop(`Couldn't play online (${msg || code}), so you are playing offline with bots.`); };
-  lbc.onEvent = (code, data, nr) => { if (mine()) onNetEvent(code, data, nr); };
+  lbc.onEvent = (code, data, nr) => { if (mine()) try { onNetEvent(code, data, nr); } catch (e) { console.warn('bad network message', code, e); } };
   lbc.onJoinRoom = () => {
     if (!mine()) return;
-    net.on = true; net.connecting = false; net.myNr = lbc.myActor().actorNr;
+    net.on = true; net.connecting = false; net.retries = 0; net.myNr = lbc.myActor().actorNr;
     net.host = lbc.myRoomMasterActorNr() === net.myNr;
     for (const a of [human, ...allBots]) a.wins = 0;
     if (net.host) goLobby();
@@ -2930,8 +2980,8 @@ function connectOnline() {
       net.host = lbc.myRoomMasterActorNr() === net.myNr;
       setupSlots();
       const b = allBots[k];
-      b.out = true;
-      if (!b.remote) aiReset(b);
+      b.out = true; clearHold(b);
+      if (!b.remote) { aiReset(b); b.pos.set(0, -60, 0); b.vel.set(0, 0, 0); }
     }
   };
   try { lbc.connectToRegionMaster(PHOTON_REGION); } catch (e) { netDrop("Couldn't reach online play, so you are playing offline with bots."); }
@@ -3051,10 +3101,10 @@ function voiceTick(dt) {
     if (!pr.panner) continue;
     const b = voiceApe(pr.nr);
     // each voice comes from that player's ape; someone without a seat is heard quietly from right here
-    const at = b ? _t1.copy(b.pos).setY(b.pos.y + 0.15) : _t1.copy(_p);
+    const at = b ? _t1.copy(b.pos).setY(b.pos.y + 0.15) : isAfk(pr.nr) ? _t1.set(LB.x, LB.y + 1, LB.z + 1) : _t1.copy(OUT_LEDGE);
     if (pr.panner.positionX) { pr.panner.positionX.setTargetAtTime(at.x, t, 0.03); pr.panner.positionY.setTargetAtTime(at.y, t, 0.03); pr.panner.positionZ.setTargetAtTime(at.z, t, 0.03); }
     else pr.panner.setPosition(at.x, at.y, at.z);
-    pr.gain.gain.setTargetAtTime(voice.muted.has(pr.nr) ? 0 : b ? 1.8 : 0.6, t, 0.05);
+    pr.gain.gain.setTargetAtTime(voice.muted.has(pr.nr) ? 0 : 1.8, t, 0.05);
     pr.level += (levelOf(pr.an) - pr.level) * (1 - Math.exp(-dt * 18));
     if (b && !voice.muted.has(pr.nr)) b.talkT = pr.level;
   }
@@ -3144,7 +3194,7 @@ const TOOL_FX = {
 };
 const WORLD = { i: 7, name: 'Banana', isBot: false };
 let items = [], nextItemId = 1, itemsDirty = false, crateT = 4, rackT = 0;
-const pendingPick = new Map();
+const pendingPick = new Map(), pendingDrop = new Map();
 let bloodOn = true;
 try { const v = localStorage.getItem('wrecked-blood'); if (v !== null) bloodOn = v === '1'; } catch (e) { /* storage blocked */ }
 const itemById = (id) => items.find((it) => it.id === id);
@@ -3530,7 +3580,7 @@ function dropTool(a, h, vel) {
   if (it.type === 'corpse') vel = _ip.copy(it.v).multiplyScalar(1.15).addScaledVector(vel, 0.3);
   reqItem('drop', { id: it.id, p: pack3(h.tip), v: pack3(vel), s: actorSlot(a) });
   it.st = 1; it.p.copy(h.tip); it.v.copy(vel); it.thrower = actorSlot(a); it.thrownT = 0.8;
-  pendingPick.delete(it.id);
+  pendingPick.delete(it.id); if (a === human) pendingDrop.set(it.id, now + 0.7);
 }
 function useTrigger(a, h) {
   const it = itemById(h.tool); if (!it || it.type !== 'launcher') return;
@@ -3596,6 +3646,8 @@ function itemsTick(dt) {
     if (it.st === 2) {
       if (pendingPick.has(it.id) && pendingPick.get(it.id) < now) pendingPick.delete(it.id);
       const a = it.s === mySlot ? human : allBots[it.s];
+      // whoever held it is gone (left, fell or got wrecked): it drops where it was
+      if (auth && (!a || !a.active || a.out || !actors.includes(a))) { it.st = 1; it.v.set(0, 0, 0); it.thrownT = 0; itemsDirty = true; continue; }
       if (a && a.hands[it.h] && it.type !== 'corpse') it.p.copy(a.hands[it.h].pos);
       continue;
     }
@@ -3645,13 +3697,19 @@ function itemsTick(dt) {
     rackT -= dt;
     if (rackT <= 0) {
       rackT = 4;
-      CRATE_TOOLS.forEach((type, i) => { if (!items.some((it) => it.rack && it.type === type)) { const it = mkItem(type, rackSpot(i), null); it.rack = true; } });
+      CRATE_TOOLS.forEach((type, i) => {
+        const spot = rackSpot(i);
+        if (items.some((it) => it.type === type && (it.st === 2 ? it.rack : it.p.distanceTo(spot) < 1.5))) return;
+        mkItem(type, spot, null).rack = true;
+      });
       for (const it of items) if (it.rack && it.st !== 2 && it.p.distanceTo(rackSpot(CRATE_TOOLS.indexOf(it.type))) > 1.5) it.rack = false;
+      const loose = items.filter((it) => !it.rack && it.st !== 2 && it.p.distanceTo(rackSpot(CRATE_TOOLS.indexOf(it.type))) > 1.5);
+      if (loose.length > 12) removeItem(loose[0]);
     }
   }
 }
 function sendItems() {
-  net.itemT = 0.25; itemsDirty = false;
+  net.itemT = 0.4; itemsDirty = false;
   netSendAll(EV.ITEMS, items.map((it) => [it.id, it.type === 'crate' ? -1 : TOOL_TYPES.indexOf(it.type), it.st, r2(it.p.x), r2(it.p.y), r2(it.p.z), it.s, it.h, it.u, r2(it.v.x), r2(it.v.y), r2(it.v.z), it.c ?? -1, it.yw ?? 0]));
 }
 function applyItems(list) {
@@ -3659,10 +3717,13 @@ function applyItems(list) {
   items = list.map((e) => {
     const [id, ti, st, x, y, z, sl, h, u, vx, vy, vz, cs, yw] = e;
     let it = old.get(id);
+    if (id >= nextItemId) nextItemId = id + 1;
     if (!it) it = { id, spin: rand(0, 6), p: new THREE.Vector3(x, y, z), v: new THREE.Vector3(), thrownT: 0, rack: false };
     it.type = ti < 0 ? 'crate' : TOOL_TYPES[ti]; it.u = u; it.c = cs; it.yw = yw;
     // keep our own quick pickup until the host has caught up
     if (pendingPick.has(id) && st === 1) return it;
+    // we just threw this: ignore an older message that still has it in our hand
+    if (st === 2 && sl === mySlot && it.st === 1 && (pendingDrop.get(id) || 0) > now) return it;
     const holdingHere = it.st === 2 && st === 2 && it.type === 'corpse';
     it.st = st; it.s = sl; it.h = h;
     if (holdingHere) return it;
@@ -3988,6 +4049,7 @@ const yard = { typed: '', padT: 0, bagO: new THREE.Vector2(), bagV: new THREE.Ve
 const BAG_LEN = 1.55;
 function localHands() { return human.kind === 'none' ? [] : human.hands.filter((h) => h.ok && (human.kind !== 'pc' || h.punchT > 0)); }
 function switchRoom(code) {
+  net.retries = 0; clearTimeout(net.retryTimer);
   net.code = code;
   netLeave();
   feed(code ? `Joining room ${code}…` : 'Joining Quick Play…');
@@ -4019,7 +4081,7 @@ function setNick(n) {
 }
 function setOption(which) {
   if (which === 'blood') { bloodOn = !bloodOn; try { localStorage.setItem('wrecked-blood', bloodOn ? '1' : '0'); } catch (e) { /* storage blocked */ } }
-  if (which === 'shadows') { SHADOW.on = !SHADOW.on; try { localStorage.setItem('wrecked-shadows', SHADOW.on ? '1' : '0'); } catch (e) { /* storage blocked */ } }
+  if (which === 'shadows') { perf.done = true; SHADOW.on = !SHADOW.on; try { localStorage.setItem('wrecked-shadows', SHADOW.on ? '1' : '0'); } catch (e) { /* storage blocked */ } }
 }
 function termKey(k) {
   k.flash = 0.25; sfx('tap', kbWorld(k.lx, k.ly, COMP.top, _t1), 3);
@@ -4264,7 +4326,8 @@ function yardTick(dt) {
   if (show && human.pos.distanceTo(screenPanel.mesh.position) < 14) updateComputerPanels();
   // your own ape for the mirror
   const me = show && (!human.out || human.afkYard);
-  for (const im of Object.values(selfIM)) im.count = me && im !== selfIM.hands ? 1 : 0;
+  for (const im of Object.values(selfIM)) im.count = !me ? 0 : im === selfIM.hands ? 2 : 1;
+  FS_SELF.n = FS_SELF.tn = 0;
   if (!me) { limbCount(SELFL, 0); for (const im of selfCos) im.count = 0; }
   if (me) {
     const yaw = humanFacing();
@@ -4280,8 +4343,15 @@ function yardTick(dt) {
     _mm.compose(human.pos, _q, ONE);
     drawLimbs(SELFL, 0, human.pos, _q, yaw, ONE, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0);
     limbCount(SELFL, RIG.ready ? 0 : 1);
+    // hands the way other players see them: in line with the arm, fingers curled like yours
+    for (let k = 0; k < 2; k++) {
+      guessHandQuat(ELBOWS[k], human.hands[k].pos, yaw, _q2);
+      selfIM.hands.setMatrixAt(k, _mm.compose(human.hands[k].pos, _q2, ONE));
+      drawFingers(human.hands[k].pos, _q2, k === 0 ? -1 : 1, human.fing[k], FS_SELF);
+    }
     for (const im of Object.values(selfIM)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   }
+  fsEnd(FS_SELF);
 }
 const shadowCam = new THREE.OrthographicCamera(-SHADOW.half, SHADOW.half, SHADOW.half, -SHADOW.half, 1, 140);
 shadowCam.layers.enable(SELF_LAYER);
@@ -4315,27 +4385,15 @@ function renderShadows() {
   renderer.setRenderTarget(prevTarget);
   for (const o of hiddenForShadow) o.visible = true;
 }
-// the mirror: a true reflection (three.js Reflector), so your reflected arms and hands match where yours are.
-// Your own ape lives on a layer only mirrors see; it's switched on just while the reflection is drawn.
-let reflector = null;
-async function makeMirror() {
-  try {
-    const { Reflector } = await import('three/addons/objects/Reflector.js');
-    reflector = new Reflector(new THREE.PlaneGeometry(3.4, 2.55), { textureWidth: 512, textureHeight: 384, clipBias: 0.003, multisample: 0 });
-    reflector.position.copy(MIRROR); reflector.userData.noCast = true;
-    const draw = reflector.onBeforeRender;
-    reflector.onBeforeRender = function (r, sc, cam) {
-      if (!yardHere() || cam.getWorldPosition(_t3).distanceTo(MIRROR) > 18) return;
-      for (const o of SELF_OBJS) o.layers.set(0);
-      try { draw.call(this, r, sc, cam); } finally { for (const o of SELF_OBJS) o.layers.set(SELF_LAYER); }
-    };
-    scene.add(reflector); mirrorScreen.visible = false;
-  } catch (e) { console.warn('mirror: using the camera mirror', e); }
-}
+// The mirror is a camera behind the glass drawing the Yard onto a screen. In it you see your ape the way
+// other players do: your first-person hands (which follow the controller's own angle) are left out and
+// hands that line up with your arms are drawn instead.
+const MIRROR_HIDE = [myHandsIM, FS_MINE.f, FS_MINE.t, vignette];
 function renderMirror() {
-  if (reflector) return;
   if (!yardHere() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
-  if ((yard.mirrorN = (yard.mirrorN + 1) % 3) !== 0) return;
+  if ((yard.mirrorN = (yard.mirrorN + 1) % 2) !== 0) return;
+  const was = MIRROR_HIDE.map((o) => o.visible);
+  for (const o of MIRROR_HIDE) o.visible = false;
   const xr = renderer.xr.enabled, prevTarget = renderer.getRenderTarget();
   renderer.xr.enabled = false;
   renderer.setRenderTarget(mirrorRT);
@@ -4345,10 +4403,24 @@ function renderMirror() {
   mirrorScreen.visible = true;
   renderer.xr.enabled = xr;
   renderer.setRenderTarget(prevTarget);
+  MIRROR_HIDE.forEach((o, i) => { o.visible = was[i]; });
 }
 yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel();
 
 // ================= main loop =================
+const perf = { t0: 0, n: 0, slow: 0, done: false };
+function perfWatch(ts, gap) {
+  if (perf.done || !SHADOW.on || !renderer.xr.isPresenting || gap > 0.25) { perf.n = 0; perf.t0 = ts; return; }   // (a long gap is a pause, not slowness)
+  perf.n++;
+  if (ts - perf.t0 < 4) return;
+  perf.slow = perf.n / (ts - perf.t0) < 50 ? perf.slow + 1 : 0;
+  perf.n = 0; perf.t0 = ts;
+  if (perf.slow >= 2) {
+    perf.done = true; SHADOW.on = false;
+    try { localStorage.setItem('wrecked-shadows', '0'); } catch (e) { /* storage blocked */ }
+    feed('Shadows turned off to keep the game smooth');
+  }
+}
 let last = -1, hudT = 0;
 function update(dt, frame) {
   now += dt; RIG.frame++;
@@ -4356,7 +4428,7 @@ function update(dt, frame) {
   if (renderer.xr.isPresenting && frame && human.kind === 'vr') {
     if (readXR(frame)) {
       if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); keepPlace(); }
-      if (G.state === 'countdown' && !human.out) { /* free to look around, movement locked */ for (const h of human.hands) { h.L.copy(xrIn.hands[h.k].pos); h.q.copy(xrIn.hands[h.k].q); h.ok = xrIn.hands[h.k].ok; handTarget(h, h.pos); } human.headL.copy(xrIn.head); headWorld(human.head); }
+      if (G.state === 'countdown' && !human.out) { /* free to look around, movement locked */ for (const h of human.hands) { h.L.copy(xrIn.hands[h.k].pos); h.q.copy(xrIn.hands[h.k].q); h.ok = xrIn.hands[h.k].ok; handTarget(h, h.pos); } human.headL.copy(xrIn.head); headWorld(human.head); human.pos.copy(human.head).setY(human.head.y - 0.1); }
       else vrStep(dt, xrIn);
     }
   } else if (human.kind === 'pc') pcStep(dt);
@@ -4397,6 +4469,7 @@ function update(dt, frame) {
 renderer.setAnimationLoop((t, frame) => {
   const ts = t / 1000;
   const dt = last < 0 ? 1 / 60 : clamp(ts - last, 0.001, 0.05);
+  perfWatch(ts, last < 0 ? 0 : ts - last);
   last = ts;
   update(dt, frame);
   scene.updateMatrixWorld();
@@ -4423,13 +4496,12 @@ document.addEventListener('pointerlockchange', () => { if (human.kind === 'pc') 
 // canvas text only uses a web font once it has loaded, so load them and redraw every panel
 if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Paint"', '600 40px "Barlow Condensed"', '700 40px "Barlow Condensed"', '40px VT323'].map((f) => document.fonts.load(f).catch(() => null)))
   .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); });
-human.kind = 'pc'; human.active = true;
+human.kind = 'pc'; human.active = true; human.afk = true; human.autoAfk = true;
 startPlay();
 loadApeModel();
 loadProps();
-makeMirror();
 
-window.AR = { camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
