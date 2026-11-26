@@ -102,6 +102,8 @@ const FIGHT = {
   slapMin: 2.2, slapMul: 0.75, slapCap: 9, slapUp: 1.6, dizzyPerSpeed: 3.2, koTime: 3.5,
   throwMul: 0.9, throwCap: 7, awakeThrow: 0.6, gripBreak: 3, holdMax: 8, reach: 0.5,
 };
+// grip stamina: one timer for both hands while you hang on to something with grip
+const GRIP = { warn: 10, max: 15, refill: 1 };
 const HUMAN_SPH = [{ dy: 0, r: 0.2 }, { dy: -0.38, r: 0.28 }];
 const BOT_SPH = [{ dy: 0, r: 0.3 }, { dy: -0.27, r: 0.28 }];
 const raw = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace);
@@ -1641,6 +1643,7 @@ function baseActor(i) {
 const human = Object.assign(baseActor(0), {
   isHuman: true, kind: 'none', P: new THREE.Vector3(), V: new THREE.Vector3(), pitch: 0,
   headL: new THREE.Vector3(0, 1, 0), head: new THREE.Vector3(), hands: [mkHand(0), mkHand(1)], hist: [], wasAnch: false, snapLatch: false, noGrab: 0, struggle: 0,
+  gripT: 0, gripLocked: false, groundT: 0, buzzT: 0,
 });
 human.vel = human.V; human.name = 'You';
 function mkBot(i) {
@@ -1741,7 +1744,7 @@ const alive = () => actors.filter((a) => a.active && !a.out);
 
 function placeHuman(floorPt, yaw) {
   const H = human;
-  H.yaw = yaw; H.V.set(0, 0, 0); H.hist.length = 0; H.wasAnch = false; H.noGrab = 0; H.fallT = 0;
+  H.yaw = yaw; H.V.set(0, 0, 0); H.hist.length = 0; H.wasAnch = false; H.noGrab = 0; H.fallT = 0; H.gripT = 0; H.gripLocked = false;
   rotY(H.headL, yaw, _t1);
   H.P.set(floorPt.x, floorPt.y + 0.68, floorPt.z).sub(_t1);
   headWorld(H.head); H.pos.copy(H.head).setY(H.head.y - 0.1);
@@ -1960,7 +1963,7 @@ function dropAll(a) {
 }
 function push(a, v) {
   if (a === human) {
-    if (v.length() < 5.5 && human.hands.some((h) => h.anchored && h.grip)) { pulseAll(0.5, 60); return; }
+    if (v.length() < 5.5 && !human.gripLocked && human.hands.some((h) => h.anchored && h.grip)) { pulseAll(0.5, 60); return; }
     for (const h of human.hands) h.anchored = false;
     human.V.add(v); human.noGrab = 0.25; human.wasAnch = false; human.hist.length = 0;
   } else { a.vel.add(v); a.thrownT = 0.4; a.hang = false; a.hangCool = 0.6; }
@@ -2155,8 +2158,9 @@ function vrStep(dt, inp) {
     handTarget(h, h.T);
     _rel.subVectors(h.T, h.A);
     const out = _rel.dot(h.n), dist = _rel.length();
-    if (stunned || dist > LOCO.unstick || (out > LOCO.releaseEps && !(h.grip && !h.tool))) { h.anchored = false; continue; }
-    _rel.addScaledVector(h.n, -out); h.A.addScaledVector(_rel, h.grip && !h.tool ? 0 : 0.02);
+    const hang = h.grip && !h.tool && !H.gripLocked;
+    if (stunned || dist > LOCO.unstick || (out > LOCO.releaseEps && !hang)) { h.anchored = false; continue; }
+    _rel.addScaledVector(h.n, -out); h.A.addScaledVector(_rel, hang ? 0 : 0.02);
     if (h.dyn) boxToLocal(h.dyn, h.A, h.lA);
     _D.add(h.A).sub(h.T); n1++;
   }
@@ -2199,7 +2203,29 @@ function vrStep(dt, inp) {
     while (H.hist.length > 2 && now - H.hist[0].t > LOCO.histWindow) H.hist.shift();
   } else H.hist.length = 0;
   H.wasAnch = any;
+  gripTick(dt);
   headWorld(H.head); H.pos.copy(H.head).setY(H.head.y - 0.1);
+}
+// Holding on with grip counts up one shared timer (switching hands or letting go in mid-air doesn't reset it).
+// From 10 s the controllers buzz harder and harder; at 15 s you're made to let go and can't hang on again
+// until you've stood on solid ground for a second, which also refills the timer.
+function gripTick(dt) {
+  const H = human;
+  const holding = !H.gripLocked && H.hands.some((h) => h.ok && h.anchored && h.grip && !h.tool);
+  if (holding) {
+    H.gripT += dt; H.groundT = 0;
+    if (H.gripT >= GRIP.max) {
+      for (const h of H.hands) if (h.anchored && h.grip) h.anchored = false;
+      H.gripLocked = true; H.noGrab = 0.4; H.wasAnch = false; H.hist.length = 0;
+      pulseAll(1, 250); sfx('slip', null, 0.6);
+    } else if (H.gripT >= GRIP.warn && (H.buzzT -= dt) <= 0) {
+      const k = (H.gripT - GRIP.warn) / (GRIP.max - GRIP.warn);
+      H.buzzT = 0.22 - 0.12 * k;
+      for (const h of H.hands) if (h.anchored && h.grip) pulseHand(h.k, 0.25 + 0.75 * k, 120);
+    }
+  } else if (H.grounded) {
+    if ((H.groundT += dt) >= GRIP.refill) { H.gripT = 0; H.gripLocked = false; }
+  } else H.groundT = 0;
 }
 function vrGrabs() {
   const H = human;
@@ -2654,10 +2680,12 @@ function drawWrist() {
   coinIcon(ctx, 30, 136, 13); ctx.textAlign = 'left'; ctx.fillStyle = '#ffc23a'; ctx.font = `36px ${FD}`; ctx.fillText(wallet.coins.toLocaleString(), 52, 150);
   ctx.fillStyle = '#f3ead8'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left';
   const stuck = H.ko > 0;
-  ctx.fillText(H.afk && yardHere() ? 'AFK' : inLobby() ? (G.state === 'starting' ? `GO IN ${Math.max(1, Math.ceil(G.countdown))}` : 'YARD') : H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
+  const slip = H.gripLocked ? 1 : H.gripT >= GRIP.warn && H.hands.some((h) => h.anchored && h.grip) ? 2 : 0;
+  ctx.fillText(slip === 1 ? 'NO GRIP' : slip === 2 ? 'SLIPPING!' : H.afk && yardHere() ? 'AFK' : inLobby() ? (G.state === 'starting' ? `GO IN ${Math.max(1, Math.ceil(G.countdown))}` : 'YARD') : H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
   ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(inLobby() ? `${alive().length} here` : `${alive().length} left`, 240, 50);
   ctx.fillStyle = 'rgba(255,255,255,0.15)'; rr(ctx, 16, 80, 224, 22, 11); ctx.fill();
-  ctx.fillStyle = stuck ? '#ffc23a' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, stuck ? H.struggle : H.dizzy / 100)), 22, 11); ctx.fill();
+  const bar = stuck ? H.struggle : slip ? 1 - Math.min(1, H.gripT / GRIP.max) : H.dizzy / 100;
+  ctx.fillStyle = stuck ? '#ffc23a' : slip ? '#3fc0ff' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, bar)), 22, 11); ctx.fill();
   wrist.tex.needsUpdate = true;
 }
 function netLabel() {
@@ -4541,7 +4569,7 @@ startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
