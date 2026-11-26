@@ -365,6 +365,12 @@ function buildLevel() {
   blk(X, Y, Z + 11.2, 22.6, 1.25, 0.2, { hidden: true });
   blk(X - 11.2, Y, Z, 0.2, 1.25, 22.6, { hidden: true });
   blk(X + 11.2, Y, Z, 0.2, 1.25, 22.6, { hidden: true });
+  // invisible barrier: tall walls just outside the fence and a lid on top, so nobody can leave the Yard
+  for (const sd of [-1, 1]) {
+    blk(X, Y - 1, Z + sd * 11.6, 24, 17, 0.6, { hidden: true });
+    blk(X + sd * 11.6, Y - 1, Z, 0.6, 17, 24, { hidden: true });
+  }
+  blk(X, Y + 16, Z, 24, 0.6, 24, { hidden: true });
   // log cabin along the north side (its log walls are scenery over this dark core), porch in front
   blk(X - 1, Y, Z - 9.2, 10, 3.0, 3.4, { mat: 'darkwood' });
   box(X - 1, Y + 3.68, Z - 8.075, 11.2, 0.22, 2.62, { rx: 0.524, mat: 'planks' });
