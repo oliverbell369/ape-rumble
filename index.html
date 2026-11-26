@@ -313,12 +313,11 @@ const PAD = new THREE.Vector3(LB.x + 7.2, LB.y, LB.z);
 const START_BTN = new THREE.Vector3(LB.x + 9.35, LB.y + 1.15, LB.z);
 // the computer on the west side of the Yard: COMP is the middle of the keyboard, top = key tops
 const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
-// the shop room: a separate room you teleport to from the Yard (far away, out of sight)
+// the shop room: a separate room you teleport to from your hand menu (far away, out of sight)
 const SR = new THREE.Vector3(LB.x - 220, LB.y, LB.z);
 // one pedestal per shop item: six down each side wall
-const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 4.3, z: SR.z - 2.6 + j * 1.15, side }; });
-const SHOP_SPAWN = new THREE.Vector3(SR.x, SR.y, SR.z + 2.4), SHOP_EXIT = new THREE.Vector3(SR.x, SR.y, SR.z + 4.1);
-const STALL_PAD = new THREE.Vector3(LB.x + 1.5, LB.y, LB.z + 8.2);
+const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 5.2, z: SR.z - 3 + j * 1.2, side }; });
+const SHOP_SPAWN = new THREE.Vector3(SR.x, SR.y, SR.z + 3.4);
 const BAG_PIVOT = new THREE.Vector3(LB.x + 7, LB.y + 3.0, LB.z - 6);
 const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
 // the sawmill's moving parts: saw blade (a hazard) and the water wheel behind the saw house
@@ -417,21 +416,19 @@ function buildLevel() {
   blk(START_BTN.x + 0.2, Y + 1.72, Z, 0.08, 0.9, 1.7, { mat: 'darkwood' });
   // start button post
   blk(START_BTN.x + 0.15, Y, Z, 0.35, 0.95, 0.35, { mat: 'darkwood' });
-  // ----- the shop room -----
+  // ----- the shop room (its look is in shopDecorIM) -----
   {
     const X = SR.x, Y = SR.y, Z = SR.z;
-    blk(X, Y - 0.3, Z, 10.4, 0.3, 10.4, { mat: 'planks' });
-    for (const sd of [-1, 1]) { blk(X, Y, Z + sd * 5.1, 10.4, 4, 0.2, { mat: 'darkwood' }); blk(X + sd * 5.1, Y, Z, 0.2, 4, 10.4, { mat: 'darkwood' }); }
-    blk(X, Y + 4, Z, 10.4, 0.3, 10.4, { hidden: true });
-    // counter at the back, pedestals along the side walls
-    blk(X, Y, Z - 3.6, 3.6, 1.0, 0.8, { top: 'planks', side: 'darkwood' });
-    blk(X + 2.5, Y, Z - 3.7, 0.6, 1.0, 0.6, { top: 'planks', side: 'darkwood' });
-    for (const p of SHOP_PEDS) blk(p.x, Y, p.z, 0.55, 0.95, 0.55, { top: 'planks', side: 'darkwood' });
+    const LIT = [1.45, 1.32, 1.2];   // the room is lit warm and bright inside
+    blk(X, Y - 0.3, Z, 12.4, 0.3, 12.4, { mat: 'planks', col: [1.2, 1.1, 1.0] });
+    for (const sd of [-1, 1]) { blk(X, Y, Z + sd * 6.1, 12.4, 4.5, 0.2, { mat: 'darkwood', col: LIT }); blk(X + sd * 6.1, Y, Z, 0.2, 4.5, 12.4, { mat: 'darkwood', col: LIT }); }
+    blk(X, Y + 4.4, Z, 12.4, 0.3, 12.4, { hidden: true });
+    // counter at the back, the display stage, shelves, pedestals along the side walls
+    blk(X, Y, Z - 4.6, 4.0, 1.0, 0.8, { top: 'planks', side: 'darkwood' });
+    blk(X + 3.1, Y, Z - 4.3, 1.2, 0.5, 1.2, { top: 'planks', side: 'darkwood' });
+    for (const sx of [-1, 1]) blk(X + sx * 2.9, Y, Z - 5.75, 1.6, 2.4, 0.4, { hidden: true });
+    for (const p of SHOP_PEDS) blk(p.x, Y, p.z, 0.6, 0.95, 0.6, { top: 'planks', side: 'darkwood' });
   }
-  // shop stall in the Yard (a doorway to the shop room)
-  blk(X + 1.5, Y, Z + 9.6, 3.6, 1.0, 0.8, { mat: 'planks' });
-  for (const dx of [-0.3, 3.3]) blk(X + dx, Y, Z + 10.2, 0.25, 2.7, 0.25, { mat: 'bark' });
-  box(X + 1.5, Y + 2.85, Z + 9.7, 4.4, 0.2, 2.2, { rx: 0.3, mat: 'planks' });
   // tool rack
   blk(X - 6.75, Y, Z + 9.6, 4.8, 0.8, 0.7, { top: 'planks', side: 'darkwood' });
   // punching bag frame
@@ -1750,7 +1747,7 @@ function toggleAfk() {
 }
 function sitOutInYard() {
   human.out = true; human.afkYard = true;
-  if (human.pos.distanceTo(LB) > 25) placeHuman(LOBBY_SPAWNS[0], 0);
+  if (human.pos.distanceTo(LB) > 25 && !inShop()) placeHuman(LOBBY_SPAWNS[0], 0);
 }
 let now = 0;
 const _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3(), _t3 = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -1775,7 +1772,7 @@ function placeHuman(floorPt, yaw) {
 }
 function resetActor(a, i, pts = SPAWNS) {
   // an AFK player who's already in the Yard stays where they are
-  const stay = a === human && human.afkYard && pts === LOBBY_SPAWNS && human.pos.distanceTo(LB) < 30 && human.head.y > LB.y - 2;
+  const stay = a === human && human.afkYard && pts === LOBBY_SPAWNS && ((human.pos.distanceTo(LB) < 30 && human.head.y > LB.y - 2) || inShop());
   if (a === human) human.afkYard = false;
   a.wounds = [];
   a.lastBy = -1; a.out = false; a.dead = false; a.dizzy = 0; a.ko = 0; a.heldBy = null; a.thrownT = 0; a.bleedT = 0; a.squashT = 0; a.tilt.set(0, 0); a.tiltV.set(0, 0); a.hitCD.clear();
@@ -2294,7 +2291,7 @@ function pulseAll(v, ms) { pulseHand(0, v, ms); pulseHand(1, v, ms); }
 // ================= human: computer controls =================
 const keys = {};
 const mouse = { left: false, right: false, drag: false, lx: 0, ly: 0 };
-addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code === 'KeyM' && !e.repeat) toggleShop(); if (human.kind === 'pc' && e.code !== 'Enter') wake(); if (human.kind === 'pc' && e.code === 'Enter' && !e.repeat && yardHere()) toggleAfk(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys[e.code] = true; if (human.kind === 'pc' && e.code === 'KeyM' && !e.repeat) toggleMenu(); if (human.kind === 'pc' && e.code !== 'Enter') wake(); if (human.kind === 'pc' && e.code === 'Enter' && !e.repeat && yardHere()) toggleAfk(); if (human.kind === 'pc' && !e.repeat) addStruggle(0.12); if (human.kind === 'pc' && ['Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.right = false; mouse.drag = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -2306,7 +2303,8 @@ canvas.addEventListener('mousedown', (e) => {
   addStruggle(0.12);
   if (e.button === 0) {
     const R = human.hands[1];
-    if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
+    if (pcClickMenu()) { /* pressed a menu button */ }
+    else if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
     else if (pcClickComputer() || pcClickShop() || pcClickPed() || pcClickAfk()) { /* pressed a key or button */ }
     else { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
   }
@@ -2380,7 +2378,7 @@ function pcStep(dt) {
 function nearestTarget(b) {
   let best = null, bd = 1e9;
   for (const t of actors) {
-    if (t === b || !t.active || t.out || t.heldBy) continue;
+    if (t === b || !t.active || t.out || t.heldBy || t.pos.distanceTo(SR) < 12) continue;
     const d = t.pos.distanceTo(b.pos) - (t.ko > 0 ? 3 : 0) + (b.grudge[t.i] || 0);
     if (d < bd) { bd = d; best = t; }
   }
@@ -4151,7 +4149,7 @@ function renderItems() {
 }
 
 // ================= WRECK coins and the shop =================
-// Coins are earned in matches (never in the Yard) and spent at the shop stall on hats and face items.
+// Coins are earned in matches (never in the Yard) and spent in the shop on hats and face items.
 const apeName = (a) => (a === human ? net.nick : a.name);
 function addCoins(n, why) {
   if (!(n > 0)) return;
@@ -4179,80 +4177,223 @@ function coinTick() {
   }
   if (G.state === 'matchEnd' && G.matchWinner === human) addCoins(50, 'won the match!');
 }
-// ----- the shop stall: a board, three buttons on the counter and a display ape wearing what you're looking at -----
+// ----- the shop counter: a board, three buttons and a display ape wearing what you're looking at -----
 const SHOP = { i: 0, msg: '', msgT: 0, sig: '', btnCD: 0 };
-const shopBoard = panelAt(1024, 512, 2.6, 1.3, new THREE.Vector3(SR.x, SR.y + 2.2, SR.z - 4.98), 0);
+const shopBoard = panelAt(1024, 512, 2.6, 1.3, new THREE.Vector3(SR.x, SR.y + 2.3, SR.z - 5.9), 0);
 const SHOP_BTNS = [
   { k: 'prev', x: -0.75, col: [0.25, 0.5, 0.95] },
   { k: 'buy', x: 0, col: [0.2, 0.8, 0.3] },
   { k: 'next', x: 0.75, col: [0.25, 0.5, 0.95] },
-].map((b) => Object.assign(b, { pos: new THREE.Vector3(SR.x + b.x, SR.y + 1.05, SR.z - 3.42), flash: 0 }));
+].map((b) => Object.assign(b, { pos: new THREE.Vector3(SR.x + b.x, SR.y + 1.06, SR.z - 4.45), flash: 0 }));
 const shopBtnIM = inst(mergeParts([{ geo: ico(0.12, 1), c: F, tint: true, m: M(0, 0, 0, 0, 0, 0, 1, 0.45, 1) }, { geo: cyl(0.14, 0.15, 0.04, 14), c: [0.2, 0.17, 0.14], m: M(0, -0.03, 0) }]), 3);
 shopBtnIM.count = 3;
 const shopApe = { ape: inst(apeGeo, 1), band: inst(bandGeo, 1), stand: inst(mergeParts([{ geo: cyl(0.16, 0.2, 0.12, 12), c: [0.45, 0.3, 0.18], layer: 'darkwood' }]), 1) };
 for (const im of Object.values(shopApe)) im.count = 1;
 const SHOP_HANDS = [new THREE.Vector3(), new THREE.Vector3()];
-const SHOP_APE_AT = new THREE.Vector3(SR.x + 2.5, SR.y + 1.0, SR.z - 3.7);
-shopApe.stand.setMatrixAt(0, M(SHOP_APE_AT.x, SHOP_APE_AT.y + 0.06, SHOP_APE_AT.z));
-// ----- the shop room: every item on a pedestal with its name and price -----
-const pedHeadIM = inst(mergeParts([{ geo: ico(0.19, 2), c: [0.62, 0.58, 0.54], layer: 'fur', m: M(0, 0.2, -0.1) }, { geo: cyl(0.05, 0.08, 0.25, 8), c: [0.4, 0.3, 0.22], layer: 'darkwood', m: M(0, -0.04, -0.06) }]), 12);
-pedHeadIM.count = 12;
-const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 100, 0.8, 0.31, new THREE.Vector3(p.x - p.side * 0.29, SR.y + 0.72, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
-const shopPads = inst(mergeParts([{ geo: cyl(0.6, 0.6, 0.04, 20), c: F, tint: true }]), 2);
-shopPads.count = 2;
-const shopExitPanel = panelAt(512, 150, 1.6, 0.47, new THREE.Vector3(SR.x, SR.y + 2.6, SR.z + 4.98), Math.PI);
-const stallPanel = panelAt(1024, 512, 2.2, 1.1, new THREE.Vector3(LB.x + 1.9, LB.y + 1.88, LB.z + 10.05), Math.PI);
-const inShop = () => human.pos.distanceTo(SR) < 9;
+const SHOP_APE_AT = new THREE.Vector3(SR.x + 3.1, SR.y + 0.5, SR.z - 4.3);
+shopApe.stand.setMatrixAt(0, M(SHOP_APE_AT.x, SHOP_APE_AT.y + 0.06, SHOP_APE_AT.z, 0, 0, 0, 2.2, 0.5, 2.2));
+// ----- the shop room: every item on its own pedestal, worn by a real ape head -----
+const TIERS = [{ n: 'COMMON', css: '#4fd6e6', c: [0.25, 0.85, 0.95] }, { n: 'RARE', css: '#b37bff', c: [0.7, 0.4, 1] }, { n: 'LEGENDARY', css: '#ffc23a', c: [1, 0.75, 0.2] }];
+const tierOf = (it) => TIERS[it.price >= 4000 ? 2 : it.price >= 1500 ? 1 : 0];
+const PED_TOP = SR.y + 0.95, BUST_K = 1.2;
+// until the ape model has loaded, plain heads stand in
+const pedHeadIM = inst(mergeParts([{ geo: ico(0.19, 2), c: [0.62, 0.58, 0.54], layer: 'fur', m: M(0, 0.2, -0.1) }]), 12);
+const pedPostIM = inst(mergeParts([{ geo: cyl(0.06, 0.09, 0.2, 10), c: [0.45, 0.32, 0.22], layer: 'darkwood', m: M(0, 0.1, 0) }, { geo: cyl(0.2, 0.22, 0.04, 20), c: [0.5, 0.36, 0.24], layer: 'darkwood', m: M(0, 0.02, 0) }]), 12);
+pedPostIM.count = 12;
+SHOP_PEDS.forEach((p, i) => pedPostIM.setMatrixAt(i, M(p.x, PED_TOP, p.z)));
+// glowing rings (pedestal tiers, the display stage) and the spotlight on the item you picked
+const glowMat = new THREE.MeshBasicMaterial({ fog: false, toneMapped: false });
+const ringIM = new THREE.InstancedMesh(new THREE.TorusGeometry(0.24, 0.018, 6, 28).rotateX(Math.PI / 2), glowMat, 13);
+ringIM.userData.noCast = true; ringIM.frustumCulled = false; scene.add(ringIM);
+const spotMat = new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+const spotCone = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.42, 3.3, 24, 1, true), spotMat);
+spotCone.userData.noCast = true; scene.add(spotCone);
+// lamps, string lights and the sign glow
+const bulbIM = new THREE.InstancedMesh(ico(1, 1), glowMat, 64);
+bulbIM.userData.noCast = true; bulbIM.frustumCulled = false; scene.add(bulbIM);
+{
+  let n = 0; const bulb = (x, y, z, r, c) => { bulbIM.setMatrixAt(n, M(x, y, z, 0, 0, 0, r, r, r)); bulbIM.setColorAt(n++, raw(...c)); };
+  for (const [x, z] of [[-2.6, -2.2], [2.6, -2.2], [-2.6, 2.4], [2.6, 2.4]]) bulb(SR.x + x, SR.y + 3.12, SR.z + z, 0.09, [1.6, 1.25, 0.7]);
+  const LC = [[1.4, 0.3, 0.25], [0.3, 1.2, 0.4], [0.35, 0.6, 1.5], [1.5, 1.1, 0.2], [1.2, 0.35, 1.2]];
+  for (let k = 0; k < 11; k++) for (const sd of [-1, 1]) bulb(SR.x + sd * 5.85, SR.y + 3.95 - 0.12 * Math.sin((k % 2.75) * 1.1), SR.z - 5 + k, 0.045, LC[(k + (sd > 0 ? 2 : 0)) % 5]);
+  for (let k = 0; k < 9; k++) bulb(SR.x - 4 + k, SR.y + 4.0 - 0.1 * (k % 2), SR.z - 5.85, 0.045, LC[k % 5]);
+  for (let k = 0; k < 9; k++) bulb(SR.x - 4 + k, SR.y + 4.0 - 0.1 * (k % 2), SR.z + 5.85, 0.045, LC[(k + 3) % 5]);
+  bulbIM.count = n; bulbIM.instanceMatrix.needsUpdate = true; bulbIM.instanceColor.needsUpdate = true;
+}
+// the room's look: roof and rafters (they don't cast shadows, so the room stays bright), rug, trim, shelves,
+// hanging lamps, plants, the mirror frame
+const shopDecorIM = inst(mergeParts((() => {
+  const P = [], X = SR.x, Y = SR.y, Z = SR.z, B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  const WOOD = [1.15, 1.0, 0.85], DARK = [0.7, 0.58, 0.48];
+  // rug with a gold border
+  P.push({ geo: B(4.6, 0.02, 6.6), c: [0.95, 0.75, 0.25], m: M(X, Y + 0.01, Z + 0.2) }, { geo: B(4.2, 0.03, 6.2), c: [0.62, 0.1, 0.1], m: M(X, Y + 0.015, Z + 0.2) }, { geo: B(3.4, 0.035, 5.4), c: [0.4, 0.06, 0.07], m: M(X, Y + 0.02, Z + 0.2) });
+  // wall trim: a skirting board, a rail at waist height and a crown under the roof
+  for (const sd of [-1, 1]) for (const [y, h] of [[0.07, 0.14], [1.32, 0.08], [4.2, 0.16]]) {
+    P.push({ geo: B(12, h, 0.06), c: WOOD, layer: 'bark', m: M(X, Y + y, Z + sd * 5.98) });
+    P.push({ geo: B(0.06, h, 12), c: WOOD, layer: 'bark', m: M(X + sd * 5.98, Y + y, Z) });
+  }
+  // shelves behind the counter with gift boxes
+  for (const sx of [-1, 1]) {
+    const cx = X + sx * 2.9;
+    for (const y of [0.9, 1.6, 2.3]) P.push({ geo: B(1.6, 0.06, 0.4), c: WOOD, layer: 'planks', m: M(cx, Y + y, Z - 5.75) });
+    for (const dx of [-0.78, 0.78]) P.push({ geo: B(0.06, 2.4, 0.4), c: DARK, layer: 'darkwood', m: M(cx + dx, Y + 1.2, Z - 5.75) });
+    const BOX = [[0.85, 0.2, 0.2], [0.2, 0.55, 0.9], [0.95, 0.75, 0.2], [0.3, 0.75, 0.35], [0.7, 0.3, 0.8]];
+    for (const [k, y] of [0.9, 1.6, 2.3].entries()) for (let j = 0; j < 3; j++) {
+      const s = 0.22 + ((k + j + (sx > 0 ? 1 : 0)) % 3) * 0.06, c = BOX[(k * 3 + j + (sx > 0 ? 2 : 0)) % 5];
+      P.push({ geo: B(s, s, s), c, m: M(cx - 0.5 + j * 0.5, Y + y + 0.03 + s / 2, Z - 5.72, 0, (j - 1) * 0.3, 0) });
+      P.push({ geo: B(s + 0.01, s + 0.01, 0.04), c: [1, 0.95, 0.85], m: M(cx - 0.5 + j * 0.5, Y + y + 0.03 + s / 2, Z - 5.72, 0, (j - 1) * 0.3, 0) });
+    }
+  }
+  // counter: a gold edge on top, front panels
+  P.push({ geo: B(4.1, 0.05, 0.9), c: [0.95, 0.72, 0.25], m: M(X, Y + 1.0, Z - 4.6) });
+  for (const dx of [-1.5, -0.5, 0.5, 1.5]) P.push({ geo: B(0.8, 0.6, 0.03), c: [0.75, 0.6, 0.48], layer: 'planks', m: M(X + dx, Y + 0.5, Z - 4.14) });
+  // the display stage: a gold ring
+  P.push({ geo: cyl(0.62, 0.62, 0.04, 28), c: [0.95, 0.72, 0.25], m: M(X + 3.1, Y + 0.5, Z - 4.3) });
+  // pedestal tops trimmed in gold
+  for (const p of SHOP_PEDS) P.push({ geo: B(0.66, 0.04, 0.66), c: [0.95, 0.72, 0.25], m: M(p.x, PED_TOP - 0.01, p.z) });
+  // roof and rafters
+  P.push({ geo: B(12.4, 0.2, 12.4), c: [1.15, 0.98, 0.82], layer: 'planks', m: M(X, Y + 4.5, Z) });
+  for (let k = -2; k <= 2; k++) P.push({ geo: B(12, 0.24, 0.24), c: WOOD, layer: 'bark', m: M(X, Y + 4.28, Z + k * 2.4) });
+  P.push({ geo: B(0.26, 0.26, 12), c: WOOD, layer: 'bark', m: M(X, Y + 4.25, Z) });
+  // hanging lamps: cord and shade
+  for (const [x, z] of [[-2.6, -2.2], [2.6, -2.2], [-2.6, 2.4], [2.6, 2.4]]) {
+    P.push({ geo: cyl(0.012, 0.012, 1.0, 4), c: [0.1, 0.1, 0.1], m: M(X + x, Y + 3.7, Z + z) });
+    P.push({ geo: new THREE.ConeGeometry(0.28, 0.24, 14, 1, true), c: [0.2, 0.35, 0.25], m: M(X + x, Y + 3.22, Z + z) });
+  }
+  // plants in the front corners
+  for (const sx of [-1, 1]) {
+    P.push({ geo: cyl(0.26, 0.2, 0.5, 12), c: [0.75, 0.42, 0.28], m: M(X + sx * 5.4, Y + 0.25, Z + 5.4) });
+    for (const [dx, dy, dz, r] of [[0, 0.85, 0, 0.36], [0.15, 1.15, 0.1, 0.26], [-0.12, 1.05, -0.12, 0.28]]) P.push({ geo: ico(r, 1), c: [0.6, 0.85, 0.5], layer: 'leaves', m: M(X + sx * 5.4 + dx, Y + dy, Z + 5.4 + dz) });
+  }
+  // mirror frame on the front wall
+  P.push({ geo: B(2.85, 2.2, 0.08), c: [0.95, 0.72, 0.25], m: M(X, Y + 1.6, Z + 5.94) });
+  // sign backing above the board
+  P.push({ geo: B(3.3, 0.85, 0.06), c: [0.12, 0.1, 0.09], m: M(X, Y + 3.6, Z - 5.95) });
+  return P;
+})()), 1);
+shopDecorIM.count = 1; shopDecorIM.setMatrixAt(0, new THREE.Matrix4()); shopDecorIM.userData.noCast = true;
+// the real ape head for the busts: the model's head (the parts that move with its head bones) plus the fur cap
+const BUST = { geo: null, meshes: [], mat: null, neckY: 0 };
+function buildBusts() {
+  let mesh = null; RIG.src.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+  const g = mesh.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
+  const headBones = new Set(mesh.skeleton.bones.map((b, i) => (/^(Head|head_end|headfront)$/.test(b.name) ? i : -1)).filter((i) => i >= 0));
+  const G4 = ['getX', 'getY', 'getZ', 'getW'], headW = (v) => { let w = 0; for (const f of G4) if (headBones.has(SI[f](v))) w += SW[f](v); return w; };
+  // (skinning draws the raw vertices through the bind matrix, not the mesh node scale)
+  const mw = mesh.bindMatrix, nm = new THREE.Matrix3().getNormalMatrix(mw), pos = [], nor = [], uv = [], v = new THREE.Vector3();
+  const idx = g.index ? g.index.array : Array.from({ length: P.count }, (_, i) => i);
+  let minY = 1e9;
+  for (let t = 0; t < idx.length; t += 3) {
+    const tri = [idx[t], idx[t + 1], idx[t + 2]];
+    if (!tri.every((i) => headW(i) > 0.5)) continue;
+    // (a few stray bits of the model are tied to the head bones too: keep only what's around the head)
+    if (tri.some((i) => Math.abs(v.fromBufferAttribute(P, i).applyMatrix4(mw).y - M_HC.y) > 0.36)) continue;
+    for (const i of tri) {
+      v.fromBufferAttribute(P, i).applyMatrix4(mw); pos.push(v.x, v.y, v.z); minY = Math.min(minY, v.y);
+      v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+      uv.push(U.getX(i), U.getY(i));
+    }
+  }
+  const cap = headCapGeo();
+  pos.push(...cap.attributes.position.array); nor.push(...cap.attributes.normal.array); uv.push(...cap.attributes.uv.array);
+  const bg = new THREE.BufferGeometry();
+  bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  bg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  bg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  bg.computeBoundingSphere();
+  BUST.geo = bg; BUST.mat = skinMaterial();
+  // where the bottom of the neck sits in an ape's own frame
+  BUST.neckY = A_HC.y + (minY - M_HC.y) * MODEL_S;
+  for (let i = 0; i < 12; i++) {
+    const m = new THREE.Mesh(bg, BUST.mat); m.matrixAutoUpdate = false; scene.add(m); BUST.meshes.push(m);
+  }
+}
+const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 128, 0.52, 0.26, new THREE.Vector3(p.x - p.side * 0.305, SR.y + 0.62, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
+const shopTitle = panelAt(1024, 256, 3.2, 0.8, new THREE.Vector3(SR.x, SR.y + 3.6, SR.z - 5.9), 0);
+const shopHint = panelAt(1024, 160, 2.6, 0.4, new THREE.Vector3(SR.x, SR.y + 3.05, SR.z + 5.9), Math.PI);
+const inShop = () => human.pos.distanceTo(SR) < 9.5;
 function drawPedLabel(i) {
-  const it = COS[i], L = PED_LABELS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, on = SHOP.i === i;
+  const it = COS[i], L = PED_LABELS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, on = SHOP.i === i, T = tierOf(it);
   const sig = [owned, worn, on, wallet.coins >= it.price].join();
   if (sig === L.sig) return; L.sig = sig;
   const { ctx, c } = L; ctx.clearRect(0, 0, c.width, c.height);
-  ctx.fillStyle = on ? 'rgba(255,194,58,0.95)' : 'rgba(22,18,13,0.9)'; rr(ctx, 0, 0, c.width, c.height, 18); ctx.fill();
-  ctx.textAlign = 'center'; ctx.fillStyle = on ? '#2a1a05' : '#f3ead8'; ctx.font = `700 30px ${FB}`; ctx.fillText(it.name, 128, 40, 240);
+  ctx.fillStyle = on ? 'rgba(255,194,58,0.97)' : 'rgba(22,18,13,0.93)'; rr(ctx, 0, 0, c.width, c.height, 18); ctx.fill();
+  ctx.fillStyle = T.css; rr(ctx, 0, 0, c.width, 26, [18, 18, 0, 0]); ctx.fill();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#16120d'; ctx.font = `800 20px ${FB}`; ctx.fillText(T.n, 128, 20);
+  ctx.fillStyle = on ? '#2a1a05' : '#f3ead8'; ctx.font = `700 32px ${FB}`; ctx.fillText(it.name, 128, 66, 240);
   ctx.font = `700 30px ${FB}`; ctx.fillStyle = on ? '#2a1a05' : worn ? '#6dff96' : owned ? '#b9ad94' : wallet.coins >= it.price ? '#ffc23a' : '#ff7a5c';
-  ctx.fillText(worn ? 'WEARING' : owned ? 'OWNED' : `${it.price.toLocaleString()} coins`, 128, 80);
+  ctx.fillText(worn ? 'WEARING' : owned ? 'OWNED' : `${it.price.toLocaleString()} coins`, 128, 106);
   L.tex.needsUpdate = true;
 }
 function drawShopSigns() {
-  const sign = (P, lines) => { const { ctx, c } = P; ctx.clearRect(0, 0, c.width, c.height); ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill(); ctx.textAlign = 'center';
-    lines.forEach(([t, f, col, y]) => { ctx.font = f; ctx.fillStyle = col; ctx.fillText(t, c.width / 2, y, c.width - 40); }); P.tex.needsUpdate = true; };
-  sign(stallPanel, [['WRECK SHOP', `110px ${FD}`, '#ffc23a', 150], ['Stand on the glowing pad', `700 54px ${FB}`, '#f3ead8', 270], ['or press Y on your left controller', `700 46px ${FB}`, '#b9ad94', 350], ['(M on a computer)', `600 36px ${FB}`, '#b9ad94', 420]]);
-  sign(shopExitPanel, [['BACK TO THE YARD', `56px ${FD}`, '#6dff96', 70], ['Stand on the pad or press Y', `600 28px ${FB}`, '#f3ead8', 120]]);
+  let { ctx, c } = shopTitle; ctx.clearRect(0, 0, c.width, c.height); ctx.textAlign = 'center';
+  ctx.shadowColor = '#ff9a1f'; ctx.shadowBlur = 28; ctx.fillStyle = '#ffc23a'; ctx.font = `150px ${FD}`; ctx.fillText('WRECK SHOP', 512, 180, 980);
+  ctx.shadowBlur = 0; shopTitle.tex.needsUpdate = true;
+  ({ ctx, c } = shopHint); ctx.clearRect(0, 0, c.width, c.height); ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill(); ctx.textAlign = 'center';
+  ctx.fillStyle = '#6dff96'; ctx.font = `64px ${FD}`; ctx.fillText('CHECK YOURSELF OUT', 512, 76);
+  ctx.fillStyle = '#f3ead8'; ctx.font = `600 36px ${FB}`; ctx.fillText('Leave: press Y for your menu, then BACK TO THE YARD', 512, 134, 980);
+  shopHint.tex.needsUpdate = true;
 }
+const SHOP_RETURN = new THREE.Vector3(LB.x + 1.5, LB.y, LB.z + 6.5);
+const canShop = () => yardHere() && human.kind !== 'none' && !(human.out && !human.afkYard);
 function goShop() {
-  if (!yardHere() || human.kind === 'none' || (human.out && !human.afkYard) || inShop()) return;
-  placeHuman(SHOP_SPAWN, 0); sfx('go'); flash = 0.3; shopPadT = 0;
+  if (!canShop() || inShop()) return;
+  placeHuman(SHOP_SPAWN.clone().setX(SHOP_SPAWN.x + rand(-1.6, 1.6)), 0); sfx('go'); flash = 0.3;
 }
 function leaveShop() {
   if (!inShop()) return;
-  placeHuman(STALL_PAD.clone().setZ(STALL_PAD.z - 1.4), 0); sfx('go'); flash = 0.3; shopPadT = 0;
+  placeHuman(SHOP_RETURN, 0); sfx('go'); flash = 0.3;
 }
 function toggleShop() { if (inShop()) leaveShop(); else goShop(); }
-let shopPadT = 0, shopPadIn = false;
+// the mirror moves into the shop while you're there (one mirror camera is enough on a headset)
+let mirrorIn = '';
+function placeMirror(where) {
+  if (where === mirrorIn) return; mirrorIn = where;
+  if (where === 'shop') {
+    mirrorScreen.position.set(SR.x, SR.y + 1.6, SR.z + 5.89); mirrorScreen.rotation.y = Math.PI; mirrorScreen.scale.setScalar(0.76);
+    mirrorCam.position.set(SR.x, SR.y + 1.15, SR.z + 5.84); mirrorCam.lookAt(SR.x, SR.y + 0.8, SR.z - 3);
+  } else {
+    mirrorScreen.position.copy(MIRROR); mirrorScreen.rotation.y = 0; mirrorScreen.scale.setScalar(1);
+    mirrorCam.position.set(MIRROR.x, LB.y + 1.1, MIRROR.z + 0.05); mirrorCam.lookAt(MIRROR.x, LB.y + 0.75, LB.z + 2);
+  }
+  mirrorScreen.updateMatrix(); mirrorCam.updateMatrix();
+}
+const _pbm = new THREE.Matrix4(), _bh = new THREE.Matrix4();
 function shopRoomTick(dt, show) {
-  // the pads glow; stand on one for a moment to go through
-  const pulse = 0.75 + 0.25 * Math.sin(now * 4);
-  shopPads.setMatrixAt(0, M(STALL_PAD.x, STALL_PAD.y + 0.02, STALL_PAD.z)); shopPads.setColorAt(0, raw(1, 0.7 * pulse, 0.15));
-  shopPads.setMatrixAt(1, M(SHOP_EXIT.x, SHOP_EXIT.y + 0.02, SHOP_EXIT.z)); shopPads.setColorAt(1, raw(0.2, 0.9 * pulse, 0.35));
-  shopPads.instanceMatrix.needsUpdate = true; shopPads.instanceColor.needsUpdate = true;
-  const onPad = (P) => Math.hypot(human.pos.x - P.x, human.pos.z - P.z) < 0.6 && human.pos.y < P.y + 2.2 && human.pos.y > P.y - 0.5;
-  const here = show && (onPad(STALL_PAD) || onPad(SHOP_EXIT));
-  // (you have to step off the pad you arrived on before it works again)
-  if (!here) { shopPadT = 0; shopPadIn = false; } else if (shopPadIn !== 'used') { shopPadT += dt; if (shopPadT > 0.8) { shopPadIn = 'used'; toggleShop(); } }
-  // items on their pedestals, turning slowly; touch one to look at it
+  const here = inShop();
+  placeMirror(here ? 'shop' : 'yard');
+  if (RIG.ready && !BUST.geo) buildBusts();
+  const fur = human.fur || raw(0.6, 0.55, 0.5);
+  if (BUST.mat) BUST.mat.uniforms.fur.value.copy(fur);
+  pedHeadIM.count = BUST.geo ? 0 : 12;
+  // each item on a real ape head, turning slowly to show it off
   SHOP_PEDS.forEach((p, i) => {
-    _q.setFromAxisAngle(_yAxis, -p.side * Math.PI / 2 + Math.sin(now * 0.8 + i) * 0.6);
-    _mm.compose(_p.set(p.x, SR.y + 0.95 + 0.06 + 0.02 * Math.sin(now * 2 + i), p.z), _q, ONE);
-    pedHeadIM.setMatrixAt(i, _mm); pedHeadIM.setColorAt(i, human.fur || raw(0.6, 0.55, 0.5));
-    wearCos([i], _mm);
-    drawPedLabel(i);
+    const yaw = p.side * Math.PI / 2 + Math.sin(now * 0.7 + i * 1.3) * 0.75, on = SHOP.i === i;
+    _q.setFromAxisAngle(_yAxis, yaw);
+    const k = BUST_K * (on ? 1.06 : 1), lift = BUST.geo ? PED_TOP + 0.17 - BUST.neckY * k : PED_TOP + 0.05;
+    _t1.set(0, 0, -A_HC.z * k).applyQuaternion(_q);
+    _pbm.compose(_p.set(p.x + _t1.x, lift + 0.015 * Math.sin(now * 2 + i), p.z + _t1.z), _q, _s.set(k, k, k));
+    if (BUST.geo) { const m = BUST.meshes[i]; m.matrix.copy(_pbm).multiply(MODEL_FIT); m.visible = here; }
+    else { pedHeadIM.setMatrixAt(i, _pbm); pedHeadIM.setColorAt(i, fur); }
+    if (here) wearCos([i], _bh.multiplyMatrices(_pbm, BUST.geo ? HEADMAP : _mm.identity()));
+    // tier ring around the pedestal top (brighter on the one you picked)
+    const T = tierOf(COS[i]).c, g = on ? 1.4 + 0.3 * Math.sin(now * 5) : 0.8;
+    ringIM.setMatrixAt(i, M(p.x, PED_TOP + 0.03, p.z, 0, 0, 0, 1.15, 1, 1.15)); ringIM.setColorAt(i, raw(T[0] * g, T[1] * g, T[2] * g));
+    if (here) drawPedLabel(i);
   });
+  ringIM.setMatrixAt(12, M(SHOP_APE_AT.x, SHOP_APE_AT.y + 0.03, SHOP_APE_AT.z, 0, now * 0.5, 0, 2.5, 1, 2.5)); ringIM.setColorAt(12, raw(1.4, 1.0, 0.35));
+  ringIM.count = here ? 13 : 0;
+  ringIM.instanceMatrix.needsUpdate = true; ringIM.instanceColor.needsUpdate = true;
   pedHeadIM.instanceMatrix.needsUpdate = true; pedHeadIM.instanceColor.needsUpdate = true;
-  if (show && inShop()) for (const h of localHands()) {
-    if (human.kind !== 'vr') break;
+  // a spotlight on the item you're looking at
+  const sp = SHOP_PEDS[SHOP.i];
+  spotCone.visible = here; spotCone.position.set(sp.x, PED_TOP + 1.65, sp.z);
+  spotMat.opacity = 0.08 + 0.025 * Math.sin(now * 3);
+  for (const o of [bulbIM, shopDecorIM, shopTitle.mesh, shopHint.mesh, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
+  // touch a bust to put it on show at the counter
+  if (show && here && human.kind === 'vr') for (const h of localHands()) {
     SHOP_PEDS.forEach((p, i) => {
-      if (SHOP.i !== i && Math.hypot(h.pos.x - p.x, h.pos.z - p.z) < 0.35 && Math.abs(h.pos.y - (SR.y + 1.2)) < 0.45) { SHOP.i = i; SHOP.msg = ''; sfx('tap', h.pos, 3); pulseHand(h.k, 0.4, 30); }
+      if (SHOP.i !== i && Math.hypot(h.pos.x - p.x, h.pos.z - p.z) < 0.32 && Math.abs(h.pos.y - (PED_TOP + 0.3)) < 0.35) { SHOP.i = i; SHOP.msg = ''; sfx('tap', h.pos, 3); pulseHand(h.k, 0.4, 30); }
     });
   }
 }
@@ -4261,10 +4402,101 @@ function pcClickPed() {
   if (!inShop() || human.kind !== 'pc') return false;
   camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
   for (const [i, p] of SHOP_PEDS.entries()) {
-    _t3.set(p.x, SR.y + 1.2, p.z).sub(_t1); const t = _t3.dot(_t2);
-    if (t > 0 && t < 8 && _t3.addScaledVector(_t2, -t).length() < 0.32) { SHOP.i = i; SHOP.msg = ''; sfx('tap', null, 1); return true; }
+    _t3.set(p.x, PED_TOP + 0.3, p.z).sub(_t1); const t = _t3.dot(_t2);
+    if (t > 0 && t < 9 && _t3.addScaledVector(_t2, -t).length() < 0.32) { SHOP.i = i; SHOP.msg = ''; sfx('tap', null, 1); return true; }
   }
   return false;
+}
+// ----- the hand menu: press Y on the left controller (M on a computer) -----
+// A little screen pops up over your left hand; touch a button with your right hand (click it on a computer).
+const MENU = { open: false, panel: makePanel(512, 640, 0.2, 0.25), cd: 0, inside: -1, sig: '', pc: false, flash: -1, flashT: 0 };
+MENU.panel.mesh.matrixAutoUpdate = false; MENU.panel.mesh.visible = false; MENU.panel.mesh.renderOrder = 10; MENU.panel.mesh.userData.noCast = true;
+scene.add(MENU.panel.mesh);
+const MENU_ROWS = [130, 250, 370, 490];   // canvas y of each button's middle (buttons are 100 tall)
+function menuItems() {
+  const xr = human.kind === 'vr';
+  return [
+    inShop() ? { k: 'shop', t: 'BACK TO THE YARD', col: '#2f8f4a', on: true } : { k: 'shop', t: 'SHOP', sub: canShop() ? '' : 'IN THE YARD ONLY', col: '#c98a14', on: canShop() },
+    { k: 'mic', t: voice.want ? 'MIC: ON' : 'MIC: OFF', col: voice.want ? '#3f6fd0' : '#5a524a', on: true },
+    { k: 'room', t: net.code ? 'LEAVE ROOM' : 'LEAVE ROOM', sub: net.code ? `ROOM ${net.code} → QUICK PLAY` : 'YOU\'RE IN QUICK PLAY', col: '#8a3a32', on: !!net.code },
+    xr ? { k: 'exit', t: 'LEAVE GAME', sub: 'EXIT VR', col: '#5a2a26', on: true } : { k: 'close', t: 'CLOSE MENU', col: '#5a524a', on: true },
+  ];
+}
+function drawMenu() {
+  const items = menuItems(), sig = JSON.stringify(items) + MENU.flash + wallet.coins;
+  if (sig === MENU.sig) return; MENU.sig = sig;
+  const { ctx, c } = MENU.panel; ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = 'rgba(18,15,11,0.94)'; rr(ctx, 0, 0, c.width, c.height, 36); ctx.fill();
+  ctx.strokeStyle = '#ffc23a'; ctx.lineWidth = 6; rr(ctx, 3, 3, c.width - 6, c.height - 6, 34); ctx.stroke();
+  ctx.textAlign = 'left'; ctx.fillStyle = '#ffc23a'; ctx.font = `60px ${FD}`; ctx.fillText('MENU', 30, 64);
+  coinIcon(ctx, 352, 44, 16); ctx.textAlign = 'left'; ctx.fillStyle = '#f3ead8'; ctx.font = `700 34px ${FB}`; ctx.fillText(wallet.coins.toLocaleString(), 376, 56);
+  items.forEach((it, i) => {
+    const y = MENU_ROWS[i] - 50 + 40;
+    ctx.globalAlpha = it.on ? 1 : 0.4;
+    ctx.fillStyle = MENU.flash === i ? '#f3ead8' : it.col; rr(ctx, 30, y, 452, 100, 24); ctx.fill();
+    ctx.textAlign = 'center'; ctx.fillStyle = MENU.flash === i ? '#16120d' : '#fff8ea';
+    ctx.font = `800 ${it.sub ? 40 : 46}px ${FB}`; ctx.fillText(it.t, 256, y + (it.sub ? 48 : 64), 420);
+    if (it.sub) { ctx.font = `600 24px ${FB}`; ctx.fillText(it.sub, 256, y + 82, 420); }
+    ctx.globalAlpha = 1;
+  });
+  MENU.panel.tex.needsUpdate = true;
+}
+function menuPress(i) {
+  const it = menuItems()[i]; if (!it || MENU.cd > 0) return;
+  MENU.cd = 0.35; MENU.flash = i; MENU.flashT = 0.2;
+  if (!it.on) { sfx('beep', null, 0.6); return; }
+  sfx('tap', null, 1.2);
+  if (it.k === 'shop') { MENU.open = false; toggleShop(); }
+  else if (it.k === 'mic') setMic(!voice.want);
+  else if (it.k === 'room') { MENU.open = false; switchRoom(''); }
+  else if (it.k === 'exit') { MENU.open = false; try { renderer.xr.getSession()?.end(); } catch (e) { /* already out */ } }
+  else if (it.k === 'close') MENU.open = false;
+}
+function toggleMenu() {
+  MENU.open = !MENU.open; MENU.inside = -1; sfx(MENU.open ? 'pop' : 'tap', null, 0.6);
+  if (MENU.open && human.kind === 'pc') {
+    // on a computer the menu stands in front of you where you can aim at it
+    camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
+    const z = _t2.clone().negate(); z.y = 0; z.normalize();
+    const x = new THREE.Vector3().crossVectors(_yAxis, z);
+    _t1.addScaledVector(_t2.setY(0).normalize(), 0.9).setY(_t1.y - 0.05);
+    MENU.panel.mesh.matrix.makeBasis(x.multiplyScalar(2.6), _yAxis.clone().multiplyScalar(2.6), z.multiplyScalar(2.6)).setPosition(_t1);
+  }
+}
+const _mInv = new THREE.Matrix4(), _mx = new THREE.Vector3(), _my = new THREE.Vector3(), _mz = new THREE.Vector3();
+// canvas spot -> button
+function menuHit(u, v) { if (u < 30 / 512 || u > 482 / 512) return -1; return MENU_ROWS.findIndex((y) => Math.abs(v * 640 - (y + 40)) < 50); }
+function menuTick(dt) {
+  MENU.cd -= dt; if ((MENU.flashT -= dt) <= 0) MENU.flash = -1;
+  if (human.kind === 'none') MENU.open = false;
+  const mesh = MENU.panel.mesh; mesh.visible = MENU.open;
+  if (!MENU.open) return;
+  drawMenu();
+  if (human.kind !== 'vr') return;
+  // float above the left hand, turned toward your face
+  const L = human.hands[0], R = human.hands[1];
+  _t1.copy(L.pos).addScaledVector(_yAxis, 0.17);
+  _mz.subVectors(human.head, _t1); _mz.y *= 0.6; _mz.normalize();
+  _mx.crossVectors(_yAxis, _mz).normalize(); _my.crossVectors(_mz, _mx);
+  mesh.matrix.makeBasis(_mx, _my, _mz).setPosition(_t1);
+  // touch a button with your right hand
+  _mInv.copy(mesh.matrix).invert(); _t2.copy(R.pos).applyMatrix4(_mInv);
+  const u = _t2.x / 0.2 + 0.5, v = 0.5 - _t2.y / 0.25;
+  const hit = Math.abs(_t2.z) < 0.05 ? menuHit(u, v) : -1;
+  if (hit >= 0 && hit !== MENU.inside) { pulseHand(1, 0.5, 30); menuPress(hit); }
+  MENU.inside = hit;
+}
+// on a computer: click a menu button you're looking at
+function pcClickMenu() {
+  if (!MENU.open || human.kind !== 'pc') return false;
+  camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
+  const m = MENU.panel.mesh.matrix; _mz.setFromMatrixColumn(m, 2).normalize(); _t3.setFromMatrixPosition(m);
+  const den = _t2.dot(_mz); if (Math.abs(den) < 1e-4) return false;
+  const t = _t3.clone().sub(_t1).dot(_mz) / den; if (t <= 0) return false;
+  _t1.addScaledVector(_t2, t).applyMatrix4(_mInv.copy(m).invert());
+  const hit = menuHit(_t1.x / 0.2 + 0.5, 0.5 - _t1.y / 0.25);
+  if (hit >= 0) menuPress(hit);
+  return true;   // a click while the menu is open never punches
 }
 function shopPress(b) {
   b.flash = 0.25; sfx('tap', b.pos, 3);
@@ -4315,10 +4547,10 @@ function shopTick(dt, show) {
   _mm.compose(_p.copy(SHOP_APE_AT).setY(SHOP_APE_AT.y + 0.5), _q, ONE);
   shopApe.ape.setMatrixAt(0, _mm); shopApe.ape.setColorAt(0, human.fur || raw(0.5, 0.34, 0.22));
   SHOP_HANDS[0].set(-0.33, -0.32, -0.08).applyMatrix4(_mm); SHOP_HANDS[1].set(0.33, -0.32, -0.08).applyMatrix4(_mm);
-  const hm = skinPose('shop', _mm, SHOP_HANDS[0], SHOP_HANDS[1], human.fur || raw(0.5, 0.34, 0.22), 0, 0, 0) || _mm;
-  shopApe.ape.count = shopApe.band.count = RIG.ready ? 0 : 1;
+  const here = inShop(), hm = (here && skinPose('shop', _mm, SHOP_HANDS[0], SHOP_HANDS[1], human.fur || raw(0.5, 0.34, 0.22), 0, 0, 0)) || _mm;
+  shopApe.ape.count = shopApe.band.count = RIG.ready || !here ? 0 : 1;
   shopApe.band.setMatrixAt(0, hm); shopApe.band.setColorAt(0, human.band || raw(0.9, 0.18, 0.15));
-  wearCos([SHOP.i], hm);
+  if (here) wearCos([SHOP.i], hm);
   for (const im of Object.values(shopApe)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
   SHOP_BTNS.forEach((b, i) => {
     b.flash -= dt;
@@ -4608,7 +4840,7 @@ function yardTick(dt) {
   startBtnIM.setColorAt(0, human.afk ? raw(1 * pulse, 0.45 * pulse, 0.05) : raw(0.15, 0.85 * pulse, 0.25)); startBtnIM.instanceColor.needsUpdate = true;
   yard.btnCD -= dt;
   for (const k of KB) { if (k.flash > 0 && (k.flash -= dt) <= 0) kbDirty = true; k.cd -= dt; }
-  termTick(dt); fireTick(dt); shopTick(dt, show); shopRoomTick(dt, show);
+  termTick(dt); fireTick(dt); shopTick(dt, show); shopRoomTick(dt, show); menuTick(dt);
   if (show) {
     for (const h of localHands()) {
       const sp = h.vel.length();
@@ -4698,7 +4930,7 @@ function renderShadows() {
 // hands that line up with your arms are drawn instead.
 const MIRROR_HIDE = [myHandsIM, FS_MINE.f, FS_MINE.t, vignette];
 function renderMirror() {
-  if (!yardHere() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
+  if (!yardHere() || human.kind === 'none' || human.pos.distanceTo(mirrorScreen.position) > 16) return;
   if ((yard.mirrorN = (yard.mirrorN + 1) % 2) !== 0) return;
   const was = MIRROR_HIDE.map((o) => o.visible);
   for (const o of MIRROR_HIDE) o.visible = false;
@@ -4738,7 +4970,7 @@ function update(dt, frame) {
       if (firstVRFrame) { firstVRFrame = false; human.headL.copy(xrIn.head); for (let k = 0; k < 2; k++) human.hands[k].L.copy(xrIn.hands[k].pos); keepPlace(); }
       if (G.state === 'countdown' && !human.out) { /* free to look around, movement locked */ for (const h of human.hands) { h.L.copy(xrIn.hands[h.k].pos); h.q.copy(xrIn.hands[h.k].q); h.ok = xrIn.hands[h.k].ok; handTarget(h, h.pos); } human.headL.copy(xrIn.head); headWorld(human.head); human.pos.copy(human.head).setY(human.head.y - 0.1); }
       else vrStep(dt, xrIn);
-      if (xrIn.shopBtn && !xrIn.shopWas) toggleShop();
+      if (xrIn.shopBtn && !xrIn.shopWas) toggleMenu();
       xrIn.shopWas = xrIn.shopBtn;
     }
   } else if (human.kind === 'pc') pcStep(dt);
@@ -4812,7 +5044,7 @@ startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { SR, SHOP_PEDS, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { THREE, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
