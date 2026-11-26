@@ -2680,12 +2680,10 @@ function drawWrist() {
   coinIcon(ctx, 30, 136, 13); ctx.textAlign = 'left'; ctx.fillStyle = '#ffc23a'; ctx.font = `36px ${FD}`; ctx.fillText(wallet.coins.toLocaleString(), 52, 150);
   ctx.fillStyle = '#f3ead8'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left';
   const stuck = H.ko > 0;
-  const slip = H.gripLocked ? 1 : H.gripT >= GRIP.warn && H.hands.some((h) => h.anchored && h.grip) ? 2 : 0;
-  ctx.fillText(slip === 1 ? 'NO GRIP' : slip === 2 ? 'SLIPPING!' : H.afk && yardHere() ? 'AFK' : inLobby() ? (G.state === 'starting' ? `GO IN ${Math.max(1, Math.ceil(G.countdown))}` : 'YARD') : H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
+  ctx.fillText(H.afk && yardHere() ? 'AFK' : inLobby() ? (G.state === 'starting' ? `GO IN ${Math.max(1, Math.ceil(G.countdown))}` : 'YARD') : H.out ? 'OUT' : stuck ? 'SHAKE!' : H.heldBy ? 'SLAP!' : fmtTime(G.timeLeft), 16, 50);
   ctx.textAlign = 'right'; ctx.fillStyle = '#ffc23a'; ctx.fillText(inLobby() ? `${alive().length} here` : `${alive().length} left`, 240, 50);
   ctx.fillStyle = 'rgba(255,255,255,0.15)'; rr(ctx, 16, 80, 224, 22, 11); ctx.fill();
-  const bar = stuck ? H.struggle : slip ? 1 - Math.min(1, H.gripT / GRIP.max) : H.dizzy / 100;
-  ctx.fillStyle = stuck ? '#ffc23a' : slip ? '#3fc0ff' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, bar)), 22, 11); ctx.fill();
+  ctx.fillStyle = stuck ? '#ffc23a' : '#ff6a3d'; rr(ctx, 16, 80, Math.max(1, 224 * Math.min(1, stuck ? H.struggle : H.dizzy / 100)), 22, 11); ctx.fill();
   wrist.tex.needsUpdate = true;
 }
 function netLabel() {
