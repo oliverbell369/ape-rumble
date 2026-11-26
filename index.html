@@ -92,6 +92,7 @@ function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; 
 const GRAV = 9.8;
 const ROUND_TIME = 120;
 const FALL_Y = -8;
+const WATER_Y = -28.6;   // the river at the bottom of the ravine
 const SKY_TOP = 0x5d93c4, FOG_HEX = 0xa9c3c4, FOG_NEAR = 26, FOG_FAR = 150;
 const LOCO = {
   handR: 0.06, armMax: 1.35, unstick: 0.7, releaseEps: 0.003, histWindow: 0.1,
@@ -667,7 +668,7 @@ function buildScenery() {
         const x = side * (42 + r() * 8 + (y > 10 ? 6 : 0));
         rock(x, y + r() * 4, z + r() * 5, s * (0.8 + r() * 0.5), s * (0.7 + r() * 0.5), s * (0.8 + r() * 0.5), 0.78 + r() * 0.25);
       }
-      if (r() < 0.35) cluster(side * (27 + r() * 3), -20 + r() * 30, z + r() * 6, 2 + r() * 2);
+      if (r() < 0.35) { const k = CRYSTAL_SPOTS.length; cluster(side * (27 + r() * 3), -20 + r() * 30, z + r() * 6, 2 + r() * 2); CRYSTAL_SPOTS[k][4] = side; }
     }
     // rim forest
     for (let i = 0; i < 45; i++) { const px = side * (46 + r() * 30), pz = -110 + r() * 220, ps = 1.4 + r() * 1.2; if (side < 0 && px < -74 && Math.abs(pz - LB.z) < 22) continue; pine(px, 26, pz, ps); }
@@ -723,7 +724,9 @@ function buildScenery() {
   const mesh = new THREE.Mesh(g, mat);
   mesh.frustumCulled = false;
   scene.add(mesh);
+  SCENERY.mesh = mesh;
 }
+const SCENERY = { mesh: null };
 buildScenery();
 // ----- the Yard's look: log cabin, picket fence, big tree, campfire, bushes, path, string lights -----
 // Everything here is scenery (no collision); the solid parts are boxes in buildLevel().
@@ -1235,7 +1238,7 @@ function mkSkin(layer) {
   root.add(new THREE.Mesh(headCapGeo()));
   root.traverse((o) => {
     if (o.isBone) { s.bones[o.name] = o; s.W[o.name] = new THREE.Matrix4(); }
-    if (o.isMesh) { o.material = s.mat; o.frustumCulled = false; if (layer) o.layers.set(layer); }
+    if (o.isMesh) { o.material = s.mat; o.frustumCulled = false; if (layer) { o.layers.set(layer); SELF_OBJS.push(o); } }
   });
   scene.add(root);
   return s;
@@ -1515,15 +1518,16 @@ mirrorScreen.position.copy(MIRROR); scene.add(mirrorScreen);
 const mirrorCam = new THREE.PerspectiveCamera(64, 4 / 3, 0.1, 60);
 mirrorCam.position.set(MIRROR.x, LB.y + 1.1, MIRROR.z + 0.05); mirrorCam.lookAt(MIRROR.x, LB.y + 0.75, LB.z + 2);
 const SELF_LAYER = 5;
+const SELF_OBJS = [];   // things only mirrors see (your own ape)
 mirrorCam.layers.enable(SELF_LAYER);
 const selfIM = { ape: null, mouth: null, band: null, hands: null };
 // your own ape, only drawn for the mirror camera
 selfIM.ape = inst(apeFaceGeo, 1); selfIM.mouth = inst(mouthGeo, 1); selfIM.band = inst(bandGeo, 1); selfIM.hands = inst(handGeo, 2);
 const SELFL = mkLimbs(1);
 const selfCos = [inst(COS[0].geo, 1), inst(COS[8].geo, 1)];
-for (const im of selfCos) { im.layers.set(SELF_LAYER); im.count = 0; }
-for (const im of Object.values(SELFL)) im.layers.set(SELF_LAYER);
-for (const im of Object.values(selfIM)) im.layers.set(SELF_LAYER);
+for (const im of selfCos) { im.layers.set(SELF_LAYER); im.count = 0; SELF_OBJS.push(im); }
+for (const im of Object.values(SELFL)) { im.layers.set(SELF_LAYER); SELF_OBJS.push(im); }
+for (const im of Object.values(selfIM)) { im.layers.set(SELF_LAYER); SELF_OBJS.push(im); }
 const yardLabels = () => {
   const draw = (p, lines, bg = 'rgba(22,18,13,0.9)') => {
     const { ctx, c } = p; ctx.clearRect(0, 0, c.width, c.height);
@@ -1590,6 +1594,7 @@ function sfx(type, at, vol = 1) {
     case 'boing': env(0.3, 0.5); tone(180, 620, 0.12, 'triangle'); tone(620, 240, 0.3, 'triangle', 0.12); break;
     case 'slip': env(0.3, 0.5); noise(0.45, 1500, 0.5); tone(500, 150, 0.4, 'sine'); break;
     case 'coin': env(0.16, 0.3); tone(988, 988, 0.07, 'square'); tone(1319, 1319, 0.18, 'square', 0.07); break;
+    case 'splash': env(0.5, 0.9); noise(0.85, 700, 0.5, 'lowpass'); noise(0.4, 2200, 0.7); tone(180, 60, 0.3, 'triangle'); break;
     case 'win': env(0.25, 0.9); [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.18, 'triangle', i * 0.13)); break;
   }
 }
@@ -1787,8 +1792,9 @@ function eliminate(a) {
   if (net.on) netSendAll(EV.FEED, { m: `${a === human ? net.nick : a.name} fell!` });
   sfx('fall', a === human ? null : a.pos, 0.7);
   if (a === human) {
-    for (const h of human.hands) dropHeld(h);
-    placeHuman(OUT_LEDGE, Math.PI);
+    // keep falling (everyone sees you drop into the river); no grabbing on the way down
+    for (const h of human.hands) { dropHeld(h); h.anchored = false; }
+    human.noGrab = 99; human.fallT = now;
   } else { if (a.holding) release(a.holding, null); a.holding = null; }
 }
 function updateGame(dt) {
@@ -1829,7 +1835,7 @@ function updateGame(dt) {
     if (inLobby()) { if ((a === human ? human.head.y : a.pos.y) < LB.y - 6) resetActor(a, a === human ? mySlot : a.i, LOBBY_SPAWNS); }
     else if (a === human && human.afkYard) { if (human.head.y < LB.y - 6) placeHuman(LOBBY_SPAWNS[0], 0); }
     else if (!a.out && (a === human ? human.head.y : a.pos.y) < FALL_Y) eliminate(a);
-    else if (a === human && a.out && human.head.y < FALL_Y) placeHuman(OUT_LEDGE, Math.PI);
+    else if (a === human && a.out && (human.head.y < WATER_Y || (human.fallT && now - human.fallT > 6))) { human.fallT = 0; human.noGrab = 0; placeHuman(OUT_LEDGE, Math.PI); }
     if (a.ko > 0) { a.ko -= dt; if (a.ko <= 0) { a.dizzy = 0; } }
     else if (now - a.lastHit > 2.5) a.dizzy = Math.max(0, a.dizzy - 6 * dt);
     if (a.thrownT > 0) a.thrownT -= dt;
@@ -2301,7 +2307,17 @@ function botThink(b) {
 }
 const _xAxis = new THREE.Vector3(1, 0, 0), _yAxis = new THREE.Vector3(0, 1, 0);
 function updateBot(b, dt) {
-  if (!b.active || b.out) return;
+  if (!b.active) return;
+  if (b.out) {
+    // a fallen bot keeps falling until it hits the river, then it's gone
+    if (!b.dead && b.pos.y > WATER_Y - 1 && b.pos.y > -50) {
+      b.vel.y -= GRAV * dt; b.pos.addScaledVector(b.vel, dt);
+      for (const h of b.hands) { h.prev.copy(h.pos); h.pos.addScaledVector(b.vel, dt); h.pos.y += dt * 0.6; }
+      b.tiltV.x += dt * 30;
+      if (b.pos.y <= WATER_Y - 1) { b.pos.set(0, -60, 0); b.vel.set(0, 0, 0); }
+    }
+    return;
+  }
   b.think -= dt; b.hopCD -= dt; b.slapCD -= dt; b.blocked -= dt;
   const live = G.state === 'fight';
   for (const h of b.hands) h.prev.copy(h.pos);
@@ -2448,7 +2464,10 @@ function updateVisuals(dt) {
   for (const a of actors) {
     if (!a.active) continue;
     // wrecked apes are drawn as their body item instead (and fallen ones are far below)
-    if (a !== human && (a.dead || (a.out && a.pos.y < -20))) continue;
+    // a splash when an ape hits the river
+    if ((a.wasY ?? 0) > WATER_Y && a.pos.y <= WATER_Y && a.pos.y > WATER_Y - 3 && !inLobby()) spawnFx('splash', [a.pos.x, WATER_Y - 0.3, a.pos.z], null, null, false);
+    a.wasY = a.pos.y;
+    if (a !== human && (a.dead || (a.out && a.pos.y < WATER_Y - 0.4))) continue;
     const isMe = a === human && human.kind !== 'none';
     if (!isMe) {
       // body: yaw, then wobble tilt; knocked-out apes flop onto their backs
@@ -2513,8 +2532,17 @@ function updateVisuals(dt) {
   if (wrist.mesh.visible) { wrist.mesh.position.copy(human.hands[0].pos).y += 0.1; wrist.mesh.lookAt(human.head); }
   camera.getWorldPosition(_p);
   sky.position.copy(_p);
-  board.mesh.position.copy(yardHere() ? LOBBY_BOARD : MATCH_BOARD);
-  if (yardHere()) board.mesh.rotation.set(0, 0, 0); else board.mesh.lookAt(_p.x, board.mesh.position.y, _p.z);
+  const endUI = !yardHere() && (G.state === 'end' || G.state === 'matchEnd') && human.kind !== 'none';
+  board.mesh.visible = yardHere() || endUI;
+  board.mesh.renderOrder = endUI ? 30 : 0;
+  if (yardHere()) { board.mesh.position.copy(LOBBY_BOARD); board.mesh.rotation.set(0, 0, 0); board.mesh.scale.setScalar(1); board.ui = false; }
+  else if (endUI) {
+    // floats in front of you, gently following where you look
+    camera.getWorldDirection(_t1); _t1.y = 0; if (_t1.lengthSq() < 1e-4) _t1.set(0, 0, -1); _t1.normalize();
+    _t2.copy(_p).addScaledVector(_t1, 2.0); _t2.y = _p.y - 0.15;
+    if (!board.ui) board.mesh.position.copy(_t2); else board.mesh.position.lerp(_t2, 1 - Math.exp(-4 * dt));
+    board.ui = true; board.mesh.scale.setScalar(0.36); board.mesh.lookAt(_p);
+  } else board.ui = false;
   flash = Math.max(0, flash - dt);
   const vo = human.ko > 0 ? 0.55 : flash * 1.6;
   vignette.visible = human.kind !== 'none' && vo > 0.01;
@@ -2541,28 +2569,28 @@ function drawBoard() {
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.fillStyle = 'rgba(22,18,13,0.88)'; rr(ctx, 0, 0, c.width, c.height, 44); ctx.fill();
   ctx.fillStyle = '#ffc23a'; ctx.font = `76px ${FD}`; ctx.textAlign = 'left';
-  const lob = yardHere();
-  ctx.fillText(lob ? 'THE YARD' : G.demo ? `ROUND ${G.round}` : `ROUND ${G.matchRound} OF ${MATCH_ROUNDS}`, 48, 100);
+  const lob = yardHere(), over = !lob && (G.state === 'end' || G.state === 'matchEnd');
+  ctx.fillText(lob ? 'THE YARD' : over ? banner() : G.demo ? `ROUND ${G.round}` : `ROUND ${G.matchRound} OF ${MATCH_ROUNDS}`, 48, 100, over ? 700 : 900);
   ctx.textAlign = 'right'; ctx.fillStyle = '#f3ead8';
-  ctx.fillText(lob ? (G.state === 'starting' ? String(Math.max(1, Math.ceil(G.countdown))) : '') : G.state === 'countdown' ? banner() : G.state === 'end' || G.state === 'matchEnd' ? 'NEXT…' : fmtTime(G.timeLeft), 976, 100);
+  if (over) ctx.font = `48px ${FD}`;
+  ctx.fillText(lob ? (G.state === 'starting' ? String(Math.max(1, Math.ceil(G.countdown))) : '') : G.state === 'countdown' ? banner() : over ? (G.state === 'matchEnd' ? 'TO THE YARD…' : `ROUND ${G.matchRound} OF ${MATCH_ROUNDS}`) : fmtTime(G.timeLeft), 976, 100);
   ctx.textAlign = 'left'; ctx.fillStyle = '#b9ad94'; ctx.font = `600 30px ${FB}`;
-  ctx.fillText(netLabel(), 48, 142);
-  actors.filter((a) => a.active).forEach((a, i) => {
+  ctx.fillText(over ? 'SCOREBOARD · first to 2 round wins takes the match' : netLabel(), 48, 142);
+  const rows = actors.filter((a) => a.active);
+  if (over) rows.sort((a, b) => b.wins - a.wins);
+  rows.forEach((a, i) => {
     const x = 48 + (i % 2) * 470, y = 170 + Math.floor(i / 2) * 92;
-    ctx.globalAlpha = a.out ? 0.35 : 1;
+    ctx.globalAlpha = a.out && !over ? 0.35 : 1;
     ctx.fillStyle = a.css; rr(ctx, x, y, 56, 56, 14); ctx.fill();
     ctx.fillStyle = '#f3ead8'; ctx.font = `52px ${FD}`; ctx.fillText(a.name, x + 76, y + 46);
     ctx.font = `600 34px ${FB}`; ctx.fillStyle = '#b9ad94'; ctx.textAlign = 'right';
-    ctx.fillText(lob ? (a === human ? 'you' : 'here') : a.dead ? 'wrecked' : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
+    ctx.fillText(lob ? (a === human ? 'you' : 'here') : over ? `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}` : a.dead ? 'wrecked' : a.out ? 'out' : a.ko > 0 ? 'dizzy' : `${a.wins} ${a.wins === 1 ? 'win' : 'wins'}`, x + 430, y + 44);
+    if (over && a === G.winner) { ctx.fillStyle = '#ffc23a'; ctx.font = `40px ${FD}`; ctx.textAlign = 'left'; ctx.fillText('★', x + 8, y + 42); }
     ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   });
   if (lob && G.state === 'starting') {
     ctx.fillStyle = '#b9ad94'; ctx.font = `600 28px ${FB}`; ctx.textAlign = 'center';
     ctx.fillText(`Next match in ${Math.max(1, Math.ceil(G.countdown))} · slap the AFK button to sit out`, 512, 488);
-  }
-  if (G.state === 'end' || G.state === 'matchEnd') {
-    ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 60, 190, 904, 160, 30); ctx.fill();
-    ctx.fillStyle = '#ffc23a'; ctx.font = `86px ${FD}`; ctx.textAlign = 'center'; ctx.fillText(banner(), 512, 300);
   }
   board.tex.needsUpdate = true;
 }
@@ -2599,7 +2627,7 @@ function drawHtmlHud() {
 // ================= camera =================
 function updateCamera() {
   if (renderer.xr.isPresenting) { rig.position.copy(human.P); rig.rotation.set(0, human.yaw, 0); return; }
-  if (human.kind === 'pc') {
+  if (human.kind === 'pc' || human.kind === 'vr') {
     rig.position.copy(human.P); rig.rotation.set(0, human.yaw, 0);
     camera.position.copy(human.headL); camera.rotation.set(human.pitch, 0, 0, 'YXZ');
     return;
@@ -3233,12 +3261,25 @@ async function loadCrystals(GLTFLoader) {
     const mat = crystalMat(mesh.material.map); CRYSTAL_MATS.push(mat);
     meshes.push({ geo, mat, list: [] });
   }
-  const rnd = mulberry32(31);
-  CRYSTAL_SPOTS.forEach(([x, y, z, sz], i) => meshes[i % meshes.length].list.push([x, y, z, sz, rnd() * 6.28, 0.9 + rnd() * 0.3]));
+  const rnd = mulberry32(31), ray = new THREE.Raycaster(), up = new THREE.Vector3(0, 1, 0);
+  CRYSTAL_SPOTS.forEach(([x, y, z, sz, side], i) => meshes[i % meshes.length].list.push([x, y, z, sz, rnd() * 6.28, 0.9 + rnd() * 0.3, side]));
   for (const { geo, mat, list } of meshes) {
-    const bb = geo.boundingBox, hgt = bb.max.y - bb.min.y;
-    const im = new THREE.InstancedMesh(geo, mat, list.length); im.frustumCulled = false;
-    list.forEach(([x, y, z, sz, ry, k], j) => { const sc = (sz * 1.45 * k) / hgt; im.setMatrixAt(j, M(x, y - bb.min.y * sc - 0.05 * sz, z, 0, ry, 0, sc, sc, sc)); });
+    const bb = geo.boundingBox, hgt = bb.max.y - bb.min.y, mats = [];
+    for (const [x, y, z, sz, ry, k, side] of list) {
+      const sc = (sz * 1.45 * k) / hgt;
+      if (!side) { mats.push(M(x, y - bb.min.y * sc - 0.05 * sz, z, 0, ry, 0, sc, sc, sc)); continue; }
+      // on the canyon walls: find the cliff face and grow the crystals out of it, tilted up
+      ray.set(new THREE.Vector3(side * 8, y, z), new THREE.Vector3(side, 0, 0)); ray.far = 60;
+      const hit = SCENERY.mesh && ray.intersectObject(SCENERY.mesh, false)[0];
+      if (!hit || !hit.face) continue;
+      const n = hit.face.normal.clone().normalize(); if (n.x * side > 0) n.negate();
+      const dir = n.multiplyScalar(0.75).add(up.clone().multiplyScalar(0.65)).normalize();
+      const q = new THREE.Quaternion().setFromUnitVectors(up, dir).multiply(new THREE.Quaternion().setFromAxisAngle(up, ry));
+      const at = hit.point.clone().addScaledVector(dir, -bb.min.y * sc - 0.12 * sz);
+      mats.push(new THREE.Matrix4().compose(at, q, new THREE.Vector3(sc, sc, sc)));
+    }
+    const im = new THREE.InstancedMesh(geo, mat, Math.max(1, mats.length)); im.frustumCulled = false;
+    mats.forEach((m, j) => im.setMatrixAt(j, m)); im.count = mats.length;
     scene.add(im);
   }
 }
@@ -3631,6 +3672,11 @@ function spawnFx(kind, p, d, c, broadcast) {
   _p.set(p[0], p[1], p[2]);
   const dir = d ? _w.set(d[0], d[1], d[2]) : _w.set(0, 1, 0);
   if (kind === 'glove') { if (gloves.length < 8) gloves.push({ p: _p.clone(), d: dir.clone().normalize(), t: 0 }); return; }
+  if (kind === 'splash') {
+    sfx('splash', _p, 1.6);
+    for (let i = 0; i < 26 && parts.length < 200; i++) parts.push({ p: _p.clone().add(new THREE.Vector3(rand(-0.4, 0.4), 0, rand(-0.4, 0.4))), v: new THREE.Vector3(rand(-1.6, 1.6), rand(3, 7), rand(-1.6, 1.6)), col: new THREE.Color(i % 3 ? 0xe6f7ff : 0x9fd8e8), life: rand(0.7, 1.2), size: rand(0.06, 0.12), g: GRAV * 0.9, drag: 0.6 });
+    return;
+  }
   if (kind === 'blood' && bloodOn) {
     // a gush: a jet along the hit direction, a spray of smaller drops and a few big globs
     const dn = _v.copy(dir).normalize();
@@ -4263,7 +4309,25 @@ function renderShadows() {
   renderer.setRenderTarget(prevTarget);
   for (const o of hiddenForShadow) o.visible = true;
 }
+// the mirror: a true reflection (three.js Reflector), so your reflected arms and hands match where yours are.
+// Your own ape lives on a layer only mirrors see; it's switched on just while the reflection is drawn.
+let reflector = null;
+async function makeMirror() {
+  try {
+    const { Reflector } = await import('three/addons/objects/Reflector.js');
+    reflector = new Reflector(new THREE.PlaneGeometry(3.4, 2.55), { textureWidth: 512, textureHeight: 384, clipBias: 0.003, multisample: 0 });
+    reflector.position.copy(MIRROR); reflector.userData.noCast = true;
+    const draw = reflector.onBeforeRender;
+    reflector.onBeforeRender = function (r, sc, cam) {
+      if (!yardHere() || cam.getWorldPosition(_t3).distanceTo(MIRROR) > 18) return;
+      for (const o of SELF_OBJS) o.layers.set(0);
+      try { draw.call(this, r, sc, cam); } finally { for (const o of SELF_OBJS) o.layers.set(SELF_LAYER); }
+    };
+    scene.add(reflector); mirrorScreen.visible = false;
+  } catch (e) { console.warn('mirror: using the camera mirror', e); }
+}
 function renderMirror() {
+  if (reflector) return;
   if (!yardHere() || human.kind === 'none' || human.pos.distanceTo(MIRROR) > 16) return;
   if ((yard.mirrorN = (yard.mirrorN + 1) % 3) !== 0) return;
   const xr = renderer.xr.enabled, prevTarget = renderer.getRenderTarget();
@@ -4357,8 +4421,9 @@ human.kind = 'pc'; human.active = true;
 startPlay();
 loadApeModel();
 loadProps();
+makeMirror();
 
-window.AR = { beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
