@@ -3481,6 +3481,7 @@ async function loadCrystals(GLTFLoader) {
     scene.add(im);
   }
 }
+const PROPS = { launcher: false };
 async function loadProps() {
   // crate: a box wearing pictures of the creator's crate (side faces left half, top/bottom right half)
   try {
@@ -3493,6 +3494,16 @@ async function loadProps() {
   let GLTFLoader;
   try { ({ GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')); } catch (e) { return; }
   try { await loadCrystals(GLTFLoader); } catch (e) { console.warn('crystal models failed', e); }
+  // the launcher and its glove (the glove is the one that flies out on the spring)
+  try {
+    const [lg, gg] = await Promise.all([new GLTFLoader().loadAsync('models/launcher.glb?v=1'), new GLTFLoader().loadAsync('models/glove.glb?v=1')]);
+    const first = (g) => { let m = null; g.scene.updateMatrixWorld(true); g.scene.traverse((o) => { if (o.isMesh && !m) m = o; }); return m; };
+    const lm = first(lg), gm = first(gg);
+    swapToolMesh('launcher', lm.geometry.clone().applyMatrix4(lm.matrixWorld), propMat(lm.material.map));
+    gloveIM.geometry = gm.geometry.clone().applyMatrix4(gm.matrixWorld); gloveIM.material = propMat(gm.material.map);
+    Object.assign(TOOLS.launcher, { tip: GLOVE_REST.z * -1, tipY: GLOVE_REST.y });
+    PROPS.launcher = true;
+  } catch (e) { console.warn('launcher model failed', e); }
   for (const t of ['mallet', 'pan', 'plunger', 'chicken']) {
     try {
       const gl = await new GLTFLoader().loadAsync(`models/${t}.glb?v=3`);
@@ -3515,8 +3526,12 @@ const _bq = new THREE.Quaternion(), _bu = new THREE.Vector3();
 const beamIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.3, 6, 10, 1, true).translate(0, 3, 0),
   new THREE.MeshBasicMaterial({ color: 0xffc23a, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }), 8);
 beamIM.frustumCulled = false; beamIM.count = 0; scene.add(beamIM);
-const gloveIM = inst(mergeParts([{ geo: ico(0.11, 1), c: [0.9, 0.12, 0.1] }, { geo: cyl(0.06, 0.07, 0.08, 8), c: [0.95, 0.95, 0.95], m: M(0, 0, 0.1, Math.PI / 2, 0, 0) }]), 8);
-const springIM = inst(mergeParts([{ geo: cyl(0.02, 0.02, 1, 5).translate(0, 0.5, 0), c: [0.7, 0.7, 0.75] }]), 8);
+const gloveIM = inst(mergeParts([{ geo: ico(0.11, 1), c: [0.9, 0.12, 0.1] }, { geo: cyl(0.06, 0.07, 0.08, 8), c: [0.95, 0.95, 0.95], m: M(0, 0, 0.1, Math.PI / 2, 0, 0) }]), 24);
+// a coil spring one unit long along +y: stretching it to the glove spreads the coils out like a real spring
+class Helix extends THREE.Curve { getPoint(t, out = new THREE.Vector3()) { const a = t * Math.PI * 2 * 9; return out.set(Math.cos(a) * 0.032, t, Math.sin(a) * 0.032); } }
+const springIM = inst(mergeParts([{ geo: new THREE.TubeGeometry(new Helix(), 140, 0.0065, 5, false), c: [0.72, 0.72, 0.78] }]), 8);
+// the creator's launcher keeps its glove loaded in the barrel; this is where it sits (in the held launcher's frame)
+const GLOVE_REST = new THREE.Vector3(0, 0.167, -0.48), _gl = new THREE.Vector3(), _glq = new THREE.Quaternion(), loadedGloves = [];
 gloveIM.count = springIM.count = 0;
 // particles: chunky cubes for dust, feathers and splinters; blood is liquid (below)
 const DMAX = 420, SMAX = 220;
@@ -3655,7 +3670,7 @@ function updateTips(dt) {
       handQuat(a, k, h.hq);
       const T = h.tool && TOOLS[toolType(h.tool)];
       h.tipPrev.copy(h.tip);
-      h.tip.set(0, 0, -(T ? T.tip : 0.1)).applyQuaternion(h.hq).add(h.pos);
+      h.tip.set(0, T && T.tipY ? T.tipY : 0, -(T ? T.tip : 0.1)).applyQuaternion(h.hq).add(h.pos);
       h.tipVel.subVectors(h.tip, h.tipPrev).multiplyScalar(1 / Math.max(dt, 1e-3));
       const body = h.tool && itemById(h.tool);
       if (body && body.type === 'corpse') {
@@ -3989,7 +4004,9 @@ function drawBody(it, n) {
   drawLimbs(DEADL, n, R.c, _bq, it.yw || 0, ONE, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15);
   for (let k = 0; k < 2; k++) deadIM.hands.setMatrixAt(n * 2 + k, _mm.compose(DEAD_HANDS[k], _bq, ONE));
 }
+function loadGlove(p, q) { if (loadedGloves.length < 16) loadedGloves.push({ p: _gl.copy(GLOVE_REST).applyQuaternion(q).add(p).clone(), q: q.clone() }); }
 function renderItems() {
+  loadedGloves.length = 0;
   const counts = {};
   for (const t of [...CRATE_TOOLS, 'crate']) counts[t] = 0;
   let dn = 0;
@@ -4000,11 +4017,13 @@ function renderItems() {
       const a = it.s === mySlot ? human : allBots[it.s];
       if (!a || !a.active || !a.hands[it.h]) continue;
       im.setMatrixAt(counts[it.type]++, _mm.compose(a.hands[it.h].pos, a.hands[it.h].hq, _s.set(1, 1, 1)));
+      if (it.type === 'launcher' && PROPS.launcher) loadGlove(a.hands[it.h].pos, a.hands[it.h].hq);
     } else {
       const grounded = it.v.lengthSq() < 0.5;
       _q.setFromEuler(_e.set(it.type === 'crate' ? 0 : Math.PI / 2, it.spin, 0, 'YXZ'));
       _p.copy(it.p); if (grounded && it.type !== 'crate') _p.y += 0.12 + Math.sin(it.spin * 2) * 0.03;
       im.setMatrixAt(counts[it.type]++, _mm.compose(_p, _q, _s.set(1, 1, 1)));
+      if (it.type === 'launcher' && PROPS.launcher) loadGlove(_p, _q);
     }
   }
   for (const t of [...CRATE_TOOLS, 'crate']) { toolIM[t].count = counts[t]; toolIM[t].instanceMatrix.needsUpdate = true; }
@@ -4017,9 +4036,17 @@ function renderItems() {
     const e = Math.sin(Math.min(1, g.t / 0.4) * Math.PI) * 1.7;
     _p.copy(g.p).addScaledVector(g.d, e);
     gloveIM.setMatrixAt(i, _mm.compose(_p, _q.setFromUnitVectors(_sn, _w.copy(g.d).negate()), _s.set(1, 1, 1)));
-    setSeg(springIM, i, g.p, _p);
+    // the spring runs from the barrel to the back of the glove
+    setSeg(springIM, i, _t2.copy(g.p).addScaledVector(g.d, -0.1), _t3.copy(_p).addScaledVector(g.d, -0.09));
   });
-  gloveIM.count = springIM.count = gloves.length; gloveIM.instanceMatrix.needsUpdate = true; springIM.instanceMatrix.needsUpdate = true;
+  // gloves sitting loaded in launchers (hidden while that launcher's glove is out)
+  let gn = gloves.length;
+  for (const L of loadedGloves) {
+    if (gn >= 24) break;
+    if (gloves.some((g) => g.t < 0.4 && g.p.distanceToSquared(L.p) < 0.2 * 0.2)) continue;
+    gloveIM.setMatrixAt(gn++, _mm.compose(L.p, L.q, ONE));
+  }
+  gloveIM.count = gn; springIM.count = gloves.length; gloveIM.instanceMatrix.needsUpdate = true; springIM.instanceMatrix.needsUpdate = true;
   parts.forEach((q, i) => {
     const sz = q.size * Math.min(1, q.life * 3 + 0.2);
     partIM.setMatrixAt(i, _mm.compose(q.p, _q.identity(), _s.set(sz, sz, sz))); partIM.setColorAt(i, q.col);
@@ -4640,7 +4667,7 @@ startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
