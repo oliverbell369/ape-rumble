@@ -328,7 +328,8 @@ const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
 const SR = new THREE.Vector3(LB.x - 220, LB.y, LB.z);
 // one pedestal per shop item: six down each side wall
 const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 5.2, z: SR.z - 3 + j * 1.2, side }; });
-const SHOP_SPAWN = new THREE.Vector3(SR.x, SR.y, SR.z + 3.4);
+// you arrive on the little street outside the shop, facing its front
+const SHOP_SPAWN = new THREE.Vector3(SR.x, SR.y, SR.z + 8.3);
 const BAG_PIVOT = new THREE.Vector3(LB.x + 7, LB.y + 3.0, LB.z - 6);
 const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
 // the sawmill's moving parts: saw blade (a hazard) and the water wheel behind the saw house
@@ -436,11 +437,30 @@ function buildLevel() {
     const X = SR.x, Y = SR.y, Z = SR.z;
     const LIT = [1.45, 1.32, 1.2];   // the room is lit warm and bright inside
     blk(X, Y - 0.3, Z, 12.4, 0.3, 12.4, { mat: 'planks', col: [1.2, 1.1, 1.0] });
-    for (const sd of [-1, 1]) { blk(X, Y, Z + sd * 6.1, 12.4, 4.5, 0.2, { mat: 'darkwood', col: LIT }); blk(X + sd * 6.1, Y, Z, 0.2, 4.5, 12.4, { mat: 'darkwood', col: LIT }); }
+    blk(X, Y, Z - 6.1, 12.4, 4.5, 0.2, { mat: 'darkwood', col: LIT });
+    for (const sd of [-1, 1]) blk(X + sd * 6.1, Y, Z, 0.2, 4.5, 12.4, { mat: 'darkwood', col: LIT });
+    // the front: a doorway in the middle and a big window each side (the glass is solid)
+    const front = (x0, x1, y0, y1, o = { mat: 'darkwood', col: LIT }) => blk(X + (x0 + x1) / 2, Y + y0, Z + 6.1, x1 - x0, y1 - y0, 0.2, o);
+    for (const [x0, x1] of [[-6.2, -5.0], [-1.6, -0.8], [0.8, 1.6], [5.0, 6.2]]) front(x0, x1, 0, 4.5);
+    for (const [x0, x1] of [[-5.0, -1.6], [1.6, 5.0]]) { front(x0, x1, 0, 0.8); front(x0, x1, 3.2, 4.5); front(x0, x1, 0.8, 3.2, { hidden: true }); }
+    front(-0.8, 0.8, 2.7, 4.5);
+    // ----- the little street outside: sidewalks, a road, buildings either side and across, closed off at both ends -----
+    blk(X, Y - 1, Z + 7.7, 28.4, 1, 3, { mat: 'stone', col: [1.15, 1.13, 1.1] });
+    blk(X, Y - 1, Z + 12.2, 28.4, 0.85, 6, { mat: 'stone', col: [0.42, 0.42, 0.46] });
+    blk(X, Y - 1, Z + 16.2, 28.4, 1, 2, { mat: 'stone', col: [1.15, 1.13, 1.1] });
+    blk(X - 10.15, Y, Z, 7.9, 6.6, 12.4, { mat: 'stone', col: [1.3, 0.68, 0.55] });
+    blk(X + 10.15, Y, Z, 7.9, 7.6, 12.4, { mat: 'planks', col: [0.8, 1.05, 1.15] });
+    for (const [x0, x1, h, o] of [[-14.2, -4.8, 7.2, { mat: 'planks', col: [1.3, 1.15, 0.7] }], [-4.8, 4.6, 8.2, { mat: 'stone', col: [1.15, 1.15, 1.2] }], [4.6, 14.2, 6.8, { mat: 'stone', col: [1.25, 0.6, 0.5] }]])
+      blk(X + (x0 + x1) / 2, Y, Z + 17.8, x1 - x0, h, 1.2, o);
+    // invisible walls and a lid so nobody climbs out
+    blk(X - 14.3, Y - 1, Z + 6, 0.2, 9.7, 25, { hidden: true }); blk(X + 14.3, Y - 1, Z + 6, 0.2, 9.7, 25, { hidden: true });
+    blk(X, Y - 1, Z - 6.4, 28.8, 9.7, 0.2, { hidden: true }); blk(X, Y - 1, Z + 18.5, 28.8, 9.7, 0.2, { hidden: true });
+    blk(X, Y + 8.6, Z + 6, 28.8, 0.3, 25, { hidden: true });
     blk(X, Y + 4.4, Z, 12.4, 0.3, 12.4, { hidden: true });
     // counter at the back, the display stage, shelves, pedestals along the side walls
     blk(X, Y, Z - 4.6, 4.0, 1.0, 0.8, { top: 'planks', side: 'darkwood' });
     blk(X + 3.1, Y, Z - 4.3, 1.2, 0.5, 1.2, { top: 'planks', side: 'darkwood' });
+    // a step up from the road onto each sidewalk is the curb (the road sits 0.15 lower)
     for (const sx of [-1, 1]) blk(X + sx * 2.9, Y, Z - 5.75, 1.6, 2.4, 0.4, { hidden: true });
     for (const p of SHOP_PEDS) blk(p.x, Y, p.z, 0.6, 0.95, 0.6, { top: 'planks', side: 'darkwood' });
   }
@@ -2395,7 +2415,7 @@ function pcStep(dt) {
 function nearestTarget(b) {
   let best = null, bd = 1e9;
   for (const t of actors) {
-    if (t === b || !t.active || t.out || t.heldBy || t.pos.distanceTo(SR) < 12) continue;
+    if (t === b || !t.active || t.out || t.heldBy || inShopArea(t.pos)) continue;
     const d = t.pos.distanceTo(b.pos) - (t.ko > 0 ? 3 : 0) + (b.grudge[t.i] || 0);
     if (d < bd) { bd = d; best = t; }
   }
@@ -4226,7 +4246,7 @@ const spotMat = new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true
 const spotCone = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.42, 3.3, 24, 1, true), spotMat);
 spotCone.userData.noCast = true; scene.add(spotCone);
 // lamps, string lights and the sign glow
-const bulbIM = new THREE.InstancedMesh(ico(1, 1), glowMat, 64);
+const bulbIM = new THREE.InstancedMesh(ico(1, 1), glowMat, 96);
 bulbIM.userData.noCast = true; bulbIM.frustumCulled = false; scene.add(bulbIM);
 {
   let n = 0; const bulb = (x, y, z, r, c) => { bulbIM.setMatrixAt(n, M(x, y, z, 0, 0, 0, r, r, r)); bulbIM.setColorAt(n++, raw(...c)); };
@@ -4235,6 +4255,8 @@ bulbIM.userData.noCast = true; bulbIM.frustumCulled = false; scene.add(bulbIM);
   for (let k = 0; k < 11; k++) for (const sd of [-1, 1]) bulb(SR.x + sd * 5.85, SR.y + 3.95 - 0.12 * Math.sin((k % 2.75) * 1.1), SR.z - 5 + k, 0.045, LC[(k + (sd > 0 ? 2 : 0)) % 5]);
   for (let k = 0; k < 9; k++) bulb(SR.x - 4 + k, SR.y + 4.0 - 0.1 * (k % 2), SR.z - 5.85, 0.045, LC[k % 5]);
   for (let k = 0; k < 9; k++) bulb(SR.x - 4 + k, SR.y + 4.0 - 0.1 * (k % 2), SR.z + 5.85, 0.045, LC[(k + 3) % 5]);
+  for (const [x, z, sd] of [[-7.5, 8.9, 1], [7.5, 8.9, 1], [0, 15.6, -1]]) bulb(SR.x + x, SR.y + 3.96, SR.z + z - sd * 0.72, 0.11, [1.7, 1.45, 0.9]);
+  bulb(SR.x, SR.y + 2.95, SR.z + 6.32, 0.07, [1.7, 1.4, 0.8]);
   bulbIM.count = n; bulbIM.instanceMatrix.needsUpdate = true; bulbIM.instanceColor.needsUpdate = true;
 }
 // the room's look: roof and rafters (they don't cast shadows, so the room stays bright), rug, trim, shelves,
@@ -4246,7 +4268,7 @@ const shopDecorIM = inst(mergeParts((() => {
   P.push({ geo: B(4.6, 0.02, 6.6), c: [0.95, 0.75, 0.25], m: M(X, Y + 0.01, Z + 0.2) }, { geo: B(4.2, 0.03, 6.2), c: [0.62, 0.1, 0.1], m: M(X, Y + 0.015, Z + 0.2) }, { geo: B(3.4, 0.035, 5.4), c: [0.4, 0.06, 0.07], m: M(X, Y + 0.02, Z + 0.2) });
   // wall trim: a skirting board, a rail at waist height and a crown under the roof
   for (const sd of [-1, 1]) for (const [y, h] of [[0.07, 0.14], [1.32, 0.08], [4.2, 0.16]]) {
-    P.push({ geo: B(12, h, 0.06), c: WOOD, layer: 'bark', m: M(X, Y + y, Z + sd * 5.98) });
+    if (sd < 0 || y > 4) P.push({ geo: B(12, h, 0.06), c: WOOD, layer: 'bark', m: M(X, Y + y, Z + sd * 5.98) });
     P.push({ geo: B(0.06, h, 12), c: WOOD, layer: 'bark', m: M(X + sd * 5.98, Y + y, Z) });
   }
   // shelves behind the counter with gift boxes
@@ -4277,13 +4299,75 @@ const shopDecorIM = inst(mergeParts((() => {
     P.push({ geo: cyl(0.012, 0.012, 1.0, 4), c: [0.1, 0.1, 0.1], m: M(X + x, Y + 3.7, Z + z) });
     P.push({ geo: new THREE.ConeGeometry(0.28, 0.24, 14, 1, true), c: [0.2, 0.35, 0.25], m: M(X + x, Y + 3.22, Z + z) });
   }
-  // plants in the front corners
-  for (const sx of [-1, 1]) {
+  // a plant in the front corner
+  for (const sx of [1]) {
     P.push({ geo: cyl(0.26, 0.2, 0.5, 12), c: [0.75, 0.42, 0.28], m: M(X + sx * 5.4, Y + 0.25, Z + 5.4) });
     for (const [dx, dy, dz, r] of [[0, 0.85, 0, 0.36], [0.15, 1.15, 0.1, 0.26], [-0.12, 1.05, -0.12, 0.28]]) P.push({ geo: ico(r, 1), c: [0.6, 0.85, 0.5], layer: 'leaves', m: M(X + sx * 5.4 + dx, Y + dy, Z + 5.4 + dz) });
   }
-  // mirror frame on the front wall
-  P.push({ geo: B(2.85, 2.2, 0.08), c: [0.95, 0.72, 0.25], m: M(X, Y + 1.6, Z + 5.94) });
+  // mirror frame on the left wall by the door
+  P.push({ geo: B(0.08, 1.72, 2.2), c: [0.95, 0.72, 0.25], m: M(X - 5.95, Y + 1.6, Z + 4.7) });
+  // ----- the shop front -----
+  const PAINT = [0.35, 0.62, 0.55], CREAM = [1.3, 1.25, 1.12], AWN = [[1.2, 0.22, 0.2], [1.35, 1.3, 1.18]];
+  for (const [x0, x1] of [[-5.0, -1.6], [1.6, 5.0]]) {
+    const cx = X + (x0 + x1) / 2, w = x1 - x0;
+    // window frame (both sides of the wall), a cross bar, and a sill outside
+    for (const y of [0.8, 3.2]) P.push({ geo: B(w + 0.2, 0.12, 0.34), c: CREAM, m: M(cx, Y + y, Z + 6.1) });
+    for (const x of [x0, x1]) P.push({ geo: B(0.12, 2.52, 0.34), c: CREAM, m: M(X + x, Y + 2.0, Z + 6.1) });
+    P.push({ geo: B(w + 0.4, 0.08, 0.36), c: CREAM, m: M(cx, Y + 0.74, Z + 6.38) });
+    P.push({ geo: B(w + 0.2, 0.8, 0.04), c: PAINT, m: M(cx, Y + 0.4, Z + 6.22) });
+    // a striped awning over the window
+    for (let k = 0; k < 8; k++) {
+      const sx = cx - (w + 0.4) / 2 + (k + 0.5) * ((w + 0.4) / 8), c = AWN[k % 2];
+      P.push({ geo: B((w + 0.4) / 8, 0.04, 1.2), c, m: M(sx, Y + 3.42, Z + 6.72, 0.42, 0, 0) });
+      P.push({ geo: B((w + 0.4) / 8, 0.2, 0.03), c, m: M(sx, Y + 3.08, Z + 7.27) });
+    }
+  }
+  // door frame, a little lamp over the door, a doormat
+  for (const x of [-0.8, 0.8]) P.push({ geo: B(0.14, 2.7, 0.34), c: CREAM, m: M(X + x, Y + 1.35, Z + 6.1) });
+  P.push({ geo: B(1.74, 0.14, 0.34), c: CREAM, m: M(X, Y + 2.72, Z + 6.1) });
+  P.push({ geo: B(0.3, 0.12, 0.25), c: [0.2, 0.2, 0.22], m: M(X, Y + 3.05, Z + 6.32) });
+  P.push({ geo: B(1.3, 0.02, 0.8), c: [0.55, 0.3, 0.18], m: M(X, Y + 0.01, Z + 6.75) });
+  // ----- the street -----
+  // road lines and a crossing to the shop door
+  for (let k = -6; k <= 6; k++) if (Math.abs(k) > 1) P.push({ geo: B(1.1, 0.02, 0.14), c: [1.4, 1.2, 0.35], m: M(X + k * 2.1, Y - 0.14, Z + 12.2) });
+  for (let k = 0; k < 6; k++) P.push({ geo: B(2.6, 0.02, 0.5), c: [1.45, 1.45, 1.45], m: M(X, Y - 0.14, Z + 9.75 + k * 0.95) });
+  // curbs
+  for (const z of [9.2, 15.2]) P.push({ geo: B(28.4, 0.17, 0.18), c: [0.9, 0.9, 0.92], layer: 'stone', m: M(X, Y - 0.07, Z + z) });
+  // street lamps
+  for (const [x, z, sd] of [[-7.5, 8.9, 1], [7.5, 8.9, 1], [0, 15.6, -1]]) {
+    P.push({ geo: cyl(0.07, 0.1, 4.2, 8), c: [0.22, 0.24, 0.26], m: M(X + x, Y + 2.1, Z + z) });
+    P.push({ geo: B(0.08, 0.08, 0.8), c: [0.22, 0.24, 0.26], m: M(X + x, Y + 4.15, Z + z - sd * 0.35) });
+    P.push({ geo: new THREE.ConeGeometry(0.26, 0.22, 10, 1, true), c: [0.22, 0.24, 0.26], m: M(X + x, Y + 4.05, Z + z - sd * 0.72) });
+  }
+  // little trees in planters, a bench, a fire hydrant, a bin, a mailbox
+  for (const x of [-4.4, 4.4]) {
+    P.push({ geo: B(0.9, 0.5, 0.9), c: [0.8, 0.55, 0.38], layer: 'planks', m: M(X + x, Y + 0.25, Z + 8.4) });
+    P.push({ geo: cyl(0.06, 0.08, 1.4, 6), c: [0.8, 0.6, 0.45], layer: 'bark', m: M(X + x, Y + 1.1, Z + 8.4) });
+    for (const [dx, dy, dz, r] of [[0, 2.0, 0, 0.6], [0.3, 1.75, 0.2, 0.42], [-0.3, 1.8, -0.15, 0.45]]) P.push({ geo: ico(r, 1), c: [0.6, 0.9, 0.5], layer: 'leaves', m: M(X + x + dx, Y + dy, Z + 8.4 + dz) });
+  }
+  P.push({ geo: B(1.8, 0.08, 0.5), c: [0.95, 0.75, 0.55], layer: 'planks', m: M(X - 10, Y + 0.48, Z + 6.75) }, { geo: B(1.8, 0.5, 0.08), c: [0.95, 0.75, 0.55], layer: 'planks', m: M(X - 10, Y + 0.8, Z + 6.5) });
+  for (const dx of [-0.75, 0.75]) P.push({ geo: B(0.08, 0.48, 0.5), c: [0.2, 0.2, 0.22], m: M(X - 10 + dx, Y + 0.24, Z + 6.75) });
+  P.push({ geo: cyl(0.14, 0.16, 0.6, 10), c: [1.2, 0.2, 0.15], m: M(X + 3.2, Y + 0.3, Z + 8.9) }, { geo: ico(0.15, 1), c: [1.2, 0.2, 0.15], m: M(X + 3.2, Y + 0.62, Z + 8.9) }, { geo: cyl(0.06, 0.06, 0.4, 6), c: [1.2, 0.2, 0.15], m: M(X + 3.2, Y + 0.4, Z + 8.9, 0, 0, Math.PI / 2) });
+  P.push({ geo: cyl(0.28, 0.24, 0.85, 12), c: [0.3, 0.45, 0.35], m: M(X + 6.6, Y + 0.43, Z + 8.8) });
+  P.push({ geo: B(0.5, 0.8, 0.45), c: [0.25, 0.4, 1.0], m: M(X - 6.7, Y + 0.9, Z + 8.8) }, { geo: cyl(0.05, 0.05, 0.5, 6), c: [0.2, 0.2, 0.22], m: M(X - 6.7, Y + 0.25, Z + 8.8) });
+  // road barriers closing both ends of the street
+  for (const sx of [-1, 1]) {
+    for (const z of [7.2, 10.5, 13.9, 16.6]) P.push({ geo: B(0.12, 1.1, 0.12), c: [0.3, 0.3, 0.32], m: M(X + sx * 13.9, Y + 0.4, Z + z) });
+    for (let k = 0; k < 10; k++) for (const y of [0.55, 0.9]) P.push({ geo: B(0.08, 0.22, 1.0), c: k % 2 ? [1.4, 1.4, 1.4] : [1.3, 0.2, 0.15], m: M(X + sx * 13.85, Y + y, Z + 7.0 + k * 1.0) });
+  }
+  // windows and doors on the neighbouring buildings and across the street
+  const WIN = [0.2, 0.28, 0.38], FR = [1.25, 1.22, 1.15];
+  const win = (x, y, z, face, w = 1.0, h = 1.3) => {
+    P.push({ geo: B(w + 0.16, h + 0.16, 0.06), c: FR, m: M(x, y, z + face * 0.03) });
+    P.push({ geo: B(w, h, 0.07), c: WIN, m: M(x, y, z + face * 0.04) });
+    P.push({ geo: B(w + 0.3, 0.08, 0.2), c: FR, m: M(x, y - h / 2 - 0.08, z + face * 0.1) });
+  };
+  for (const x of [-12.6, -10.2, -7.8]) for (const y of [1.9, 4.6]) win(X + x, Y + y, Z + 6.2, 1);
+  for (const x of [8.0, 10.4, 12.8]) win(X + x, Y + 4.8, Z + 6.2, 1);
+  P.push({ geo: B(4.6, 2.6, 0.06), c: [0.62, 0.64, 0.68], m: M(X + 10.4, Y + 1.4, Z + 6.23) });   // a closed shutter
+  for (let k = 0; k < 12; k++) P.push({ geo: B(4.6, 0.03, 0.08), c: [0.45, 0.47, 0.5], m: M(X + 10.4, Y + 0.25 + k * 0.21, Z + 6.26) });
+  for (const x of [-12.0, -9.5, -7.0, -2.8, 2.6, 7.0, 9.5, 12.0]) for (const y of [2.2, 4.9]) if (!(Math.abs(x) < 3 && y < 3)) win(X + x, Y + y, Z + 17.2, -1);
+  for (const x of [-9.5, 0, 9.5]) { P.push({ geo: B(1.3, 2.3, 0.08), c: [0.45, 0.28, 0.18], layer: 'planks', m: M(X + x, Y + 1.15, Z + 17.17) }); P.push({ geo: B(1.6, 0.14, 0.12), c: FR, m: M(X + x, Y + 2.37, Z + 17.15) }); }
   // the LED sign's lightbox over the counter: a white box with a dark face for the neon tubes
   P.push({ geo: B(3.9, 0.95, 0.45), c: [1.35, 1.28, 1.36], m: M(X, Y + 3.55, Z - 5.75) });
   P.push({ geo: B(3.7, 0.72, 0.03), c: [0.07, 0.06, 0.08], m: M(X, Y + 3.55, Z - 5.52) });
@@ -4291,6 +4375,53 @@ const shopDecorIM = inst(mergeParts((() => {
   return P;
 })()), 1);
 shopDecorIM.count = 1; shopDecorIM.setMatrixAt(0, new THREE.Matrix4()); shopDecorIM.userData.noCast = true;
+// the windows' glass, with a couple of shine streaks
+const glassMat = new THREE.MeshBasicMaterial({ color: 0xbfe3f0, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide, fog: false });
+const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide, fog: false });
+const shopGlass = [];
+for (const cx of [-3.3, 3.3]) {
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.4), glassMat); g.position.set(SR.x + cx, SR.y + 2.0, SR.z + 6.1); shopGlass.push(g);
+  for (const [dx, w] of [[0.9, 0.35], [1.35, 0.14]]) { const st = new THREE.Mesh(new THREE.PlaneGeometry(w, 2.2), shineMat); st.position.set(SR.x + cx + dx, SR.y + 2.0, SR.z + 6.104); st.rotation.z = 0.5; shopGlass.push(st); }
+}
+// (the shine streaks are clipped to the glass by keeping them short)
+for (const m of shopGlass) { m.userData.noCast = true; m.renderOrder = 2; scene.add(m); if (m.material === shineMat) m.scale.y = 0.62; }
+// the creator's WRECK SHOP poster, stuck on the outside of the left window with a bit of tape on each corner
+const POSTER = { at: new THREE.Vector3(SR.x - 3.3, SR.y + 2.0, SR.z + 6.118), size: 1.52, tilt: 0.025, im: null, back: null, tape: [] };
+{
+  // the back of the poster (plain paper) for anyone looking out from inside
+  POSTER.back = new THREE.Mesh(new THREE.PlaneGeometry(POSTER.size, POSTER.size), new THREE.MeshBasicMaterial({ color: 0xcfc8b8, fog: false }));
+  POSTER.back.position.copy(POSTER.at).setZ(POSTER.at.z - 0.008); POSTER.back.rotation.set(0, Math.PI, -POSTER.tilt);
+  scene.add(POSTER.back);
+  // clear sticky tape: a see-through strip with torn ends and a little shine
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d');
+  x.beginPath(); x.moveTo(6, 4);
+  for (let i = 0; i <= 8; i++) x.lineTo(250 - (i % 2) * 7, 4 + i * 7);
+  for (let i = 8; i >= 0; i--) x.lineTo(6 + (i % 2) * 7, 4 + i * 7);
+  x.closePath(); x.fillStyle = 'rgba(248,240,216,0.78)'; x.fill(); x.strokeStyle = 'rgba(200,190,160,0.6)'; x.lineWidth = 2; x.stroke();
+  const g = x.createLinearGradient(0, 4, 0, 60); g.addColorStop(0, 'rgba(255,255,255,0.35)'); g.addColorStop(0.35, 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(255,255,255,0.18)');
+  x.globalCompositeOperation = 'source-atop'; x.fillStyle = g; x.fillRect(0, 0, 256, 64);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const tmat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false });
+  const h = POSTER.size / 2 - 0.02;
+  [[-1, 1, -0.75], [1, 1, 0.8], [-1, -1, 0.72], [1, -1, -0.78]].forEach(([sx, sy, a]) => {
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.09), tmat);
+    const off = new THREE.Vector3(sx * h, sy * h, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), POSTER.tilt);
+    t.position.copy(POSTER.at).add(off).setZ(POSTER.at.z + 0.006); t.rotation.z = a + POSTER.tilt;
+    t.userData.noCast = true; t.renderOrder = 3; scene.add(t); POSTER.tape.push(t);
+  });
+}
+async function loadPoster() {
+  try {
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const gl = await new GLTFLoader().loadAsync('models/poster.glb?v=1');
+    let mesh = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
+    const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+    const im = new THREE.InstancedMesh(geo, propMat(mesh.material.map), 1);
+    const k = POSTER.size / 1.904;
+    im.setMatrixAt(0, M(POSTER.at.x, POSTER.at.y, POSTER.at.z, 0, 0, POSTER.tilt, k, k, k)); im.frustumCulled = false;
+    scene.add(im); POSTER.im = im;
+  } catch (e) { console.warn('poster model failed', e); }
+}
 // the real ape head for the busts: the model's head (the parts that move with its head bones) plus the fur cap
 const BUST = { geo: null, meshes: [], mat: null, neckY: 0 };
 function buildBusts() {
@@ -4346,8 +4477,10 @@ const neonSpill = (() => {
   return [g1, g2];
 })();
 const neon = { flick: 0, iconFlick: 0, next: 3 };
-const shopHint = panelAt(1024, 160, 2.6, 0.4, new THREE.Vector3(SR.x, SR.y + 3.05, SR.z + 5.9), Math.PI);
-const inShop = () => human.pos.distanceTo(SR) < 9.5;
+const shopHint = panelAt(1024, 160, 2.2, 0.34, new THREE.Vector3(SR.x - 5.94, SR.y + 2.72, SR.z + 4.7), Math.PI / 2);
+// the shop and its little street
+const inShopArea = (p) => Math.abs(p.x - SR.x) < 14.6 && p.z > SR.z - 6.7 && p.z < SR.z + 18.8 && p.y > SR.y - 4 && p.y < SR.y + 10;
+const inShop = () => inShopArea(human.pos);
 function drawPedLabel(i) {
   const it = COS[i], L = PED_LABELS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, on = SHOP.i === i, T = tierOf(it);
   const sig = [owned, worn, on, wallet.coins >= it.price].join();
@@ -4391,7 +4524,7 @@ const SHOP_RETURN = new THREE.Vector3(LB.x + 1.5, LB.y, LB.z + 6.5);
 const canShop = () => yardHere() && human.kind !== 'none' && !(human.out && !human.afkYard);
 function goShop() {
   if (!canShop() || inShop()) return;
-  placeHuman(SHOP_SPAWN.clone().setX(SHOP_SPAWN.x + rand(-1.6, 1.6)), 0); sfx('go'); flash = 0.3;
+  placeHuman(SHOP_SPAWN.clone().setX(SHOP_SPAWN.x + rand(-2.2, 2.2)), 0); sfx('go'); flash = 0.3;
 }
 function leaveShop() {
   if (!inShop()) return;
@@ -4403,8 +4536,8 @@ let mirrorIn = '';
 function placeMirror(where) {
   if (where === mirrorIn) return; mirrorIn = where;
   if (where === 'shop') {
-    mirrorScreen.position.set(SR.x, SR.y + 1.6, SR.z + 5.89); mirrorScreen.rotation.y = Math.PI; mirrorScreen.scale.setScalar(0.76);
-    mirrorCam.position.set(SR.x, SR.y + 1.15, SR.z + 5.84); mirrorCam.lookAt(SR.x, SR.y + 0.8, SR.z - 3);
+    mirrorScreen.position.set(SR.x - 5.9, SR.y + 1.6, SR.z + 4.7); mirrorScreen.rotation.y = Math.PI / 2; mirrorScreen.scale.setScalar(0.58);
+    mirrorCam.position.set(SR.x - 5.85, SR.y + 1.15, SR.z + 4.7); mirrorCam.lookAt(SR.x + 3, SR.y + 0.8, SR.z + 2.5);
   } else {
     mirrorScreen.position.copy(MIRROR); mirrorScreen.rotation.y = 0; mirrorScreen.scale.setScalar(1);
     mirrorCam.position.set(MIRROR.x, LB.y + 1.1, MIRROR.z + 0.05); mirrorCam.lookAt(MIRROR.x, LB.y + 0.75, LB.z + 2);
@@ -4442,7 +4575,8 @@ function shopRoomTick(dt, show) {
   const sp = SHOP_PEDS[SHOP.i];
   spotCone.visible = here; spotCone.position.set(sp.x, PED_TOP + 1.65, sp.z);
   spotMat.opacity = 0.08 + 0.025 * Math.sin(now * 3);
-  for (const o of [bulbIM, shopDecorIM, shopTitle.mesh, shopIcon.mesh, shopHint.mesh, ...neonSpill, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
+  for (const o of [bulbIM, shopDecorIM, shopTitle.mesh, shopIcon.mesh, shopHint.mesh, ...neonSpill, ...shopGlass, POSTER.back, ...POSTER.tape, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
+  if (POSTER.im) POSTER.im.visible = here;
   // the neon hums, and now and then it flickers (the little ape more often)
   if ((neon.next -= dt) <= 0) { neon.next = rand(2.5, 7); if (Math.random() < 0.35) neon.flick = 0.35; else neon.iconFlick = 0.5; }
   neon.flick -= dt; neon.iconFlick -= dt;
@@ -5159,9 +5293,9 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
 human.kind = 'pc'; human.active = true; human.afk = true; human.autoAfk = true;
 startPlay();
 loadApeModel();
-loadProps();
+loadProps(); loadPoster();
 
-window.AR = { THREE, PHOTO, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { THREE, PHOTO, POSTER, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
