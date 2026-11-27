@@ -270,10 +270,15 @@ const SHADOW = { size: 2048, half: 22, on: true };
 try { if (localStorage.getItem('wrecked-shadows') === '0') SHADOW.on = false; } catch (e) { /* storage blocked */ }
 const shadowRT = new THREE.WebGLRenderTarget(SHADOW.size, SHADOW.size);
 shadowRT.depthTexture = new THREE.DepthTexture(SHADOW.size, SHADOW.size, THREE.UnsignedIntType);
-const SUN = { sunTex: { value: shadowRT.depthTexture }, sunMat: { value: new THREE.Matrix4() }, sunOn: { value: SHADOW.on ? 1 : 0 } };
+const SUN = { sunTex: { value: shadowRT.depthTexture }, sunMat: { value: new THREE.Matrix4() }, sunOn: { value: SHADOW.on ? 1 : 0 },
+  // night (only on the shop's street): moonlight outside, warm lamps, the shop lit inside
+  nightK: { value: 0 }, shopC: { value: new THREE.Vector3() }, lampP: { value: [0, 1, 2, 3].map(() => new THREE.Vector3(0, -999, 0)) } };
 const SUN_GLSL = `
   uniform highp sampler2D sunTex; uniform mat4 sunMat; uniform float sunOn;
+  uniform float nightK; uniform vec3 shopC; uniform vec3 lampP[4];
+  vec3 gW;   // the spot being lit (set by sunShadow, used by sunLight at night)
   float sunShadow(vec3 w, vec3 n) {
+    gW = w;
     if (sunOn < 0.5) return 1.0;
     vec3 c = (sunMat * vec4(w + n * 0.045, 1.0)).xyz;
     vec2 e = min(c.xy, 1.0 - c.xy);
@@ -289,7 +294,18 @@ const SUN_GLSL = `
   // warm sunlight, cool sky light in the shade
   vec3 sunLight(vec3 n, vec3 L, float sh, float amb) {
     float ndl = max(dot(n, L), 0.0);
-    return vec3(0.86, 0.93, 1.05) * (amb + 0.17 * (0.5 + 0.5 * n.y)) + vec3(1.08, 1.0, 0.86) * 0.56 * ndl * sh;
+    vec3 day = vec3(0.86, 0.93, 1.05) * (amb + 0.17 * (0.5 + 0.5 * n.y)) + vec3(1.08, 1.0, 0.86) * 0.56 * ndl * sh;
+    if (nightK < 0.001) return day;
+    vec3 d = gW - shopC;
+    // inside the shop the lamps keep it bright and warm
+    if (abs(d.x) < 6.05 && d.z > -6.1 && d.z < 6.1 && d.y < 4.6) return mix(day, day * vec3(1.02, 0.9, 0.74), nightK);
+    // outside: cool moonlight, and warm pools of light under the street lamps
+    vec3 night = vec3(0.2, 0.25, 0.42) * (amb + 0.17 * (0.5 + 0.5 * n.y)) + vec3(0.42, 0.5, 0.72) * 0.32 * ndl * sh;
+    for (int i = 0; i < 4; i++) {
+      vec3 l = lampP[i] - gW; float dd = max(length(l), 0.001), f = max(0.0, 1.0 - dd / 7.5);
+      night += vec3(1.3, 0.95, 0.55) * f * f * (0.3 + 0.7 * max(dot(n, l / dd), 0.0));
+    }
+    return mix(day, night, nightK);
   }`;
 
 // ================= world boxes =================
@@ -326,6 +342,7 @@ const DISC_BTN = new THREE.Vector3(DISC_SIGN.x, LB.y + 1.0, DISC_SIGN.z + 0.75);
 const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
 // the shop room: a separate room you teleport to from your hand menu (far away, out of sight)
 const SR = new THREE.Vector3(LB.x - 220, LB.y, LB.z);
+SUN.shopC.value.copy(SR);
 // one pedestal per shop item: six down each side wall
 const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 5.2, z: SR.z - 3 + j * 1.2, side }; });
 // you arrive on the little street outside the shop, facing its front
@@ -972,10 +989,22 @@ function buildArenaDecor(add, r) {
 }
 const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 12), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
-  uniforms: { top: { value: hexToV3(SKY_TOP) }, hor: { value: hexToV3(FOG_HEX) } },
+  uniforms: { top: { value: hexToV3(SKY_TOP) }, hor: { value: hexToV3(FOG_HEX) }, night: SUN.nightK, moon: { value: LIGHT_DIR } },
   vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: `uniform vec3 top, hor; varying vec3 vDir;
-    void main() { float h = vDir.y; vec3 c = mix(hor, top, smoothstep(0.02, 0.55, h)); c = mix(c, hor * vec3(0.55, 0.68, 0.7), smoothstep(-0.02, -0.5, h)); gl_FragColor = vec4(c, 1.0); }`,
+  fragmentShader: `uniform vec3 top, hor, moon; uniform float night; varying vec3 vDir;
+    float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+    void main() {
+      float h = vDir.y; vec3 c = mix(hor, top, smoothstep(0.02, 0.55, h)); c = mix(c, hor * vec3(0.55, 0.68, 0.7), smoothstep(-0.02, -0.5, h));
+      if (night > 0.001) {
+        vec3 n = mix(vec3(0.07, 0.1, 0.22), vec3(0.015, 0.025, 0.07), smoothstep(0.0, 0.6, h));
+        // stars (twinkle-free, fixed to the sky) and the moon where the light comes from
+        vec3 g = floor(vDir * 260.0); float st = step(0.9965, hash(g)) * smoothstep(0.05, 0.3, h) * (0.5 + 0.5 * hash(g + 7.0));
+        float md = dot(vDir, normalize(moon)), m = smoothstep(0.9985, 0.9991, md), halo = pow(max(md, 0.0), 220.0) * 0.35;
+        n += vec3(st) + vec3(0.95, 0.95, 0.85) * m + vec3(0.5, 0.55, 0.7) * halo;
+        c = mix(c, n, night);
+      }
+      gl_FragColor = vec4(c, 1.0);
+    }`,
 }));
 sky.renderOrder = -10; sky.frustumCulled = false;
 scene.add(sky);
@@ -4264,6 +4293,7 @@ bulbIM.userData.noCast = true; bulbIM.frustumCulled = false; scene.add(bulbIM);
 }
 // the room's look: roof and rafters (they don't cast shadows, so the room stays bright), rug, trim, shelves,
 // hanging lamps, plants, the mirror frame
+const STREET_WINS = [];   // the street's windows (some light up at night)
 const shopDecorIM = inst(mergeParts((() => {
   const P = [], X = SR.x, Y = SR.y, Z = SR.z, B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   const WOOD = [1.15, 1.0, 0.85], DARK = [0.7, 0.58, 0.48];
@@ -4361,6 +4391,7 @@ const shopDecorIM = inst(mergeParts((() => {
   // windows and doors on the neighbouring buildings and across the street
   const WIN = [0.2, 0.28, 0.38], FR = [1.25, 1.22, 1.15];
   const win = (x, y, z, face, w = 1.0, h = 1.3) => {
+    STREET_WINS.push([x, y, z, face, w, h]);
     P.push({ geo: B(w + 0.16, h + 0.16, 0.06), c: FR, m: M(x, y, z + face * 0.03) });
     P.push({ geo: B(w, h, 0.07), c: WIN, m: M(x, y, z + face * 0.04) });
     P.push({ geo: B(w + 0.3, 0.08, 0.2), c: FR, m: M(x, y - h / 2 - 0.08, z + face * 0.1) });
@@ -4378,6 +4409,30 @@ const shopDecorIM = inst(mergeParts((() => {
   return P;
 })()), 1);
 shopDecorIM.count = 1; shopDecorIM.setMatrixAt(0, new THREE.Matrix4()); shopDecorIM.userData.noCast = true;
+// it's night on the street: the street lamps light the ground (see sunLight), and some windows are lit
+SUN.lampP.value[0].set(SR.x - 7.5, SR.y + 3.9, SR.z + 8.2); SUN.lampP.value[1].set(SR.x + 7.5, SR.y + 3.9, SR.z + 8.2);
+SUN.lampP.value[2].set(SR.x, SR.y + 3.9, SR.z + 16.3); SUN.lampP.value[3].set(SR.x, SR.y + 2.9, SR.z + 6.5);
+// the far-off haze turns dark at night too (every material keeps its own fog colour)
+let nightFog = false;
+const FOG_DAY = hexToV3(FOG_HEX), FOG_NIGHT = hexToV3(0x0a1024);
+function setNightFog(on) {
+  if (on === nightFog) return; nightFog = on;
+  const c = on ? FOG_NIGHT : FOG_DAY;
+  scene.traverse((o) => { const m = o.material; if (m && m.uniforms && m.uniforms.fogColor) m.uniforms.fogColor.value.copy(c); });
+  scene.fog.color.setRGB(c.x, c.y, c.z); scene.background.setRGB(c.x, c.y, c.z);
+  sky.material.uniforms.hor.value.copy(on ? FOG_NIGHT : FOG_DAY);
+}
+const winGlowIM = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), glowMat, STREET_WINS.length);
+winGlowIM.userData.noCast = true; winGlowIM.frustumCulled = false; scene.add(winGlowIM);
+{
+  let n = 0;
+  STREET_WINS.forEach(([x, y, z, face, w, h], i) => {
+    if (hash2(i * 7.3, 2.1) < 0.4) return;   // some rooms are dark
+    winGlowIM.setMatrixAt(n, M(x, y, z + face * 0.08, 0, face > 0 ? 0 : Math.PI, 0, w, h, 1));
+    const warm = hash2(i, 5.7); winGlowIM.setColorAt(n++, raw(1.35, 0.95 + warm * 0.2, 0.45 + warm * 0.35));
+  });
+  winGlowIM.count = n; winGlowIM.instanceMatrix.needsUpdate = true; if (winGlowIM.instanceColor) winGlowIM.instanceColor.needsUpdate = true;
+}
 // the windows' glass, with a couple of shine streaks
 const glassMat = new THREE.MeshBasicMaterial({ color: 0xbfe3f0, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide, fog: false });
 const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide, fog: false });
@@ -4580,6 +4635,9 @@ function shopRoomTick(dt, show) {
   spotMat.opacity = 0.08 + 0.025 * Math.sin(now * 3);
   for (const o of [bulbIM, shopDecorIM, shopTitle.mesh, shopIcon.mesh, shopHint.mesh, ...neonSpill, ...shopGlass, POSTER.back, ...POSTER.tape, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
   if (POSTER.im) POSTER.im.visible = here;
+  winGlowIM.visible = here;
+  SUN.nightK.value = here ? 1 : 0;
+  setNightFog(here);
   // the neon hums, and now and then it flickers (the little ape more often)
   if ((neon.next -= dt) <= 0) { neon.next = rand(2.5, 7); if (Math.random() < 0.35) neon.flick = 0.35; else neon.iconFlick = 0.5; }
   neon.flick -= dt; neon.iconFlick -= dt;
