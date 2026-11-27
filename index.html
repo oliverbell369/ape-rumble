@@ -40,6 +40,9 @@ button { font: 700 18px var(--font-body); letter-spacing: 0.02em; color: var(--i
 button.primary { background: var(--banana); border-color: var(--banana); color: #2a1a05; font-size: 26px; padding: 14px 34px; }
 button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .status { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); max-width: 46ch; }
+#discord { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#discord a { pointer-events: auto; display: inline-block; background: #5865f2; color: #fff; font: 700 26px var(--font-body); letter-spacing: 0.02em; padding: 14px 34px; border-radius: 999px; text-decoration: none; }
+#discord a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 .hud-top {
   position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
@@ -71,6 +74,10 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 <!-- no menu: the game loads straight into the Yard. Browsers only allow VR to start from a
      button press, so a single Enter VR button sits over the game (on a computer, click to play). -->
 <div id="start">
+  <div id="discord" hidden>
+    <a href="https://discord.gg/jKxcWaZRgG" target="_blank" rel="noopener">Join the WRECKED Discord</a>
+    <p class="status">It opens in a new tab. Come back to this tab to keep playing.</p>
+  </div>
   <button id="bvr" class="primary" type="button" hidden>Enter VR</button>
   <p id="starthint">Click to play · WASD to move</p>
   <p id="vrstatus" class="status" hidden></p>
@@ -311,6 +318,10 @@ const LOBBY_BOARD = new THREE.Vector3(LB.x - 1, LB.y + 5.85, LB.z - 9.2), MATCH_
 const MIRROR = new THREE.Vector3(LB.x - 2.5, LB.y + 1.45, LB.z - 7.27);
 const PAD = new THREE.Vector3(LB.x + 7.2, LB.y, LB.z);
 const START_BTN = new THREE.Vector3(LB.x + 9.35, LB.y + 1.15, LB.z);
+// the Join the Discord sign in the Yard's north-east corner, right of the cabin, with a button in front
+const DISCORD_URL = 'https://discord.gg/jKxcWaZRgG';
+const DISC_SIGN = new THREE.Vector3(LB.x + 6.2, LB.y, LB.z - 9.3);
+const DISC_BTN = new THREE.Vector3(DISC_SIGN.x, LB.y + 1.0, DISC_SIGN.z + 0.75);
 // the computer on the west side of the Yard: COMP is the middle of the keyboard, top = key tops
 const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
 // the shop room: a separate room you teleport to from your hand menu (far away, out of sight)
@@ -416,6 +427,10 @@ function buildLevel() {
   blk(START_BTN.x + 0.2, Y + 1.72, Z, 0.08, 0.9, 1.7, { mat: 'darkwood' });
   // start button post
   blk(START_BTN.x + 0.15, Y, Z, 0.35, 0.95, 0.35, { mat: 'darkwood' });
+  // Join the Discord sign: two posts and a board, and the button on a short post in front
+  for (const dx of [-0.85, 0.85]) blk(DISC_SIGN.x + dx, Y, DISC_SIGN.z, 0.12, 2.55, 0.12, { mat: 'bark' });
+  blk(DISC_SIGN.x, Y + 1.45, DISC_SIGN.z, 1.8, 1.05, 0.08, { mat: 'darkwood' });
+  blk(DISC_BTN.x, Y, DISC_BTN.z, 0.3, DISC_BTN.y - Y - 0.05, 0.3, { mat: 'darkwood' });
   // ----- the shop room (its look is in shopDecorIM) -----
   {
     const X = SR.x, Y = SR.y, Z = SR.z;
@@ -1466,13 +1481,14 @@ function arenaTick(dt) {
 // ----- Yard props -----
 const padIM = inst(mergeParts([{ geo: cyl(1.3, 1.3, 0.05, 24), c: F, tint: true }, { geo: cyl(1.45, 1.45, 0.03, 24), c: [0.2, 0.16, 0.12], m: M(0, -0.01, 0) }]), 1);
 const startBtnIM = inst(mergeParts([{ geo: ico(0.2, 1), c: F, tint: true, m: M(0, 0, 0, 0, 0, 0, 1, 0.7, 1) }]), 1);
+const discBtnIM = inst(mergeParts([{ geo: ico(0.17, 1), c: F, tint: true, m: M(0, 0, 0, 0, 0, 0, 1, 0.7, 1) }]), 1);
 const bagIM = inst(mergeParts([
   { geo: cyl(0.27, 0.3, 0.95, 10), c: [0.55, 0.3, 0.18] },
   { geo: cyl(0.285, 0.285, 0.06, 10), c: [0.25, 0.16, 0.1], m: M(0, 0.3, 0) },
   { geo: cyl(0.305, 0.305, 0.06, 10), c: [0.25, 0.16, 0.1], m: M(0, -0.3, 0) },
 ]), 1);
 const bagRopeIM = inst(mergeParts([{ geo: cyl(0.03, 0.03, 1, 5).translate(0, 0.5, 0), c: [0.75, 0.66, 0.45] }]), 1);
-padIM.count = 0; startBtnIM.count = 1; bagIM.count = 1; bagRopeIM.count = 1;
+padIM.count = 0; startBtnIM.count = 1; discBtnIM.count = 1; bagIM.count = 1; bagRopeIM.count = 1;
 padIM.setMatrixAt(0, M(PAD.x, PAD.y + 0.03, PAD.z));
 // campfire flames: glowing cones that flicker, and a warm glow on the ground
 const FIRE = new THREE.Vector3(LB.x, LB.y + 0.12, LB.z + 1);
@@ -1532,6 +1548,7 @@ kbPanel.mesh.matrixAutoUpdate = false;
 kbPanel.mesh.matrix.makeBasis(new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0)).setPosition(COMP.x, COMP.top + 0.002, COMP.z);
 scene.add(kbPanel.mesh);
 const padPanel = panelAt(512, 256, 1.6, 0.8, new THREE.Vector3(START_BTN.x + 0.1, LB.y + 2.15, LB.z), -Math.PI / 2);
+const discPanel = panelAt(512, 288, 1.7, 0.95, new THREE.Vector3(DISC_SIGN.x, LB.y + 1.975, DISC_SIGN.z + 0.05), 0);
 const bagPanel = panelAt(512, 160, 1.6, 0.5, new THREE.Vector3(BAG_PIVOT.x, LB.y + 3.75, BAG_PIVOT.z), 0);
 const rackPanel = panelAt(512, 170, 2.2, 0.73, new THREE.Vector3(LB.x - 6.75, LB.y + 1.85, LB.z + 10.7), Math.PI);
 // the mirror: a small camera renders the Yard (and your own ape) onto a screen, flipped like a real mirror
@@ -2297,7 +2314,7 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.ri
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   if (human.kind !== 'pc') return;
-  initAudio(); wake();
+  initAudio(); wake(); $('discord').hidden = true;
   if (voice.want && !voice.stream) startMic();
   if (!document.pointerLockElement) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* drag to look */ } }
   addStruggle(0.12);
@@ -2305,7 +2322,7 @@ canvas.addEventListener('mousedown', (e) => {
     const R = human.hands[1];
     if (pcClickMenu()) { /* pressed a menu button */ }
     else if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
-    else if (pcClickComputer() || pcClickShop() || pcClickPed() || pcClickAfk()) { /* pressed a key or button */ }
+    else if (pcClickComputer() || pcClickShop() || pcClickPed() || pcClickAfk() || pcClickDiscord()) { /* pressed a key or button */ }
     else { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
   }
   if (e.button === 2) mouse.right = true;
@@ -2859,7 +2876,7 @@ async function enterVR() {
     await renderer.xr.setSession(session);
     camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0);
     human.kind = 'vr'; human.active = true; G.demo = false; firstVRFrame = true; wake();
-    $('start').hidden = true; $('hud').hidden = true;
+    $('start').hidden = true; $('hud').hidden = true; $('discord').hidden = true;
   } catch (e) {
     const el = $('vrstatus'); el.hidden = false;
     el.textContent = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'Tap Enter VR again to jump in.' : `Couldn't start VR here (${e.message || e.name}). If this page is inside another app, open it directly in the Meta Quest Browser.`;
@@ -4636,7 +4653,7 @@ function pcClickShop() {
 }
 
 // ================= the Yard: pad, keypad, punching bag, mirror =================
-const yard = { typed: '', padT: 0, bagO: new THREE.Vector2(), bagV: new THREE.Vector2(), last: 0, best: 0, btnCD: 0, mirrorN: 0, bagC: new THREE.Vector3(), status: '' };
+const yard = { typed: '', padT: 0, discCD: 0, discFlash: 0, bagO: new THREE.Vector2(), bagV: new THREE.Vector2(), last: 0, best: 0, btnCD: 0, mirrorN: 0, bagC: new THREE.Vector3(), status: '' };
 const BAG_LEN = 1.55;
 function localHands() { return human.kind === 'none' ? [] : human.hands.filter((h) => h.ok && (human.kind !== 'pc' || h.punchT > 0)); }
 function switchRoom(code) {
@@ -4866,6 +4883,43 @@ function drawPadPanel() {
   ctx.fillText(human.afk ? 'Slap the button to play' : 'Slap the button to go AFK', c.width / 2, 226);
   padPanel.tex.needsUpdate = true;
 }
+function drawDiscPanel() {
+  const { ctx, c } = discPanel, W = c.width;
+  ctx.clearRect(0, 0, W, c.height);
+  ctx.fillStyle = '#5865f2'; rr(ctx, 0, 0, W, c.height, 28); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 5; rr(ctx, 9, 9, W - 18, c.height - 18, 22); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff';
+  ctx.font = `700 36px ${FB}`; ctx.fillText('JOIN THE', W / 2, 64);
+  ctx.font = `86px ${FD}`; ctx.fillText('DISCORD', W / 2, 148);
+  ctx.font = `700 32px ${FB}`; ctx.fillText('discord.gg/jKxcWaZRgG', W / 2, 198);
+  ctx.fillStyle = '#e3e6ff'; ctx.font = `600 26px ${FB}`;
+  ctx.fillText(human.kind === 'vr' ? 'Slap the button to open it in your browser' : 'Click the button to open it', W / 2, 252);
+  discPanel.tex.needsUpdate = true; discPanel.kind = human.kind;
+}
+// the Discord button: on a computer the click opens the invite in a new tab. A page can't open a
+// tab from inside VR, so in the headset the VR session ends and a big link waits on the screen.
+function openDiscord(fromClick) {
+  yard.discCD = 1; yard.discFlash = 0.25; sfx('tap', DISC_BTN, 3);
+  let w = null;
+  if (fromClick && human.kind === 'pc') { try { w = window.open(DISCORD_URL, '_blank'); } catch (e) { /* blocked */ } }
+  if (w) { try { w.opener = null; } catch (e) { /* other origin */ } return; }
+  $('discord').hidden = false;
+  if (human.kind === 'vr') { try { renderer.xr.getSession()?.end(); } catch (e) { /* already out */ } }
+  else if (document.pointerLockElement) document.exitPointerLock();
+}
+// on a computer: click the Discord button (or the sign) you're looking at
+function pcClickDiscord() {
+  if (!yardHere() || human.kind !== 'pc' || yard.discCD > 0) return false;
+  camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
+  _t3.subVectors(DISC_BTN, _t1); const t = _t3.dot(_t2);
+  let hit = t > 0 && t < 3 && _t3.addScaledVector(_t2, -t).length() < 0.25;
+  if (!hit && _t2.z < -0.05) {
+    const s = (DISC_SIGN.z + 0.05 - _t1.z) / _t2.z;
+    if (s > 0 && s < 4) { const x = _t1.x + _t2.x * s - DISC_SIGN.x, y = _t1.y + _t2.y * s - LB.y; hit = Math.abs(x) < 0.85 && y > 1.5 && y < 2.45; }
+  }
+  if (hit) openDiscord(true);
+  return hit;
+}
 function drawBagPanel() {
   const { ctx, c } = bagPanel;
   ctx.clearRect(0, 0, c.width, c.height);
@@ -4889,6 +4943,12 @@ function yardTick(dt) {
   // AFK button: green while you're in, orange while you're AFK
   const pulse = 0.85 + 0.15 * Math.sin(now * 4);
   startBtnIM.setColorAt(0, human.afk ? raw(1 * pulse, 0.45 * pulse, 0.05) : raw(0.15, 0.85 * pulse, 0.25)); startBtnIM.instanceColor.needsUpdate = true;
+  // Discord button: blurple, dips and brightens when pressed
+  yard.discCD -= dt; yard.discFlash -= dt;
+  const df = yard.discFlash > 0 ? 1.6 : pulse;
+  discBtnIM.setMatrixAt(0, M(DISC_BTN.x, DISC_BTN.y - (yard.discFlash > 0 ? 0.03 : 0), DISC_BTN.z)); discBtnIM.instanceMatrix.needsUpdate = true;
+  discBtnIM.setColorAt(0, raw(0.35 * df, 0.4 * df, 0.95 * df)); discBtnIM.instanceColor.needsUpdate = true;
+  if (discPanel.kind !== human.kind) drawDiscPanel();
   yard.btnCD -= dt;
   for (const k of KB) { if (k.flash > 0 && (k.flash -= dt) <= 0) kbDirty = true; k.cd -= dt; }
   termTick(dt); fireTick(dt); shopTick(dt, show); shopRoomTick(dt, show); menuTick(dt);
@@ -4897,6 +4957,8 @@ function yardTick(dt) {
       const sp = h.vel.length();
       // red start button
       if (yard.btnCD <= 0 && h.pos.distanceTo(START_BTN) < 0.3 && sp > 1) { yard.btnCD = 1; sfx('slap', START_BTN); pulseHand(h.k, 0.8, 60); toggleAfk(); }
+      // Join the Discord button
+      if (human.kind === 'vr' && yard.discCD <= 0 && h.pos.distanceTo(DISC_BTN) < 0.24 && sp > 0.8) { pulseHand(h.k, 0.8, 60); openDiscord(false); }
       // computer keyboard: tap a key by bringing your hand down onto it
       if (human.kind === 'vr' && h.vel.y < -0.35 && h.pos.y < COMP.top + 0.1 && h.pos.y > COMP.top - 0.05 && (h.kbCD || 0) <= now) {
         const k = keyAt(h.pos);
@@ -4996,7 +5058,7 @@ function renderMirror() {
   renderer.setRenderTarget(prevTarget);
   MIRROR_HIDE.forEach((o, i) => { o.visible = was[i]; });
 }
-yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); drawShopSigns();
+yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawDiscPanel(); drawBagPanel(); drawShopSigns();
 
 // ================= main loop =================
 const perf = { t0: 0, n: 0, slow: 0, done: false };
@@ -5093,13 +5155,13 @@ document.addEventListener('pointerlockchange', () => { if (human.kind === 'pc') 
 })();
 // canvas text only uses a web font once it has loaded, so load them and redraw every panel
 if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Paint"', '600 40px "Barlow Condensed"', '700 40px "Barlow Condensed"', '40px VT323'].map((f) => document.fonts.load(f).catch(() => null)))
-  .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawBagPanel(); drawShopSigns(); for (const L of PED_LABELS) L.sig = ''; });
+  .then(() => { drawBoard(); yardLabels(); drawScreen(); drawKeyboard(); drawPadPanel(); drawDiscPanel(); drawBagPanel(); drawShopSigns(); for (const L of PED_LABELS) L.sig = ''; });
 human.kind = 'pc'; human.active = true; human.afk = true; human.autoAfk = true;
 startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { THREE, PHOTO, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { THREE, PHOTO, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
