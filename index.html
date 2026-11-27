@@ -298,7 +298,7 @@ const SUN_GLSL = `
     if (nightK < 0.001) return day;
     vec3 d = gW - shopC;
     // inside the shop the lamps keep it bright and warm
-    if (abs(d.x) < 6.05 && d.z > -6.1 && d.z < 6.1 && d.y < 4.6) return mix(day, day * vec3(1.02, 0.9, 0.74), nightK);
+    if (abs(d.x) < 6.05 && d.z > -6.1 && d.z < 6.1 && d.y < 4.6) return mix(day, day * vec3(1.04, 1.0, 0.93), nightK);
     // outside: cool moonlight, and warm pools of light under the street lamps
     vec3 night = vec3(0.2, 0.25, 0.42) * (amb + 0.17 * (0.5 + 0.5 * n.y)) + vec3(0.42, 0.5, 0.72) * 0.32 * ndl * sh;
     for (int i = 0; i < 4; i++) {
@@ -345,6 +345,8 @@ const SR = new THREE.Vector3(LB.x - 220, LB.y, LB.z);
 SUN.shopC.value.copy(SR);
 // the street lamps (x, z from the middle of the shop) and the height of their lanterns
 const STREET_LAMPS = [[-7.5, 8.75], [7.5, 8.75], [0, 15.75]], LANTERN_Y = 3.12;
+// the shop's hanging lamps (x, z)
+const SHOP_LAMPS = [[-2.6, -2.2], [2.6, -2.2], [-2.6, 2.4], [2.6, 2.4]];
 // one pedestal per shop item: six down each side wall
 const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 5.2, z: SR.z - 3 + j * 1.2, side }; });
 // you arrive on the little street outside the shop, facing its front
@@ -489,7 +491,8 @@ function buildLevel() {
     blk(X, Y, Z - 4.6, 4.0, 1.0, 0.8, { top: 'planks', side: 'darkwood' });
     blk(X + 3.1, Y, Z - 4.3, 1.2, 0.5, 1.2, { top: 'planks', side: 'darkwood' });
     // a step up from the road onto each sidewalk is the curb (the road sits 0.15 lower)
-    for (const sx of [-1, 1]) blk(X + sx * 2.9, Y, Z - 5.75, 1.6, 2.4, 0.4, { hidden: true });
+    for (const sx of [-1, 1]) { blk(X + sx * 2.9, Y + 0.95, Z - 5.77, 1.7, 1.42, 0.42, { hidden: true }); blk(X + sx * 4.95, Y, Z - 5.55, 1.4, 1.45, 0.66, { hidden: true }); }
+    blk(X - 1.35, Y + 1.0, Z - 4.62, 0.55, 0.52, 0.55, { hidden: true });
     for (const p of SHOP_PEDS) blk(p.x, Y, p.z, 0.6, 0.95, 0.6, { top: 'planks', side: 'darkwood' });
   }
   // tool rack
@@ -4293,7 +4296,7 @@ const bulbIM = new THREE.InstancedMesh(ico(1, 1), glowMat, 96);
 bulbIM.userData.noCast = true; bulbIM.frustumCulled = false; scene.add(bulbIM);
 {
   let n = 0; const bulb = (x, y, z, r, c) => { bulbIM.setMatrixAt(n, M(x, y, z, 0, 0, 0, r, r, r)); bulbIM.setColorAt(n++, raw(...c)); };
-  for (const [x, z] of [[-2.6, -2.2], [2.6, -2.2], [-2.6, 2.4], [2.6, 2.4]]) bulb(SR.x + x, SR.y + 3.12, SR.z + z, 0.09, [1.6, 1.25, 0.7]);
+  for (const [x, z] of SHOP_LAMPS) bulb(SR.x + x, SR.y + 3.8, SR.z + z, 0.08, [1.7, 1.4, 0.85]);
   const LC = [[1.4, 0.3, 0.25], [0.3, 1.2, 0.4], [0.35, 0.6, 1.5], [1.5, 1.1, 0.2], [1.2, 0.35, 1.2]];
   for (let k = 0; k < 11; k++) for (const sd of [-1, 1]) bulb(SR.x + sd * 5.85, SR.y + 3.95 - 0.12 * Math.sin((k % 2.75) * 1.1), SR.z - 5 + k, 0.045, LC[(k + (sd > 0 ? 2 : 0)) % 5]);
   for (let k = 0; k < 9; k++) bulb(SR.x - 4 + k, SR.y + 4.0 - 0.1 * (k % 2), SR.z - 5.85, 0.045, LC[k % 5]);
@@ -4306,25 +4309,13 @@ bulbIM.userData.noCast = true; bulbIM.frustumCulled = false; scene.add(bulbIM);
 const STREET_WINS = [];   // the street's windows (some light up at night)
 const shopDecorIM = inst(mergeParts((() => {
   const P = [], X = SR.x, Y = SR.y, Z = SR.z, B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  const WOOD = [1.15, 1.0, 0.85], DARK = [0.7, 0.58, 0.48];
+  const WOOD = [1.15, 1.0, 0.85], DARK = [0.7, 0.58, 0.48], BRASS = [1.0, 0.8, 0.42];
   // rug with a gold border
   P.push({ geo: B(4.6, 0.02, 6.6), c: [0.95, 0.75, 0.25], m: M(X, Y + 0.01, Z + 0.2) }, { geo: B(4.2, 0.03, 6.2), c: [0.62, 0.1, 0.1], m: M(X, Y + 0.015, Z + 0.2) }, { geo: B(3.4, 0.035, 5.4), c: [0.4, 0.06, 0.07], m: M(X, Y + 0.02, Z + 0.2) });
   // wall trim: a skirting board, a rail at waist height and a crown under the roof
   for (const sd of [-1, 1]) for (const [y, h] of [[0.07, 0.14], [1.32, 0.08], [4.2, 0.16]]) {
-    if (sd < 0 || y > 4) P.push({ geo: B(12, h, 0.06), c: WOOD, layer: 'bark', m: M(X, Y + y, Z + sd * 5.98) });
-    P.push({ geo: B(0.06, h, 12), c: WOOD, layer: 'bark', m: M(X + sd * 5.98, Y + y, Z) });
-  }
-  // shelves behind the counter with gift boxes
-  for (const sx of [-1, 1]) {
-    const cx = X + sx * 2.9;
-    for (const y of [0.9, 1.6, 2.3]) P.push({ geo: B(1.6, 0.06, 0.4), c: WOOD, layer: 'planks', m: M(cx, Y + y, Z - 5.75) });
-    for (const dx of [-0.78, 0.78]) P.push({ geo: B(0.06, 2.4, 0.4), c: DARK, layer: 'darkwood', m: M(cx + dx, Y + 1.2, Z - 5.75) });
-    const BOX = [[0.85, 0.2, 0.2], [0.2, 0.55, 0.9], [0.95, 0.75, 0.2], [0.3, 0.75, 0.35], [0.7, 0.3, 0.8]];
-    for (const [k, y] of [0.9, 1.6, 2.3].entries()) for (let j = 0; j < 3; j++) {
-      const s = 0.22 + ((k + j + (sx > 0 ? 1 : 0)) % 3) * 0.06, c = BOX[(k * 3 + j + (sx > 0 ? 2 : 0)) % 5];
-      P.push({ geo: B(s, s, s), c, m: M(cx - 0.5 + j * 0.5, Y + y + 0.03 + s / 2, Z - 5.72, 0, (j - 1) * 0.3, 0) });
-      P.push({ geo: B(s + 0.01, s + 0.01, 0.04), c: [1, 0.95, 0.85], m: M(cx - 0.5 + j * 0.5, Y + y + 0.03 + s / 2, Z - 5.72, 0, (j - 1) * 0.3, 0) });
-    }
+    if (sd < 0 || y > 4) P.push({ geo: B(12, h, 0.06), c: BRASS, m: M(X, Y + y, Z + sd * 5.98) });
+    P.push({ geo: B(0.06, h, 12), c: BRASS, m: M(X + sd * 5.98, Y + y, Z) });
   }
   // counter: a gold edge on top, front panels
   P.push({ geo: B(4.1, 0.05, 0.9), c: [0.95, 0.72, 0.25], m: M(X, Y + 1.0, Z - 4.6) });
@@ -4337,11 +4328,6 @@ const shopDecorIM = inst(mergeParts((() => {
   P.push({ geo: B(12.4, 0.2, 12.4), c: [1.15, 0.98, 0.82], layer: 'planks', m: M(X, Y + 4.5, Z) });
   for (let k = -2; k <= 2; k++) P.push({ geo: B(12, 0.24, 0.24), c: WOOD, layer: 'bark', m: M(X, Y + 4.28, Z + k * 2.4) });
   P.push({ geo: B(0.26, 0.26, 12), c: WOOD, layer: 'bark', m: M(X, Y + 4.25, Z) });
-  // hanging lamps: cord and shade
-  for (const [x, z] of [[-2.6, -2.2], [2.6, -2.2], [-2.6, 2.4], [2.6, 2.4]]) {
-    P.push({ geo: cyl(0.012, 0.012, 1.0, 4), c: [0.1, 0.1, 0.1], m: M(X + x, Y + 3.7, Z + z) });
-    P.push({ geo: new THREE.ConeGeometry(0.28, 0.24, 14, 1, true), c: [0.2, 0.35, 0.25], m: M(X + x, Y + 3.22, Z + z) });
-  }
   // a plant in the front corner
   for (const sx of [1]) {
     P.push({ geo: cyl(0.26, 0.2, 0.5, 12), c: [0.75, 0.42, 0.28], m: M(X + sx * 5.4, Y + 0.25, Z + 5.4) });
@@ -4428,24 +4414,29 @@ winGlowIM.userData.noCast = true; winGlowIM.frustumCulled = false; scene.add(win
   winGlowIM.count = n; winGlowIM.instanceMatrix.needsUpdate = true; if (winGlowIM.instanceColor) winGlowIM.instanceColor.needsUpdate = true;
 }
 // ----- the creator's street props (Meshy models): lamps, a bench, a fire hydrant, a bin, a mailbox -----
-// h = real height in metres; each spot is [x, z, turn] from the middle of the shop
+// h = real height in metres; each spot is [x, z, turn, height off the floor] from the middle of the shop
 const STREET_PROPS = [
-  { f: 'lamp', h: 3.6, at: STREET_LAMPS.map(([x, z]) => [x, z, 0]) },
-  { f: 'bench', h: 0.85, at: [[-10, 6.85, 0]] },
-  { f: 'hydrant', h: 0.8, at: [[3.2, 8.75, 0.4]] },
-  { f: 'bin', h: 0.95, at: [[6.6, 8.75, 0.6]] },
-  { f: 'mailbox', h: 1.15, at: [[-6.7, 8.75, -Math.PI / 2]] },
+  { f: 'street-lamp', h: 3.6, at: STREET_LAMPS.map(([x, z]) => [x, z, 0]) },
+  { f: 'street-bench', h: 0.85, at: [[-10, 6.85, 0]] },
+  { f: 'street-hydrant', h: 0.8, at: [[3.2, 8.75, 0.4]] },
+  { f: 'street-bin', h: 0.95, at: [[6.6, 8.75, 0.6]] },
+  { f: 'street-mailbox', h: 1.15, at: [[-6.7, 8.75, -Math.PI / 2]] },
+  // inside the shop: hanging lamps, stocked shelves behind the counter, display shelves in the back corners, the till
+  { f: 'shop-lamp', h: 0.62, at: SHOP_LAMPS.map(([x, z]) => [x, z, 0, 4.4 - 0.62]) },
+  { f: 'shop-wallshelf', h: 1.42, at: [[-2.9, -5.77, 0, 0.95], [2.9, -5.77, 0, 0.95]] },
+  { f: 'shop-display', h: 1.45, at: [[-4.95, -5.55, 0], [4.95, -5.55, 0]] },
+  { f: 'shop-register', h: 0.52, at: [[-1.35, -4.62, 0, 1.025]] },
 ];
 async function loadStreetProps() {
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   for (const P of STREET_PROPS) {
     try {
-      const gl = await new GLTFLoader().loadAsync(`models/street-${P.f}.glb?v=1`);
+      const gl = await new GLTFLoader().loadAsync(`models/${P.f}.glb?v=1`);
       let mesh = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
       const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld); geo.computeBoundingBox();
       const bb = geo.boundingBox, k = P.h / (bb.max.y - bb.min.y);
       const im = new THREE.InstancedMesh(geo, propMat(mesh.material.map), P.at.length);
-      P.at.forEach(([x, z, ry], i) => im.setMatrixAt(i, M(SR.x + x, SR.y - bb.min.y * k, SR.z + z, 0, ry, 0, k, k, k)));
+      P.at.forEach(([x, z, ry, y = 0], i) => im.setMatrixAt(i, M(SR.x + x, SR.y + y - bb.min.y * k, SR.z + z, 0, ry, 0, k, k, k)));
       im.frustumCulled = false; im.visible = false; scene.add(im); P.im = im;
     } catch (e) { console.warn('street prop failed', P.f, e); }
   }
@@ -4458,6 +4449,47 @@ const lampHalos = (() => {
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
   return STREET_LAMPS.map(([x2, z]) => { const sp = new THREE.Sprite(mat); sp.position.set(SR.x + x2, SR.y + LANTERN_Y, SR.z + z); sp.scale.setScalar(1.5); sp.userData.noCast = true; scene.add(sp); return sp; });
+})();
+// ----- white quartz on the inside walls (the outside stays wood) -----
+const quartzIM = (() => {
+  // a tiling quartz texture: warm white with soft grey veins and a little sparkle
+  const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d');
+  x.fillStyle = '#fbfaf8'; x.fillRect(0, 0, N, N);
+  const rnd = mulberry32(77);
+  for (let i = 0; i < 2600; i++) { const v = 236 + rnd() * 18 | 0; x.fillStyle = `rgba(${v},${v},${v},0.3)`; x.fillRect(rnd() * N, rnd() * N, 2 + rnd() * 5, 2 + rnd() * 5); }
+  x.lineCap = 'round';
+  // a few long, gentle veins running mostly one way (like real quartz), soft and faint
+  for (let v = 0; v < 6; v++) {
+    const pts = []; let px = rnd() * N, py = rnd() * N, a = 0.5 + (rnd() - 0.5) * 0.6;
+    for (let k = 0; k < 18; k++) { pts.push([px, py]); a += (rnd() - 0.5) * 0.35; px += Math.cos(a) * 30; py += Math.sin(a) * 30; }
+    const w = 0.5 + rnd() * 1.4, al = 0.035 + rnd() * 0.06;
+    for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) {   // drawn 9 times so the tile wraps without seams
+      x.beginPath(); pts.forEach(([a1, b1], k) => (k ? x.lineTo(a1 + ox, b1 + oy) : x.moveTo(a1 + ox, b1 + oy)));
+      x.strokeStyle = `rgba(170,170,172,${al})`; x.lineWidth = w * 5; x.stroke();
+      x.strokeStyle = `rgba(140,140,144,${al * 1.6})`; x.lineWidth = w; x.stroke();
+    }
+  }
+  for (let i = 0; i < 260; i++) { x.fillStyle = 'rgba(255,255,255,0.9)'; x.fillRect(rnd() * N, rnd() * N, 1.5, 1.5); }
+  const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+  // flat panels just in front of every inside wall face (uv in metres / 1.6 so the veins are life-size)
+  const X = SR.x, Y = SR.y, Z = SR.z, H = 4.4, parts = [];
+  const panel = (cx, cy, cz, w, h, ry) => {
+    const g = new THREE.PlaneGeometry(w, h), uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w + cx + cz) / 1.6, (uv.getY(i) * h + cy) / 1.6);
+    g.applyMatrix4(M(cx, cy, cz, 0, ry, 0)); parts.push(g);
+  };
+  panel(X, Y + H / 2, Z - 5.996, 12, H, 0);                       // back wall
+  panel(X - 5.996, Y + H / 2, Z, 12, H, Math.PI / 2);             // left wall
+  panel(X + 5.996, Y + H / 2, Z, 12, H, -Math.PI / 2);            // right wall
+  const front = (x0, x1, y0, y1) => panel(X + (x0 + x1) / 2, Y + (y0 + y1) / 2, Z + 5.996, x1 - x0, y1 - y0, Math.PI);
+  for (const [x0, x1] of [[-6, -5.0], [-1.6, -0.8], [0.8, 1.6], [5.0, 6]]) front(x0, x1, 0, H);
+  for (const [x0, x1] of [[-5.0, -1.6], [1.6, 5.0]]) { front(x0, x1, 0, 0.8); front(x0, x1, 3.2, H); }
+  front(-0.8, 0.8, 2.7, H);
+  const geo = new THREE.BufferGeometry(), A = { position: [], normal: [], uv: [] };
+  for (const g of parts) { const n = g.toNonIndexed(); for (const k in A) A[k].push(...n.attributes[k].array); }
+  for (const [k, n] of [['position', 3], ['normal', 3], ['uv', 2]]) geo.setAttribute(k, new THREE.Float32BufferAttribute(A[k], n));
+  const im = new THREE.InstancedMesh(geo, propMat(tex), 1); im.setMatrixAt(0, new THREE.Matrix4()); im.frustumCulled = false;
+  scene.add(im); return im;
 })();
 // the windows' glass, with a couple of shine streaks
 const glassMat = new THREE.MeshBasicMaterial({ color: 0xbfe3f0, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide, fog: false });
@@ -4621,7 +4653,7 @@ function shopRoomTick(dt, show) {
   const sp = SHOP_PEDS[SHOP.i];
   spotCone.visible = here; spotCone.position.set(sp.x, PED_TOP + 1.65, sp.z);
   spotMat.opacity = 0.08 + 0.025 * Math.sin(now * 3);
-  for (const o of [bulbIM, shopDecorIM, shopHint.mesh, ...shopGlass, POSTER.back, ...POSTER.tape, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
+  for (const o of [bulbIM, shopDecorIM, quartzIM, shopHint.mesh, ...shopGlass, POSTER.back, ...POSTER.tape, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
   if (POSTER.im) POSTER.im.visible = here;
   winGlowIM.visible = here;
   for (const P of STREET_PROPS) if (P.im) P.im.visible = here;
