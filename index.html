@@ -10,7 +10,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Distressed&family=Rubik+Wet+Paint&family=Barlow+Condensed:wght@500;600;700&family=VT323&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Distressed&family=Rubik+Wet+Paint&family=Barlow+Condensed:wght@500;600;700&family=Tilt+Neon&family=VT323&display=swap">
 <style>
 /* Layout: the live ravine fight fills the screen; one left-docked menu card over it; a slim HUD while playing. */
 :root {
@@ -4267,8 +4267,10 @@ const shopDecorIM = inst(mergeParts((() => {
   }
   // mirror frame on the front wall
   P.push({ geo: B(2.85, 2.2, 0.08), c: [0.95, 0.72, 0.25], m: M(X, Y + 1.6, Z + 5.94) });
-  // sign backing above the board
-  P.push({ geo: B(3.3, 0.85, 0.06), c: [0.12, 0.1, 0.09], m: M(X, Y + 3.6, Z - 5.95) });
+  // the LED sign's lightbox over the counter: a white box with a dark face for the neon tubes
+  P.push({ geo: B(3.9, 0.95, 0.45), c: [1.35, 1.28, 1.36], m: M(X, Y + 3.55, Z - 5.75) });
+  P.push({ geo: B(3.7, 0.72, 0.03), c: [0.07, 0.06, 0.08], m: M(X, Y + 3.55, Z - 5.52) });
+  for (const dx of [-1.6, 1.6]) P.push({ geo: cyl(0.012, 0.012, 0.3, 4), c: [0.15, 0.15, 0.15], m: M(X + dx, Y + 4.17, Z - 5.75) });
   return P;
 })()), 1);
 shopDecorIM.count = 1; shopDecorIM.setMatrixAt(0, new THREE.Matrix4()); shopDecorIM.userData.noCast = true;
@@ -4309,7 +4311,24 @@ function buildBusts() {
   }
 }
 const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 128, 0.52, 0.26, new THREE.Vector3(p.x - p.side * 0.305, SR.y + 0.62, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
-const shopTitle = panelAt(1024, 256, 3.2, 0.8, new THREE.Vector3(SR.x, SR.y + 3.6, SR.z - 5.9), 0);
+// the LED neon sign: glowing tubes on the lightbox, a pink glow on the wall around it, and a little green ape
+const FN = '"Tilt Neon", "Barlow Condensed", sans-serif';
+const shopTitle = panelAt(1024, 200, 3.3, 0.645, new THREE.Vector3(SR.x - 0.22, SR.y + 3.55, SR.z - 5.46), 0);
+const shopIcon = panelAt(200, 200, 0.6, 0.6, new THREE.Vector3(SR.x + 1.5, SR.y + 3.55, SR.z - 5.455), 0);
+for (const P of [shopTitle, shopIcon]) { P.mesh.material.blending = THREE.AdditiveBlending; P.mesh.material.depthWrite = false; P.mesh.material.toneMapped = false; P.mesh.userData.noCast = true; }
+const neonSpill = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+  const g = x.createRadialGradient(64, 64, 4, 64, 64, 64); g.addColorStop(0, 'rgba(255,60,220,0.8)'); g.addColorStop(0.5, 'rgba(210,40,200,0.32)'); g.addColorStop(1, 'rgba(120,0,160,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
+  const g1 = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.6), mat); g1.position.set(SR.x, SR.y + 3.5, SR.z - 5.965);
+  // and a soft glow cast down onto the counter
+  const g2 = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 1.6), mat); g2.rotation.x = -Math.PI / 2; g2.position.set(SR.x, SR.y + 1.035, SR.z - 4.6);
+  for (const m of [g1, g2]) { m.userData.noCast = true; scene.add(m); }
+  return [g1, g2];
+})();
+const neon = { flick: 0, iconFlick: 0, next: 3 };
 const shopHint = panelAt(1024, 160, 2.6, 0.4, new THREE.Vector3(SR.x, SR.y + 3.05, SR.z + 5.9), Math.PI);
 const inShop = () => human.pos.distanceTo(SR) < 9.5;
 function drawPedLabel(i) {
@@ -4326,9 +4345,26 @@ function drawPedLabel(i) {
   L.tex.needsUpdate = true;
 }
 function drawShopSigns() {
-  let { ctx, c } = shopTitle; ctx.clearRect(0, 0, c.width, c.height); ctx.textAlign = 'center';
-  ctx.shadowColor = '#ff9a1f'; ctx.shadowBlur = 28; ctx.fillStyle = '#ffc23a'; ctx.font = `150px ${FD}`; ctx.fillText('WRECK SHOP', 512, 180, 980);
-  ctx.shadowBlur = 0; shopTitle.tex.needsUpdate = true;
+  // neon tubes: a wide coloured glow, a tighter one, then the hot white-pink core
+  const tubes = (ctx, draw, col) => {
+    for (const [blur, w, st] of [[50, 16, col], [50, 16, col], [24, 10, col], [10, 6, '#ffb8f2'], [4, 3, '#fff2fd']]) { ctx.shadowColor = col; ctx.shadowBlur = blur; ctx.lineWidth = w; ctx.strokeStyle = st; ctx.fillStyle = st; draw(); }
+    ctx.shadowBlur = 0;
+  };
+  let { ctx, c } = shopTitle; ctx.clearRect(0, 0, c.width, c.height); ctx.textAlign = 'center'; ctx.lineCap = ctx.lineJoin = 'round';
+  ctx.font = `140px ${FN}`; try { ctx.letterSpacing = '8px'; } catch (e) { /* older browsers */ }
+  tubes(ctx, () => { ctx.fillText('WRECK SHOP', 470, 150, 880); ctx.strokeText('WRECK SHOP', 470, 150, 880); }, '#ff3ad8');
+  try { ctx.letterSpacing = '0px'; } catch (e) { /* older browsers */ }
+  shopTitle.tex.needsUpdate = true;
+  // the little green ape face, drawn as tubes
+  ({ ctx, c } = shopIcon); ctx.clearRect(0, 0, c.width, c.height); ctx.lineCap = ctx.lineJoin = 'round';
+  tubes(ctx, () => {
+    ctx.beginPath(); ctx.arc(100, 104, 52, 0, Math.PI * 2); ctx.stroke();                       // head
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(100 + sx * 64, 100, 15, 0, Math.PI * 2); ctx.stroke(); }   // ears
+    ctx.beginPath(); ctx.ellipse(100, 124, 30, 20, 0, 0, Math.PI * 2); ctx.stroke();             // muzzle
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(100 + sx * 20, 88, 5, 0, Math.PI * 2); ctx.stroke(); }    // eyes
+    ctx.beginPath(); ctx.arc(100, 122, 12, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();          // smile
+  }, '#39ff6a');
+  shopIcon.tex.needsUpdate = true;
   ({ ctx, c } = shopHint); ctx.clearRect(0, 0, c.width, c.height); ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill(); ctx.textAlign = 'center';
   ctx.fillStyle = '#6dff96'; ctx.font = `64px ${FD}`; ctx.fillText('CHECK YOURSELF OUT', 512, 76);
   ctx.fillStyle = '#f3ead8'; ctx.font = `600 36px ${FB}`; ctx.fillText('Leave: press Y for your menu, then BACK TO THE YARD', 512, 134, 980);
@@ -4389,7 +4425,14 @@ function shopRoomTick(dt, show) {
   const sp = SHOP_PEDS[SHOP.i];
   spotCone.visible = here; spotCone.position.set(sp.x, PED_TOP + 1.65, sp.z);
   spotMat.opacity = 0.08 + 0.025 * Math.sin(now * 3);
-  for (const o of [bulbIM, shopDecorIM, shopTitle.mesh, shopHint.mesh, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
+  for (const o of [bulbIM, shopDecorIM, shopTitle.mesh, shopIcon.mesh, shopHint.mesh, ...neonSpill, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
+  // the neon hums, and now and then it flickers (the little ape more often)
+  if ((neon.next -= dt) <= 0) { neon.next = rand(2.5, 7); if (Math.random() < 0.35) neon.flick = 0.35; else neon.iconFlick = 0.5; }
+  neon.flick -= dt; neon.iconFlick -= dt;
+  const hum = 0.94 + 0.06 * Math.sin(now * 37), off = (t) => (t > 0 && Math.sin(t * 60) > 0.2 ? 0.25 : 1);
+  shopTitle.mesh.material.color.setScalar(hum * off(neon.flick));
+  shopIcon.mesh.material.color.setScalar(hum * off(neon.iconFlick));
+  neonSpill[0].material.color.setScalar(0.85 + 0.15 * off(neon.flick));
   // touch a bust to put it on show at the counter
   if (show && here && human.kind === 'vr') for (const h of localHands()) {
     SHOP_PEDS.forEach((p, i) => {
