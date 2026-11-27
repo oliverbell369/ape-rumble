@@ -493,6 +493,7 @@ function buildLevel() {
     // a step up from the road onto each sidewalk is the curb (the road sits 0.15 lower)
     for (const sx of [-1, 1]) { blk(X + sx * 2.9, Y + 0.95, Z - 5.77, 1.7, 1.42, 0.42, { hidden: true }); blk(X + sx * 4.95, Y, Z - 5.55, 1.4, 1.45, 0.66, { hidden: true }); }
     blk(X - 1.35, Y + 1.0, Z - 4.62, 0.55, 0.52, 0.55, { hidden: true });
+    blk(X, Y + 1.6, Z - 5.77, 1.7, 1.42, 0.42, { hidden: true });
     for (const p of SHOP_PEDS) blk(p.x, Y, p.z, 0.6, 0.95, 0.6, { top: 'planks', side: 'darkwood' });
   }
   // tool rack
@@ -1233,7 +1234,11 @@ const COS = [
     { geo: new THREE.BoxGeometry(0.012, 0.012, 0.3), c: [0.05, 0.05, 0.05], m: M(-0.11, 0.24, -0.2, 0.35, -0.5, 0) },
     { geo: new THREE.BoxGeometry(0.22, 0.012, 0.012), c: [0.05, 0.05, 0.05], m: M(0.0, 0.25, -0.318, 0, 0, -0.35) }] },
 ];
-COS.forEach((it, i) => { it.i = i; it.geo = mergeParts(it.parts); it.im = inst(it.geo, MAXA + 10); });
+// limited items are only on sale until their end date (on this device's clock for now; the store version
+// needs the server to say what's on sale). Anyone who bought one keeps it.
+const LIMITED = { 'GOLD CROWN': '2027-01-01T00:00:00Z', 'HALO': '2027-01-01T00:00:00Z', 'VIKING HELMET': '2026-12-15T00:00:00Z' };
+COS.forEach((it, i) => { it.i = i; it.geo = mergeParts(it.parts); it.im = inst(it.geo, MAXA + 10); if (LIMITED[it.name]) it.ends = Date.parse(LIMITED[it.name]); });
+const isGone = (it) => !!it.ends && Date.now() >= it.ends;
 const NO_COS = [-1, -1];
 const cosN = new Array(COS.length).fill(0);
 // put an ape's cosmetics on it, given its body matrix
@@ -2388,7 +2393,7 @@ canvas.addEventListener('mousedown', (e) => {
     const R = human.hands[1];
     if (pcClickMenu()) { /* pressed a menu button */ }
     else if (R.tool) { if (toolType(R.tool) === 'launcher') useTrigger(human, R); else if (R.punchT <= 0) R.punchT = 0.32; }
-    else if (pcClickComputer() || pcClickShop() || pcClickPed() || pcClickAfk() || pcClickDiscord()) { /* pressed a key or button */ }
+    else if (pcClickComputer() || pcClickPed() || pcClickAfk() || pcClickDiscord()) { /* pressed a key or button */ }
     else { const h = human.hands[pcPunchHand]; if (h.punchT <= 0) { h.punchT = 0.32; pcPunchHand = 1 - pcPunchHand; } }
   }
   if (e.button === 2) mouse.right = true;
@@ -4260,16 +4265,9 @@ function coinTick() {
   }
   if (G.state === 'matchEnd' && G.matchWinner === human) addCoins(50, 'won the match!');
 }
-// ----- the shop counter: a board, three buttons and a display ape wearing what you're looking at -----
-const SHOP = { i: 0, msg: '', msgT: 0, sig: '', btnCD: 0 };
-const shopBoard = panelAt(1024, 512, 2.6, 1.3, new THREE.Vector3(SR.x, SR.y + 2.3, SR.z - 5.9), 0);
-const SHOP_BTNS = [
-  { k: 'prev', x: -0.75, col: [0.25, 0.5, 0.95] },
-  { k: 'buy', x: 0, col: [0.2, 0.8, 0.3] },
-  { k: 'next', x: 0.75, col: [0.25, 0.5, 0.95] },
-].map((b) => Object.assign(b, { pos: new THREE.Vector3(SR.x + b.x, SR.y + 1.06, SR.z - 4.45), flash: 0 }));
-const shopBtnIM = inst(mergeParts([{ geo: ico(0.12, 1), c: F, tint: true, m: M(0, 0, 0, 0, 0, 0, 1, 0.45, 1) }, { geo: cyl(0.14, 0.15, 0.04, 14), c: [0.2, 0.17, 0.14], m: M(0, -0.03, 0) }]), 3);
-shopBtnIM.count = 3;
+// ----- the shop: every item has its own BUY button (like other ape games); touch an item to try it on -----
+// SHOP.i: the item under the spotlight and on the display ape; SHOP.try: the one you're trying on (only you see it, in the mirror)
+const SHOP = { i: 0, try: -1, msg: '', msgI: -1, msgT: 0, btnCD: 0 };
 const shopApe = { ape: inst(apeGeo, 1), band: inst(bandGeo, 1), stand: inst(mergeParts([{ geo: cyl(0.16, 0.2, 0.12, 12), c: [0.45, 0.3, 0.18], layer: 'darkwood' }]), 1) };
 for (const im of Object.values(shopApe)) im.count = 1;
 const SHOP_HANDS = [new THREE.Vector3(), new THREE.Vector3()];
@@ -4423,7 +4421,7 @@ const STREET_PROPS = [
   { f: 'street-mailbox', h: 1.15, at: [[-6.7, 8.75, -Math.PI / 2]] },
   // inside the shop: hanging lamps, stocked shelves behind the counter, display shelves in the back corners, the till
   { f: 'shop-lamp', h: 0.62, at: SHOP_LAMPS.map(([x, z]) => [x, z, 0, 4.4 - 0.62]) },
-  { f: 'shop-wallshelf', h: 1.42, at: [[-2.9, -5.77, 0, 0.95], [2.9, -5.77, 0, 0.95]] },
+  { f: 'shop-wallshelf', h: 1.42, at: [[-2.9, -5.77, 0, 0.95], [2.9, -5.77, 0, 0.95], [0, -5.77, 0, 1.6]] },
   { f: 'shop-display', h: 1.45, at: [[-4.95, -5.55, 0], [4.95, -5.55, 0]] },
   { f: 'shop-register', h: 0.52, at: [[-1.35, -4.62, 0, 1.025]] },
 ];
@@ -4574,28 +4572,54 @@ function buildBusts() {
     const m = new THREE.Mesh(bg, BUST.mat); m.matrixAutoUpdate = false; scene.add(m); BUST.meshes.push(m);
   }
 }
-const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 128, 0.52, 0.26, new THREE.Vector3(p.x - p.side * 0.305, SR.y + 0.62, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
+const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 176, 0.54, 0.37, new THREE.Vector3(p.x - p.side * 0.305, SR.y + 0.69, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
+// each pedestal's BUY button: a dome on the front, under the label
+const PED_BTNS = SHOP_PEDS.map((p) => ({ pos: new THREE.Vector3(p.x - p.side * 0.33, SR.y + 0.33, p.z), ry: -p.side * Math.PI / 2, flash: 0, inside: false }));
+const pedBtnIM = inst(mergeParts([
+  { geo: ico(0.085, 1), c: F, tint: true, m: M(0, 0, 0.02, 0, 0, 0, 1, 1, 0.5) },
+  { geo: cyl(0.1, 0.1, 0.03, 16), c: [0.18, 0.15, 0.12], m: M(0, 0, 0, Math.PI / 2, 0, 0) },
+]), 12);
+pedBtnIM.count = 12;
+const timeLeft = (ms) => { const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return d > 0 ? `${d}D ${h}H` : h > 0 ? `${h}H ${m % 60}M` : `${m % 60}M`; };
+function pedState(i) {
+  const it = COS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, gone = !owned && isGone(it);
+  return { it, owned, worn, gone, afford: wallet.coins >= it.price };
+}
+const BTN_COL = { gone: [0.35, 0.35, 0.38], buy: [0.2, 0.85, 0.3], poor: [0.95, 0.45, 0.15], off: [0.9, 0.25, 0.2], wear: [0.25, 0.5, 0.95] };
+const btnKind = (S) => (S.gone ? 'gone' : !S.owned ? (S.afford ? 'buy' : 'poor') : S.worn ? 'off' : 'wear');
 const shopHint = panelAt(1024, 160, 2.2, 0.34, new THREE.Vector3(SR.x - 5.94, SR.y + 2.72, SR.z + 4.7), Math.PI / 2);
 // the shop and its little street
 const inShopArea = (p) => Math.abs(p.x - SR.x) < 14.6 && p.z > SR.z - 6.7 && p.z < SR.z + 18.8 && p.y > SR.y - 4 && p.y < SR.y + 16;
 const inShop = () => inShopArea(human.pos);
 function drawPedLabel(i) {
-  const it = COS[i], L = PED_LABELS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, on = SHOP.i === i, T = tierOf(it);
-  const sig = [owned, worn, on, wallet.coins >= it.price].join();
+  const L = PED_LABELS[i], S = pedState(i), it = S.it, on = SHOP.i === i, T = tierOf(it), lim = !!it.ends && !S.owned;
+  const msg = SHOP.msgT > 0 && SHOP.msgI === i ? SHOP.msg : SHOP.try === i ? 'TRYING IT ON: LOOK IN THE MIRROR' : '';
+  const left = lim && !S.gone ? timeLeft(it.ends - Date.now()) : '';
+  const sig = [S.owned, S.worn, S.gone, S.afford, on, msg, left].join();
   if (sig === L.sig) return; L.sig = sig;
   const { ctx, c } = L; ctx.clearRect(0, 0, c.width, c.height);
-  ctx.fillStyle = on ? 'rgba(255,194,58,0.97)' : 'rgba(22,18,13,0.93)'; rr(ctx, 0, 0, c.width, c.height, 18); ctx.fill();
-  ctx.fillStyle = T.css; rr(ctx, 0, 0, c.width, 26, [18, 18, 0, 0]); ctx.fill();
-  ctx.textAlign = 'center'; ctx.fillStyle = '#16120d'; ctx.font = `800 20px ${FB}`; ctx.fillText(T.n, 128, 20);
-  ctx.fillStyle = on ? '#2a1a05' : '#f3ead8'; ctx.font = `700 32px ${FB}`; ctx.fillText(it.name, 128, 66, 240);
-  ctx.font = `700 30px ${FB}`; ctx.fillStyle = on ? '#2a1a05' : worn ? '#6dff96' : owned ? '#b9ad94' : wallet.coins >= it.price ? '#ffc23a' : '#ff7a5c';
-  ctx.fillText(worn ? 'WEARING' : owned ? 'OWNED' : `${it.price.toLocaleString()} scrap`, 128, 106);
+  ctx.fillStyle = 'rgba(22,18,13,0.94)'; rr(ctx, 0, 0, c.width, c.height, 18); ctx.fill();
+  if (on) { ctx.strokeStyle = '#ffc23a'; ctx.lineWidth = 6; rr(ctx, 3, 3, c.width - 6, c.height - 6, 16); ctx.stroke(); }
+  // top ribbon: LIMITED (with time left) or the item's tier
+  ctx.fillStyle = lim ? '#e8352b' : T.css; rr(ctx, 0, 0, c.width, 30, [18, 18, 0, 0]); ctx.fill();
+  ctx.textAlign = 'center'; ctx.fillStyle = lim ? '#fff' : '#16120d'; ctx.font = `800 21px ${FB}`;
+  ctx.fillText(lim ? (S.gone ? 'LIMITED · SOLD OUT' : `LIMITED · ENDS IN ${left}`) : T.n, 128, 22, 240);
+  ctx.fillStyle = '#f3ead8'; ctx.font = `700 32px ${FB}`; ctx.fillText(it.name, 128, 68, 240);
+  // price, or what you've got
+  ctx.font = `700 30px ${FB}`;
+  if (S.owned) { ctx.fillStyle = S.worn ? '#6dff96' : '#b9ad94'; ctx.fillText(S.worn ? 'WEARING' : 'OWNED', 128, 106); }
+  else if (S.gone) { ctx.fillStyle = '#8a8580'; ctx.fillText('NO LONGER ON SALE', 128, 106, 240); }
+  else { const w = ctx.measureText(it.price.toLocaleString()).width; coinIcon(ctx, 128 - w / 2 - 6, 96, 13); ctx.textAlign = 'left'; ctx.fillStyle = S.afford ? '#ffc23a' : '#ff7a5c'; ctx.fillText(it.price.toLocaleString(), 128 - w / 2 + 14, 107); ctx.textAlign = 'center'; }
+  // bottom line: a message, or what the button below does
+  const k = btnKind(S), what = { gone: '', buy: 'PRESS THE BUTTON TO BUY', poor: 'NOT ENOUGH SCRAP YET', off: 'PRESS THE BUTTON TO TAKE OFF', wear: 'PRESS THE BUTTON TO WEAR' }[k];
+  ctx.font = `700 19px ${FB}`; ctx.fillStyle = msg ? '#6dff96' : '#b9ad94';
+  ctx.fillText(msg || (what ? `▼ ${what}` : ''), 128, 150, 244);
   L.tex.needsUpdate = true;
 }
 function drawShopSigns() {
   const { ctx, c } = shopHint; ctx.clearRect(0, 0, c.width, c.height); ctx.fillStyle = 'rgba(22,18,13,0.92)'; rr(ctx, 0, 0, c.width, c.height, 30); ctx.fill(); ctx.textAlign = 'center';
-  ctx.fillStyle = '#6dff96'; ctx.font = `64px ${FD}`; ctx.fillText('CHECK YOURSELF OUT', 512, 76);
-  ctx.fillStyle = '#f3ead8'; ctx.font = `600 36px ${FB}`; ctx.fillText('Leave: press Y for your menu, then BACK TO THE YARD', 512, 134, 980);
+  ctx.fillStyle = '#6dff96'; ctx.font = `64px ${FD}`; ctx.fillText('TRY IT ON', 512, 76);
+  ctx.fillStyle = '#f3ead8'; ctx.font = `600 32px ${FB}`; ctx.fillText('Touch an ape head to try it on · press its button to buy · Y: menu', 512, 134, 980);
   shopHint.tex.needsUpdate = true;
 }
 const SHOP_RETURN = new THREE.Vector3(LB.x + 1.5, LB.y, LB.z + 6.5);
@@ -4660,10 +4684,24 @@ function shopRoomTick(dt, show) {
   for (const h of lampHalos) h.visible = here;
   SUN.nightK.value = here ? 1 : 0;
   setNightFog(here);
-  // touch a bust to put it on show at the counter
-  if (show && here && human.kind === 'vr') for (const h of localHands()) {
-    SHOP_PEDS.forEach((p, i) => {
-      if (SHOP.i !== i && Math.hypot(h.pos.x - p.x, h.pos.z - p.z) < 0.32 && Math.abs(h.pos.y - (PED_TOP + 0.3)) < 0.35) { SHOP.i = i; SHOP.msg = ''; sfx('tap', h.pos, 3); pulseHand(h.k, 0.4, 30); }
+  // the BUY buttons (pressed in a little when you push them)
+  PED_BTNS.forEach((b, i) => {
+    b.flash -= dt;
+    const col = BTN_COL[btnKind(pedState(i))], push = b.flash > 0 ? 0.025 : 0;
+    _q.setFromAxisAngle(_yAxis, b.ry); _t1.set(0, 0, -push).applyQuaternion(_q).add(b.pos);
+    pedBtnIM.setMatrixAt(i, _mm.compose(_t1, _q, ONE)); pedBtnIM.setColorAt(i, raw(...col.map((v) => v * (b.flash > 0 ? 1.6 : 1))));
+  });
+  pedBtnIM.visible = here; pedBtnIM.instanceMatrix.needsUpdate = true; pedBtnIM.instanceColor.needsUpdate = true;
+  if (show && here && human.kind === 'vr') {
+    const hands = localHands();
+    PED_BTNS.forEach((b, i) => {
+      const touching = hands.find((h) => h.pos.distanceTo(b.pos) < 0.13);
+      if (touching && !b.inside && SHOP.btnCD <= 0) { SHOP.btnCD = 0.35; b.flash = 0.25; pulseHand(touching.k, 0.6, 35); buyItem(i, b.pos); }
+      b.inside = !!touching;
+    });
+    // touch a head to try it on (and put it under the spotlight)
+    for (const h of hands) SHOP_PEDS.forEach((p, i) => {
+      if (SHOP.try !== i && Math.hypot(h.pos.x - p.x, h.pos.z - p.z) < 0.3 && Math.abs(h.pos.y - (PED_TOP + 0.3)) < 0.3) { SHOP.i = i; SHOP.try = wallet.owned.includes(i) ? -1 : i; sfx('tap', h.pos, 3); pulseHand(h.k, 0.4, 30); }
     });
   }
 }
@@ -4671,9 +4709,14 @@ function shopRoomTick(dt, show) {
 function pcClickPed() {
   if (!inShop() || human.kind !== 'pc') return false;
   camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
+  // a BUY button first, then a head (to try it on)
+  for (const [i, b] of PED_BTNS.entries()) {
+    _t3.subVectors(b.pos, _t1); const t = _t3.dot(_t2);
+    if (t > 0 && t < 6 && _t3.addScaledVector(_t2, -t).length() < 0.12) { if (SHOP.btnCD <= 0) { SHOP.btnCD = 0.35; b.flash = 0.25; buyItem(i, b.pos); } return true; }
+  }
   for (const [i, p] of SHOP_PEDS.entries()) {
     _t3.set(p.x, PED_TOP + 0.3, p.z).sub(_t1); const t = _t3.dot(_t2);
-    if (t > 0 && t < 9 && _t3.addScaledVector(_t2, -t).length() < 0.32) { SHOP.i = i; SHOP.msg = ''; sfx('tap', null, 1); return true; }
+    if (t > 0 && t < 9 && _t3.addScaledVector(_t2, -t).length() < 0.32) { SHOP.i = i; SHOP.try = wallet.owned.includes(i) ? -1 : i; sfx('tap', null, 1); return true; }
   }
   return false;
 }
@@ -4768,21 +4811,24 @@ function pcClickMenu() {
   if (hit >= 0) menuPress(hit);
   return true;   // a click while the menu is open never punches
 }
-function shopPress(b) {
-  b.flash = 0.25; sfx('tap', b.pos, 3);
-  const it = COS[SHOP.i];
-  if (b.k === 'prev') SHOP.i = (SHOP.i + COS.length - 1) % COS.length;
-  else if (b.k === 'next') SHOP.i = (SHOP.i + 1) % COS.length;
-  else if (!wallet.owned.includes(it.i)) {
+function buyItem(i, at) {
+  const it = COS[i], owned = wallet.owned.includes(i);
+  SHOP.i = i; SHOP.msgI = i; SHOP.msgT = 2.5;
+  if (!owned && isGone(it)) { SHOP.msg = 'NO LONGER ON SALE'; sfx('beep', at); return; }
+  if (!owned) {
     if (wallet.coins >= it.price) {
-      wallet.coins -= it.price; wallet.owned.push(it.i); wallet.wear[it.slot] = it.i; saveWallet();
-      SHOP.msg = `BOUGHT ${it.name}!`; sfx('win', b.pos);
-    } else { SHOP.msg = `YOU NEED ${it.price - wallet.coins} MORE SCRAP`; sfx('beep', b.pos); }
-  } else if (wallet.wear[it.slot] === it.i) { wallet.wear[it.slot] = -1; saveWallet(); SHOP.msg = `TOOK OFF ${it.name}`; }
-  else { wallet.wear[it.slot] = it.i; saveWallet(); SHOP.msg = `WEARING ${it.name}`; }
-  if (b.k !== 'buy') SHOP.msg = '';
-  SHOP.msgT = 3;
+      wallet.coins -= it.price; wallet.owned.push(i); wallet.wear[it.slot] = i; saveWallet();
+      SHOP.msg = 'BOUGHT IT!'; sfx('win', at); if (SHOP.try === i) SHOP.try = -1;
+    } else { SHOP.msg = `NEED ${(it.price - wallet.coins).toLocaleString()} MORE`; sfx('beep', at); return; }
+  } else if (wallet.wear[it.slot] === i) { wallet.wear[it.slot] = -1; saveWallet(); SHOP.msg = 'TOOK IT OFF'; sfx('tap', at, 3); }
+  else { wallet.wear[it.slot] = i; saveWallet(); SHOP.msg = 'WEARING IT'; sfx('tap', at, 3); }
   human.cos = myCos(); sendLook();
+}
+// what you see on yourself in the mirror: your outfit, with anything you're trying on swapped in
+function mirrorCos() {
+  const c = myCos();
+  if (SHOP.try >= 0 && inShop()) c[COS[SHOP.try].slot === 'head' ? 0 : 1] = SHOP.try;
+  return c;
 }
 // the scrap icon: a rusty steel cog
 function coinIcon(ctx, x, y, r) {
@@ -4797,29 +4843,9 @@ function coinIcon(ctx, x, y, r) {
   ctx.fillStyle = '#2a221c'; ctx.beginPath(); ctx.arc(x, y, r * 0.3, 0, 6.283); ctx.fill();
   ctx.textAlign = 'center';
 }
-function drawShop() {
-  const { ctx, c } = shopBoard, it = COS[SHOP.i];
-  const owned = wallet.owned.includes(it.i), worn = wallet.wear[it.slot] === it.i;
-  ctx.clearRect(0, 0, c.width, c.height);
-  ctx.fillStyle = 'rgba(22,18,13,0.94)'; rr(ctx, 0, 0, c.width, c.height, 36); ctx.fill();
-  ctx.strokeStyle = '#ffc23a'; ctx.lineWidth = 6; rr(ctx, 6, 6, c.width - 12, c.height - 12, 32); ctx.stroke();
-  ctx.textAlign = 'left'; ctx.fillStyle = '#ffc23a'; ctx.font = `72px ${FD}`; ctx.fillText('WRECK SHOP', 44, 92);
-  coinIcon(ctx, 760, 64, 26);
-  ctx.textAlign = 'left'; ctx.fillStyle = '#f3ead8'; ctx.font = `700 56px ${FB}`; ctx.fillText(wallet.coins.toLocaleString(), 800, 84);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#b9ad94'; ctx.font = `600 30px ${FB}`; ctx.fillText(`${it.slot === 'head' ? 'HATS' : 'FACE'}  ·  ${SHOP.i + 1} / ${COS.length}`, 512, 150);
-  ctx.fillStyle = '#f3ead8'; ctx.font = `76px ${FD}`; ctx.fillText(it.name, 512, 236, 940);
-  if (owned) { ctx.fillStyle = worn ? '#6dff96' : '#b9ad94'; ctx.font = `700 44px ${FB}`; ctx.fillText(worn ? 'WEARING' : 'OWNED', 512, 302); }
-  else { coinIcon(ctx, 440, 288, 22); ctx.fillStyle = wallet.coins >= it.price ? '#ffc23a' : '#ff7a5c'; ctx.font = `700 48px ${FB}`; ctx.textAlign = 'left'; ctx.fillText(it.price.toLocaleString(), 476, 304); ctx.textAlign = 'center'; }
-  if (SHOP.msgT > 0 && SHOP.msg) { ctx.fillStyle = '#6dff96'; ctx.font = `700 34px ${FB}`; ctx.fillText(SHOP.msg, 512, 360); }
-  // button labels sit right above the three buttons on the counter
-  const lab = [['PREV', 0.16], [owned ? (worn ? 'TAKE OFF' : 'WEAR') : 'BUY', 0.5], ['NEXT', 0.84]];
-  for (const [t, u] of lab) { ctx.fillStyle = t === 'BUY' || t === 'WEAR' ? '#3fa356' : t === 'TAKE OFF' ? '#8a3a32' : '#3f6fd0'; rr(ctx, u * 1024 - 120, 400, 240, 76, 38); ctx.fill(); ctx.fillStyle = '#f3ead8'; ctx.font = `700 40px ${FB}`; ctx.fillText(t, u * 1024, 452); }
-  ctx.fillStyle = '#b9ad94'; ctx.font = `600 22px ${FB}`; ctx.fillText('Touch an item on the walls to look at it · earn scrap in matches', 512, 500);
-  shopBoard.tex.needsUpdate = true;
-}
 function shopTick(dt, show) {
   SHOP.btnCD -= dt; SHOP.msgT -= dt;
+  if (!inShop()) SHOP.try = -1;
   // the display ape turns slowly, wearing the item on show
   _q.setFromAxisAngle(_yAxis, Math.PI + Math.sin(now * 0.6) * 0.9);
   _mm.compose(_p.copy(SHOP_APE_AT).setY(SHOP_APE_AT.y + 0.5), _q, ONE);
@@ -4830,18 +4856,6 @@ function shopTick(dt, show) {
   shopApe.band.setMatrixAt(0, hm); shopApe.band.setColorAt(0, human.band || raw(0.9, 0.18, 0.15));
   if (here) wearCos([SHOP.i], hm);
   for (const im of Object.values(shopApe)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
-  SHOP_BTNS.forEach((b, i) => {
-    b.flash -= dt;
-    shopBtnIM.setMatrixAt(i, _mm.compose(_p.copy(b.pos).setY(b.pos.y - (b.flash > 0 ? 0.02 : 0)), _qI, ONE));
-    shopBtnIM.setColorAt(i, raw(...b.col.map((v) => v * (b.flash > 0 ? 1.6 : 1))));
-  });
-  shopBtnIM.instanceMatrix.needsUpdate = true; shopBtnIM.instanceColor.needsUpdate = true;
-  if (show && SHOP.btnCD <= 0) for (const h of localHands()) {
-    if (human.kind !== 'vr') break;
-    for (const b of SHOP_BTNS) if (h.pos.distanceTo(b.pos) < 0.16 && (h.vel.y < -0.4 || h.vel.length() > 1.5)) { SHOP.btnCD = 0.4; pulseHand(h.k, 0.5, 30); shopPress(b); break; }
-  }
-  const it = COS[SHOP.i], sig = [SHOP.i, wallet.coins, wallet.owned.length, wallet.wear.head, wallet.wear.face, SHOP.msgT > 0 ? SHOP.msg : ''].join('|');
-  if (sig !== SHOP.sig && (!show || human.pos.distanceTo(shopBoard.mesh.position) < 16 || !SHOP.sig)) { SHOP.sig = sig; drawShop(); }
 }
 // on a computer: click the AFK button you're looking at
 function pcClickAfk() {
@@ -4849,16 +4863,6 @@ function pcClickAfk() {
   camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
   _t3.subVectors(START_BTN, _t1); const t = _t3.dot(_t2);
   if (t > 0 && t < 3 && _t3.addScaledVector(_t2, -t).length() < 0.25 && yard.btnCD <= 0) { yard.btnCD = 0.4; toggleAfk(); return true; }
-  return false;
-}
-// on a computer: click a shop button you're looking at
-function pcClickShop() {
-  if (!yardHere() || human.kind !== 'pc') return false;
-  camera.getWorldPosition(_t1); camera.getWorldDirection(_t2);
-  for (const b of SHOP_BTNS) {
-    _t3.subVectors(b.pos, _t1); const t = _t3.dot(_t2);
-    if (t > 0 && t < 3 && _t3.addScaledVector(_t2, -t).length() < 0.16) { shopPress(b); return true; }
-  }
   return false;
 }
 
@@ -5202,7 +5206,7 @@ function yardTick(dt) {
     if (RIG.ready) selfIM.ape.count = selfIM.band.count = 0;
     selfIM.band.setMatrixAt(0, hm); selfIM.band.setColorAt(0, human.band);
     selfIM.mouth.setMatrixAt(0, mouthMatrix(hm, mouthOpen(human)));
-    myCos().forEach((id, k) => { const im = selfCos[k]; if (COS[id]) { if (im.geometry !== COS[id].geo) im.geometry = COS[id].geo; im.setMatrixAt(0, hm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0; });
+    mirrorCos().forEach((id, k) => { const im = selfCos[k]; if (COS[id]) { if (im.geometry !== COS[id].geo) im.geometry = COS[id].geo; im.setMatrixAt(0, hm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0; });
     _mm.compose(human.pos, _q, ONE);
     drawLimbs(SELFL, 0, human.pos, _q, yaw, ONE, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0);
     limbCount(SELFL, RIG.ready ? 0 : 1);
@@ -5371,7 +5375,7 @@ startPlay();
 loadApeModel();
 loadProps(); loadPoster(); loadStreetProps();
 
-window.AR = { THREE, PHOTO, POSTER, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { THREE, PHOTO, PED_BTNS, pedState, PED_LABELS, POSTER, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, buyItem, mirrorCos, isGone, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
