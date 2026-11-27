@@ -351,6 +351,12 @@ const SHOP_LAMPS = [[-2.6, -2.2], [2.6, -2.2], [-2.6, 2.4], [2.6, 2.4]];
 const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 5.2, z: SR.z - 3 + j * 1.2, side }; });
 // you arrive on the little street outside the shop, facing its front
 const SHOP_SPAWN = new THREE.Vector3(SR.x, SR.y, SR.z + 8.3);
+// the costumes: a round stage in the middle of the shop with a mannequin ape facing each way, and a stand in
+// front of each one holding its label and BUY button (costume k is item 12 + k)
+const COST_C = new THREE.Vector3(SR.x, SR.y, SR.z + 0.4);
+const COST_SPOTS = [[0, 1], [1, 0], [0, -1], [-1, 0]].map(([dx, dz]) => ({ dx, dz, ry: Math.atan2(dx, dz),
+  ape: new THREE.Vector3(COST_C.x + dx * 0.55, SR.y + 0.3 + 0.62, COST_C.z + dz * 0.55), stand: new THREE.Vector3(COST_C.x + dx * 1.65, SR.y, COST_C.z + dz * 1.65) }));
+const STAND_TILT = 0.62;   // the stands are low lecterns with the label on a sloping top, so they don't hide the mannequins
 const BAG_PIVOT = new THREE.Vector3(LB.x + 7, LB.y + 3.0, LB.z - 6);
 const CRYSTALS = [[-16.3, 1.5, -2, 1.5], [-15.6, 1.5, 2.2, 1.1]];
 // the sawmill's moving parts: saw blade (a hazard) and the water wheel behind the saw house
@@ -495,6 +501,8 @@ function buildLevel() {
     blk(X - 1.35, Y + 1.0, Z - 4.62, 0.55, 0.52, 0.55, { hidden: true });
     blk(X, Y + 1.6, Z - 5.77, 1.7, 1.42, 0.42, { hidden: true });
     for (const p of SHOP_PEDS) blk(p.x, Y, p.z, 0.6, 0.95, 0.6, { top: 'planks', side: 'darkwood' });
+    blk(COST_C.x, Y, COST_C.z, 2.0, 0.3, 2.0, { hidden: true }); blk(COST_C.x, Y + 0.3, COST_C.z, 1.4, 1.2, 1.4, { hidden: true });
+    for (const c of COST_SPOTS) blk(c.stand.x, Y, c.stand.z, c.dx ? 0.32 : 0.6, 0.7, c.dx ? 0.6 : 0.32, { hidden: true });
   }
   // tool rack
   blk(X - 6.75, Y, Z + 9.6, 4.8, 0.8, 0.7, { top: 'planks', side: 'darkwood' });
@@ -1238,6 +1246,59 @@ const COS = [
 // needs the server to say what's on sale). Anyone who bought one keeps it.
 // None for now: limited items start once the game is out and has players (e.g. { 'HALO': '2027-03-01T00:00:00Z' }).
 const LIMITED = {};
+// ----- costumes: worn on the body (built in the ape's body frame: it faces -z, the torso runs from about
+// y -0.3 to 0.1, about 0.33 wide and 0.3 deep, centred a little behind z = 0) -----
+const TORSO = { rx: 0.19, rz: 0.18, y0: -0.31, y1: 0.09, cz: -0.03 };
+const shell = (c, y0 = TORSO.y0, y1 = TORSO.y1, grow = 0, start = 0, len = Math.PI * 2, open = false) => ({
+  geo: new THREE.CylinderGeometry((TORSO.rx + grow) * 0.9, TORSO.rx + grow, y1 - y0, open ? 2 : 20, 1, open, start, len), c,
+  m: M(0, (y0 + y1) / 2, TORSO.cz, 0, 0, 0, 1, 1, (TORSO.rz + grow) / (TORSO.rx + grow)) });
+// a point on the front of the torso (u: -1 left .. 1 right, y), pushed out a little
+const onTorso = (ang, y, out = 0.008) => { const k = 0.9 + 0.1 * (TORSO.y1 - y) / (TORSO.y1 - TORSO.y0); return [Math.sin(ang) * (TORSO.rx * k + out), y, TORSO.cz - Math.cos(ang) * (TORSO.rz * k + out)]; };
+function capeGeo() {
+  const g = new THREE.PlaneGeometry(1, 1, 8, 8), P = g.attributes.position;
+  for (let i = 0; i < P.count; i++) {
+    const u = P.getX(i) * 2, v = 0.5 - P.getY(i);   // u -1..1 across, v 0 (shoulders) .. 1 (bottom)
+    P.setXYZ(i, u * (0.17 + 0.12 * v), 0.09 - 0.66 * v, 0.04 + 0.13 * Math.sqrt(Math.max(0, 1 - u * u * 0.55)) + 0.09 * v + 0.018 * Math.sin(u * 5 + v * 3));
+  }
+  const back = g.clone(), idx = back.index.array; for (let i = 0; i < idx.length; i += 3) { const t = idx[i]; idx[i] = idx[i + 1]; idx[i + 1] = t; }
+  return [g, back];
+}
+const flowerParts = () => {
+  const out = [], rnd = mulberry32(31), cols = [[1.3, 0.35, 0.6], [1.4, 1.35, 1.25], [1.4, 0.7, 0.2]];
+  for (let k = 0; k < 24; k++) {
+    const ang = rnd() * Math.PI * 2, y = TORSO.y0 + 0.05 + rnd() * 0.3, [x, yy, z] = onTorso(ang, y, 0.01), c = cols[k % 3];
+    for (let p = 0; p < 5; p++) { const a = (p / 5) * Math.PI * 2; out.push({ geo: ico(0.017, 0), c, m: M(x + Math.cos(ang) * Math.cos(a) * 0.022, yy + Math.sin(a) * 0.022, z + Math.sin(ang) * Math.cos(a) * 0.022) }); }
+    out.push({ geo: ico(0.012, 0), c: [1.4, 1.2, 0.2], m: M(x, yy, z) });
+  }
+  return out;
+};
+COS.push(
+  { name: 'REFEREE SHIRT', slot: 'body', price: 500, parts: [
+    ...Array.from({ length: 16 }, (_, k) => shell(k % 2 ? [0.06, 0.06, 0.07] : [1.35, 1.35, 1.35], TORSO.y0, TORSO.y1, 0, (k / 16) * Math.PI * 2, Math.PI / 8, true)),
+    { geo: new THREE.CircleGeometry(TORSO.rx * 0.9, 20).rotateX(-Math.PI / 2), c: [0.06, 0.06, 0.07], m: M(0, TORSO.y1, TORSO.cz, 0, 0, 0, 1, 1, TORSO.rz / TORSO.rx) },
+    { geo: new THREE.TorusGeometry(0.085, 0.006, 5, 18), c: [0.06, 0.06, 0.07], m: M(0, 0.05, -0.12, -1.25, 0, 0) },
+    { geo: cyl(0.016, 0.016, 0.05, 8), c: [1.2, 1.2, 1.25], m: M(0.0, -0.03, -0.2, 0, 0, Math.PI / 2) }] },
+  { name: 'HAWAIIAN SHIRT', slot: 'body', price: 1500, parts: [
+    shell([0.12, 0.5, 0.75]),
+    { geo: new THREE.BoxGeometry(0.06, 0.1, 0.012), c: [0.1, 0.42, 0.65], m: M(-0.045, 0.045, -0.198, 0, 0.3, -0.5) },
+    { geo: new THREE.BoxGeometry(0.06, 0.1, 0.012), c: [0.1, 0.42, 0.65], m: M(0.045, 0.045, -0.198, 0, -0.3, 0.5) },
+    ...flowerParts()] },
+  { name: 'TUXEDO', slot: 'body', price: 1500, parts: [
+    shell([0.05, 0.05, 0.06]),
+    { geo: new THREE.BoxGeometry(0.12, 0.32, 0.02), c: [1.35, 1.35, 1.35], m: M(0, -0.08, -0.205, -0.03, 0, 0) },
+    { geo: new THREE.BoxGeometry(0.045, 0.24, 0.016), c: [0.12, 0.12, 0.14], m: M(-0.058, -0.02, -0.212, -0.03, 0, -0.32) },
+    { geo: new THREE.BoxGeometry(0.045, 0.24, 0.016), c: [0.12, 0.12, 0.14], m: M(0.058, -0.02, -0.212, -0.03, 0, 0.32) },
+    { geo: new THREE.ConeGeometry(0.03, 0.05, 4), c: [0.85, 0.05, 0.06], m: M(-0.03, 0.055, -0.212, 0, 0, Math.PI / 2) },
+    { geo: new THREE.ConeGeometry(0.03, 0.05, 4), c: [0.85, 0.05, 0.06], m: M(0.03, 0.055, -0.212, 0, 0, -Math.PI / 2) },
+    { geo: new THREE.BoxGeometry(0.022, 0.022, 0.02), c: [0.7, 0.04, 0.05], m: M(0, 0.055, -0.215) },
+    { geo: ico(0.009, 0), c: [0.05, 0.05, 0.05], m: M(0, -0.08, -0.218) },
+    { geo: ico(0.009, 0), c: [0.05, 0.05, 0.05], m: M(0, -0.16, -0.218) }] },
+  { name: 'SUPERHERO CAPE', slot: 'body', price: 4000, parts: [
+    ...capeGeo().map((geo) => ({ geo, c: [0.85, 0.07, 0.08] })),
+    { geo: new THREE.BoxGeometry(0.3, 0.07, 0.03), c: [0.75, 0.05, 0.06], m: M(0, 0.11, 0.12, -0.3, 0, 0) },
+    { geo: cyl(0.025, 0.025, 0.012, 12), c: [1.3, 1.0, 0.3], m: M(-0.12, 0.07, -0.15, Math.PI / 2, 0, 0) },
+    { geo: cyl(0.025, 0.025, 0.012, 12), c: [1.3, 1.0, 0.3], m: M(0.12, 0.07, -0.15, Math.PI / 2, 0, 0) }] },
+);
 COS.forEach((it, i) => { it.i = i; it.geo = mergeParts(it.parts); it.im = inst(it.geo, MAXA + 10); if (LIMITED[it.name]) it.ends = Date.parse(LIMITED[it.name]); });
 const isGone = (it) => !!it.ends && Date.now() >= it.ends;
 // The creator's cosmetic models (Meshy). Each is fitted into the built-in head's coordinates (like the block
@@ -1248,7 +1309,9 @@ const COS_MODELS = {
   'VIKING HELMET': { f: 'cos-viking', s: 0.5, at: [0, 0.25, -0.09] },
   'HALO': { f: 'cos-halo', s: 0.158, at: [0, 0.56, -0.09] },
   'SHADES': { f: 'cos-shades', s: 0.12, at: [0, 0.21, -0.236] },
-  'PIRATE PATCH': { f: 'cos-patch', s: 0.089, at: [-0.062, 0.207, -0.33], keep: [1, 2] },
+  'PIRATE PATCH': { f: 'cos-patch', s: 0.128, at: [-0.066, 0.212, -0.335] },
+  'TOP HAT': { f: 'cos-tophat', s: 0.226, at: [0, 0.476, -0.09] },
+  'GOLD CROWN': { f: 'cos-crown', s: 0.36, at: [0, 0.515, -0.09] },
 };
 async function loadCosModels() {
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
@@ -1269,12 +1332,14 @@ async function loadCosModels() {
 const NO_COS = [-1, -1];
 const cosN = new Array(COS.length).fill(0);
 // put an ape's cosmetics on it, given its body matrix
-function wearCos(cos, bodyM) {
+// headM: the head's matrix (hats, face items); bodyM: the body's (costumes; leave it out where there's no body)
+function wearCos(cos, headM, bodyM) {
   if (!cos) return;
   for (const id of cos) {
     const it = COS[id]; if (!it || cosN[id] >= MAXA + 10) continue;
-    if (it.mim) it.mim.setMatrixAt(cosN[id], bodyM);
-    if (!it.blockOff) it.im.setMatrixAt(cosN[id], bodyM);
+    const m = it.slot === 'body' ? bodyM : headM; if (!m) continue;
+    if (it.mim) it.mim.setMatrixAt(cosN[id], m);
+    if (!it.blockOff) it.im.setMatrixAt(cosN[id], m);
     cosN[id]++;
   }
 }
@@ -1668,10 +1733,11 @@ const selfIM = { ape: null, mouth: null, band: null, hands: null };
 // your own ape, only drawn for the mirror camera
 selfIM.ape = inst(apeFaceGeo, 1); selfIM.mouth = inst(mouthGeo, 1); selfIM.band = inst(bandGeo, 1); selfIM.hands = inst(handGeo, 2);
 const SELFL = mkLimbs(1);
-const selfCos = [inst(COS[0].geo, 1), inst(COS[8].geo, 1)];
+const selfCos = [inst(COS[0].geo, 1), inst(COS[8].geo, 1), inst(COS[0].geo, 1)];
 for (const im of selfCos) { im.layers.set(SELF_LAYER); im.count = 0; }
 // (and the model versions, for items that have one)
-const selfCosM = [0, 1].map(() => { const im = new THREE.InstancedMesh(COS[0].geo, apeMat, 1); im.setColorAt(0, raw(1, 1, 1)); im.layers.set(SELF_LAYER); im.count = 0; im.frustumCulled = false; scene.add(im); return im; });
+const selfBodyM = new THREE.Matrix4();
+const selfCosM = [0, 1, 2].map(() => { const im = new THREE.InstancedMesh(COS[0].geo, apeMat, 1); im.setColorAt(0, raw(1, 1, 1)); im.layers.set(SELF_LAYER); im.count = 0; im.frustumCulled = false; scene.add(im); return im; });
 for (const im of Object.values(SELFL)) im.layers.set(SELF_LAYER);
 for (const im of Object.values(selfIM)) im.layers.set(SELF_LAYER);
 // your reflection's fingers
@@ -1758,10 +1824,13 @@ const APES = [
   { name: 'Biscuit', fur: [0.88, 0.84, 0.76], band: [0.2, 0.85, 0.9], css: '#33d9e6' },
 ];
 // your scrap (the money; saved as wallet.coins) and the cosmetics you own and wear (saved on this device)
-const wallet = { coins: 500, owned: [], wear: { head: -1, face: -1 }, day: '' };
-try { const v = JSON.parse(localStorage.getItem('wrecked-wallet') || 'null'); if (v && typeof v.coins === 'number') Object.assign(wallet, v, { wear: Object.assign({ head: -1, face: -1 }, v.wear || {}) }); } catch (e) { /* storage blocked */ }
+const wallet = { coins: 500, owned: [], wear: { head: -1, face: -1, body: -1 }, day: '' };
+try { const v = JSON.parse(localStorage.getItem('wrecked-wallet') || 'null'); if (v && typeof v.coins === 'number') Object.assign(wallet, v, { wear: Object.assign({ head: -1, face: -1, body: -1 }, v.wear || {}) }); if (wallet.wear.head >= 0 && wallet.wear.face >= 0) wallet.wear.face = -1; } catch (e) { /* storage blocked */ }
 function saveWallet() { try { localStorage.setItem('wrecked-wallet', JSON.stringify(wallet)); } catch (e) { /* storage blocked */ } }
-const myCos = () => [wallet.wear.head, wallet.wear.face];
+// what you wear: [head, face, body]. Only one thing on your head at a time (a hat or a face item), plus a costume.
+const SLOTS = ['head', 'face', 'body'];
+const myCos = () => SLOTS.map((k) => wallet.wear[k]);
+function wearItem(i) { const it = COS[i]; wallet.wear[it.slot] = i; if (it.slot === 'head') wallet.wear.face = -1; if (it.slot === 'face') wallet.wear.head = -1; }
 // your own look, set on the computer: fur colour (or a skin from a promo code)
 const look = { rgb: null, skin: '' };
 try { const v = JSON.parse(localStorage.getItem('wrecked-look') || 'null'); if (v && Array.isArray(v.rgb) && v.rgb.length === 3) { look.rgb = v.rgb.map((x) => clamp(+x || 0, 0, 1)); look.skin = String(v.skin || ''); } } catch (e) { /* storage blocked */ }
@@ -2783,7 +2852,7 @@ function updateVisuals(dt) {
       const hs = Math.hypot(a.vel.x, a.vel.z);
       a.legPh = ((a.legPh || 0) + Math.min(3, hs) * dt * 7) % 6.2832;
       const hm = skinPose('a' + a.i, _mm, hands[0].pos, hands[1].pos, a.fur, a.legPh, Math.min(1, hs / 1.5), ko ? 0.08 : 0) || _mm;
-      wearCos(a.cos, hm); drawWounds(a, hm);
+      wearCos(a.cos, hm, _mm); drawWounds(a, hm);
       bandsIM.setMatrixAt(ai, hm); bandsIM.setColorAt(ai, a.band);
       mouthIM.setMatrixAt(ai, mouthMatrix(hm, mouthOpen(a)));
       drawLimbs(LIV, ai, bodyAt, _q, a.yaw, bodySc, hands[0].pos, hands[1].pos, a.fur, a.legPh, Math.min(1, hs / 1.5), ko ? 0.08 : 0);
@@ -3104,7 +3173,7 @@ function onNetEvent(code, d, nr) {
       if (typeof d.n === 'string' && cleanNick(d.n)) net.names[nr] = net.lookNames[nr] = cleanNick(d.n);
       if (Array.isArray(d.c) && d.c.length === 3) net.looks[nr] = d.c.map((v) => clamp(+v || 0, 0, 1));
       net.afkNrs[nr] = d.k === 1;
-      if (Array.isArray(d.w) && d.w.length === 2) net.lookCos[nr] = [COS[d.w[0]]?.slot === 'head' ? d.w[0] : -1, COS[d.w[1]]?.slot === 'face' ? d.w[1] : -1];
+      if (Array.isArray(d.w) && (d.w.length === 2 || d.w.length === 3)) net.lookCos[nr] = SLOTS.map((k, j) => (COS[d.w[j]]?.slot === k ? d.w[j] : -1));
       const b = allBots[d.s];
       if (b && b.player && slotOwnerNr(d.s) === nr) { b.name = net.names[nr] || b.name; if (net.looks[nr]) b.fur = raw(...net.looks[nr]); if (net.lookCos[nr]) b.cos = net.lookCos[nr]; }
       const g = guestOf(nr); if (g) guestLook(g);
@@ -4188,7 +4257,7 @@ function drawBody(it, n) {
   _mm.compose(R.c, _bq, _s.set(1, 1, 1));
   deadIM.ape.setMatrixAt(n, _mm); deadIM.ape.setColorAt(n, fur);
   const hm = skinPose('d' + n, _mm, DEAD_HANDS[0], DEAD_HANDS[1], fur, 0, 0, 0.1, 0.15) || _mm;
-  wearCos(who ? who.cos : null, hm); if (who) drawWounds(who, hm);
+  wearCos(who ? who.cos : null, hm, _mm); if (who) drawWounds(who, hm);
   deadIM.band.setMatrixAt(n, hm); deadIM.band.setColorAt(n, band);
   deadIM.xs.setMatrixAt(n, hm);
   _mm.compose(R.c, _bq, ONE);
@@ -4354,6 +4423,14 @@ const shopDecorIM = inst(mergeParts((() => {
   for (const dx of [-1.5, -0.5, 0.5, 1.5]) P.push({ geo: B(0.8, 0.6, 0.03), c: [0.75, 0.6, 0.48], layer: 'planks', m: M(X + dx, Y + 0.5, Z - 4.14) });
   // the display stage: a gold ring
   P.push({ geo: cyl(0.62, 0.62, 0.04, 28), c: [0.95, 0.72, 0.25], m: M(X + 3.1, Y + 0.5, Z - 4.3) });
+  // the costume stage and the stands in front of it
+  P.push({ geo: cyl(1.15, 1.2, 0.3, 32), c: [0.55, 0.42, 0.34], layer: 'darkwood', m: M(COST_C.x, Y + 0.15, COST_C.z) });
+  P.push({ geo: cyl(1.17, 1.17, 0.04, 32), c: [0.95, 0.72, 0.25], m: M(COST_C.x, Y + 0.3, COST_C.z) });
+  for (const c of COST_SPOTS) {
+    const sm = new THREE.Matrix4().makeRotationY(c.ry);
+    P.push({ geo: B(0.58, 0.62, 0.3), c: [0.55, 0.42, 0.34], layer: 'darkwood', m: M(c.stand.x, Y + 0.31, c.stand.z, 0, c.ry, 0) });
+    P.push({ geo: B(0.62, 0.04, 0.44), c: [0.95, 0.72, 0.25], m: new THREE.Matrix4().makeTranslation(c.stand.x, Y + 0.68, c.stand.z).multiply(sm).multiply(M(0, 0, 0, STAND_TILT, 0, 0)) });
+  }
   // pedestal tops trimmed in gold
   for (const p of SHOP_PEDS) P.push({ geo: B(0.66, 0.04, 0.66), c: [0.95, 0.72, 0.25], m: M(p.x, PED_TOP - 0.01, p.z) });
   // roof and rafters
@@ -4607,13 +4684,20 @@ function buildBusts() {
   }
 }
 const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 176, 0.54, 0.37, new THREE.Vector3(p.x - p.side * 0.305, SR.y + 0.69, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
+for (const c of COST_SPOTS) {
+  // lying on the sloping top (front edge lower), a little above it
+  const up = Math.cos(STAND_TILT) * 0.026, out = Math.sin(STAND_TILT) * 0.026;
+  const L = panelAt(256, 176, 0.54, 0.37, new THREE.Vector3(c.stand.x + c.dx * out, SR.y + 0.68 + up, c.stand.z + c.dz * out), c.ry);
+  L.mesh.rotation.order = 'YXZ'; L.mesh.rotation.x = -(Math.PI / 2 - STAND_TILT); L.sig = ''; PED_LABELS.push(L);
+}
 // each pedestal's BUY button: a dome on the front, under the label
 const PED_BTNS = SHOP_PEDS.map((p) => ({ pos: new THREE.Vector3(p.x - p.side * 0.33, SR.y + 0.33, p.z), ry: -p.side * Math.PI / 2, flash: 0, inside: false }));
+for (const c of COST_SPOTS) PED_BTNS.push({ pos: new THREE.Vector3(c.stand.x + c.dx * 0.17, SR.y + 0.33, c.stand.z + c.dz * 0.17), ry: c.ry, flash: 0, inside: false });
 const pedBtnIM = inst(mergeParts([
   { geo: ico(0.085, 1), c: F, tint: true, m: M(0, 0, 0.02, 0, 0, 0, 1, 1, 0.5) },
   { geo: cyl(0.1, 0.1, 0.03, 16), c: [0.18, 0.15, 0.12], m: M(0, 0, 0, Math.PI / 2, 0, 0) },
-]), 12);
-pedBtnIM.count = 12;
+]), PED_BTNS.length);
+pedBtnIM.count = PED_BTNS.length;
 const timeLeft = (ms) => { const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return d > 0 ? `${d}D ${h}H` : h > 0 ? `${h}H ${m % 60}M` : `${m % 60}M`; };
 function pedState(i) {
   const it = COS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, gone = !owned && isGone(it);
@@ -4708,7 +4792,16 @@ function shopRoomTick(dt, show) {
   ringIM.instanceMatrix.needsUpdate = true; ringIM.instanceColor.needsUpdate = true;
   pedHeadIM.instanceMatrix.needsUpdate = true; pedHeadIM.instanceColor.needsUpdate = true;
   // a spotlight on the item you're looking at
-  const sp = SHOP_PEDS[SHOP.i];
+  // the costume mannequins: apes in your fur colour wearing each costume
+  COST_SPOTS.forEach((c, k) => {
+    if (here) drawPedLabel(12 + k);
+    if (!here || !RIG.ready) return;
+    _pbm.compose(c.ape, _q.setFromAxisAngle(_yAxis, Math.atan2(-c.dx, -c.dz)), ONE);
+    const A = _t1.set(-0.34, -0.32, -0.1).applyMatrix4(_pbm).clone(), Bh = _t2.set(0.34, -0.32, -0.1).applyMatrix4(_pbm).clone();
+    const hm = skinPose('mq' + k, _pbm, A, Bh, fur, 0, 0, 0);
+    if (hm) wearCos([12 + k], hm, _pbm);
+  });
+  const sp = SHOP.i >= 12 ? COST_SPOTS[SHOP.i - 12].ape : SHOP_PEDS[SHOP.i];
   spotCone.visible = here; spotCone.position.set(sp.x, PED_TOP + 1.65, sp.z);
   spotMat.opacity = 0.08 + 0.025 * Math.sin(now * 3);
   for (const o of [bulbIM, shopDecorIM, quartzIM, shopHint.mesh, ...shopGlass, POSTER.back, ...POSTER.tape, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
@@ -4737,6 +4830,11 @@ function shopRoomTick(dt, show) {
     for (const h of hands) SHOP_PEDS.forEach((p, i) => {
       if (SHOP.try !== i && Math.hypot(h.pos.x - p.x, h.pos.z - p.z) < 0.3 && Math.abs(h.pos.y - (PED_TOP + 0.3)) < 0.3) { SHOP.i = i; SHOP.try = wallet.owned.includes(i) ? -1 : i; sfx('tap', h.pos, 3); pulseHand(h.k, 0.4, 30); }
     });
+    // touch a mannequin to try its costume on
+    for (const h of hands) COST_SPOTS.forEach((c, k) => {
+      const i = 12 + k;
+      if (SHOP.try !== i && h.pos.distanceTo(c.ape) < 0.32) { SHOP.i = i; SHOP.try = wallet.owned.includes(i) ? -1 : i; sfx('tap', h.pos, 3); pulseHand(h.k, 0.4, 30); }
+    });
   }
 }
 // on a computer: click an item you're looking at
@@ -4751,6 +4849,10 @@ function pcClickPed() {
   for (const [i, p] of SHOP_PEDS.entries()) {
     _t3.set(p.x, PED_TOP + 0.3, p.z).sub(_t1); const t = _t3.dot(_t2);
     if (t > 0 && t < 9 && _t3.addScaledVector(_t2, -t).length() < 0.32) { SHOP.i = i; SHOP.try = wallet.owned.includes(i) ? -1 : i; sfx('tap', null, 1); return true; }
+  }
+  for (const [k, c] of COST_SPOTS.entries()) {
+    const i = 12 + k; _t3.subVectors(c.ape, _t1); const t = _t3.dot(_t2);
+    if (t > 0 && t < 9 && _t3.addScaledVector(_t2, -t).length() < 0.3) { SHOP.i = i; SHOP.try = wallet.owned.includes(i) ? -1 : i; sfx('tap', null, 1); return true; }
   }
   return false;
 }
@@ -4851,17 +4953,17 @@ function buyItem(i, at) {
   if (!owned && isGone(it)) { SHOP.msg = 'NO LONGER ON SALE'; sfx('beep', at); return; }
   if (!owned) {
     if (wallet.coins >= it.price) {
-      wallet.coins -= it.price; wallet.owned.push(i); wallet.wear[it.slot] = i; saveWallet();
+      wallet.coins -= it.price; wallet.owned.push(i); wearItem(i); saveWallet();
       SHOP.msg = 'BOUGHT IT!'; sfx('win', at); if (SHOP.try === i) SHOP.try = -1;
     } else { SHOP.msg = `NEED ${(it.price - wallet.coins).toLocaleString()} MORE`; sfx('beep', at); return; }
   } else if (wallet.wear[it.slot] === i) { wallet.wear[it.slot] = -1; saveWallet(); SHOP.msg = 'TOOK IT OFF'; sfx('tap', at, 3); }
-  else { wallet.wear[it.slot] = i; saveWallet(); SHOP.msg = 'WEARING IT'; sfx('tap', at, 3); }
+  else { wearItem(i); saveWallet(); SHOP.msg = 'WEARING IT'; sfx('tap', at, 3); }
   human.cos = myCos(); sendLook();
 }
 // what you see on yourself in the mirror: your outfit, with anything you're trying on swapped in
 function mirrorCos() {
   const c = myCos();
-  if (SHOP.try >= 0 && inShop()) c[COS[SHOP.try].slot === 'head' ? 0 : 1] = SHOP.try;
+  if (SHOP.try >= 0 && inShop()) { const k = COS[SHOP.try].slot; c[SLOTS.indexOf(k)] = SHOP.try; if (k === 'head') c[1] = -1; if (k === 'face') c[0] = -1; }
   return c;
 }
 // the scrap icon: a rusty steel cog
@@ -4888,7 +4990,7 @@ function shopTick(dt, show) {
   const here = inShop(), hm = (here && skinPose('shop', _mm, SHOP_HANDS[0], SHOP_HANDS[1], human.fur || raw(0.5, 0.34, 0.22), 0, 0, 0)) || _mm;
   shopApe.ape.count = shopApe.band.count = RIG.ready || !here ? 0 : 1;
   shopApe.band.setMatrixAt(0, hm); shopApe.band.setColorAt(0, human.band || raw(0.9, 0.18, 0.15));
-  if (here) wearCos([SHOP.i], hm);
+  if (here) wearCos([SHOP.i], hm, _mm);
   for (const im of Object.values(shopApe)) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
 }
 // on a computer: click the AFK button you're looking at
@@ -5236,14 +5338,15 @@ function yardTick(dt) {
     selfIM.ape.setMatrixAt(0, _mm.compose(human.pos, _q, _s.set(1, 1, 1))); selfIM.ape.setColorAt(0, human.fur);
     const hs = Math.hypot(human.V.x, human.V.z);
     human.legPh = ((human.legPh || 0) + Math.min(3, hs) * dt * 7) % 6.2832;
+    selfBodyM.copy(_mm);
     const hm = skinPose('self', _mm, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0, 1, SELF_LAYER) || _mm;
     if (RIG.ready) selfIM.ape.count = selfIM.band.count = 0;
     selfIM.band.setMatrixAt(0, hm); selfIM.band.setColorAt(0, human.band);
     selfIM.mouth.setMatrixAt(0, mouthMatrix(hm, mouthOpen(human)));
     mirrorCos().forEach((id, k) => {
-      const im = selfCos[k], mm = selfCosM[k], it = COS[id];
-      if (it && !it.blockOff) { if (im.geometry !== it.geo) im.geometry = it.geo; im.setMatrixAt(0, hm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0;
-      if (it && it.mim) { mm.geometry = it.mgeo; mm.material = it.mmat; mm.setMatrixAt(0, hm); mm.count = 1; mm.instanceMatrix.needsUpdate = true; } else mm.count = 0;
+      const im = selfCos[k], mm = selfCosM[k], it = COS[id], at = it && it.slot === 'body' ? selfBodyM : hm;
+      if (it && !it.blockOff) { if (im.geometry !== it.geo) im.geometry = it.geo; im.setMatrixAt(0, at); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0;
+      if (it && it.mim) { mm.geometry = it.mgeo; mm.material = it.mmat; mm.setMatrixAt(0, at); mm.count = 1; mm.instanceMatrix.needsUpdate = true; } else mm.count = 0;
     });
     _mm.compose(human.pos, _q, ONE);
     drawLimbs(SELFL, 0, human.pos, _q, yaw, ONE, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0);
@@ -5413,7 +5516,7 @@ startPlay();
 loadApeModel();
 loadProps(); loadPoster(); loadStreetProps(); loadCosModels();
 
-window.AR = { THREE, PHOTO, PED_BTNS, pedState, PED_LABELS, POSTER, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, buyItem, mirrorCos, isGone, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { THREE, COST_SPOTS, SLOTS, PHOTO, PED_BTNS, pedState, PED_LABELS, POSTER, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, buyItem, mirrorCos, isGone, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
