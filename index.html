@@ -1236,7 +1236,8 @@ const COS = [
 ];
 // limited items are only on sale until their end date (on this device's clock for now; the store version
 // needs the server to say what's on sale). Anyone who bought one keeps it.
-const LIMITED = { 'GOLD CROWN': '2027-01-01T00:00:00Z', 'HALO': '2027-01-01T00:00:00Z', 'VIKING HELMET': '2026-12-15T00:00:00Z' };
+// None for now: limited items start once the game is out and has players (e.g. { 'HALO': '2027-03-01T00:00:00Z' }).
+const LIMITED = {};
 COS.forEach((it, i) => { it.i = i; it.geo = mergeParts(it.parts); it.im = inst(it.geo, MAXA + 10); if (LIMITED[it.name]) it.ends = Date.parse(LIMITED[it.name]); });
 const isGone = (it) => !!it.ends && Date.now() >= it.ends;
 const NO_COS = [-1, -1];
