@@ -60,7 +60,7 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 <canvas id="c"></canvas>
 <div id="hud">
-  <div class="hud-top"><span id="hnet"></span><span><small>Round</small><b id="hround">Yard</b></span><span><small id="halivelbl">Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span><span><small>Coins</small><b id="hcoins">0</b></span></div>
+  <div class="hud-top"><span id="hnet"></span><span><small>Round</small><b id="hround">Yard</b></span><span><small id="halivelbl">Apes left</small><b id="halive">6</b></span><span id="htime">2:00</span><span><small>Scrap</small><b id="hcoins">0</b></span></div>
   <div id="xhair"></div>
   <div id="hko" hidden></div>
   <div id="hmsg"></div>
@@ -1635,7 +1635,7 @@ const APES = [
   { name: 'Tango', fur: [0.82, 0.64, 0.34], band: [0.95, 0.35, 0.75], css: '#f259bf' },
   { name: 'Biscuit', fur: [0.88, 0.84, 0.76], band: [0.2, 0.85, 0.9], css: '#33d9e6' },
 ];
-// your WRECK coins and the cosmetics you own and wear (saved on this device)
+// your scrap (the money; saved as wallet.coins) and the cosmetics you own and wear (saved on this device)
 const wallet = { coins: 500, owned: [], wear: { head: -1, face: -1 }, day: '' };
 try { const v = JSON.parse(localStorage.getItem('wrecked-wallet') || 'null'); if (v && typeof v.coins === 'number') Object.assign(wallet, v, { wear: Object.assign({ head: -1, face: -1 }, v.wear || {}) }); } catch (e) { /* storage blocked */ }
 function saveWallet() { try { localStorage.setItem('wrecked-wallet', JSON.stringify(wallet)); } catch (e) { /* storage blocked */ } }
@@ -4148,14 +4148,14 @@ function renderItems() {
   splatIM.count = bloodOn ? splats.length : 0; splatIM.instanceMatrix.needsUpdate = true; splatCell.needsUpdate = true;
 }
 
-// ================= WRECK coins and the shop =================
-// Coins are earned in matches (never in the Yard) and spent in the shop on hats and face items.
+// ================= scrap (the money) and the shop =================
+// Scrap is earned in matches (never in the Yard) and spent in the shop on hats and face items.
 const apeName = (a) => (a === human ? net.nick : a.name);
 function addCoins(n, why) {
   if (!(n > 0)) return;
   wallet.coins += n; saveWallet();
   sfx('coin', null, n > 1 ? 0.7 : 0.35);
-  if (why) feed(`+${n} coins: ${why}`);
+  if (why) feed(`+${n} scrap: ${why}`);
 }
 // give coins to whoever is in seat `slot`: you, or another player (told over the network); bots don't earn
 function creditTo(slot, n, why) {
@@ -4341,7 +4341,7 @@ function drawPedLabel(i) {
   ctx.textAlign = 'center'; ctx.fillStyle = '#16120d'; ctx.font = `800 20px ${FB}`; ctx.fillText(T.n, 128, 20);
   ctx.fillStyle = on ? '#2a1a05' : '#f3ead8'; ctx.font = `700 32px ${FB}`; ctx.fillText(it.name, 128, 66, 240);
   ctx.font = `700 30px ${FB}`; ctx.fillStyle = on ? '#2a1a05' : worn ? '#6dff96' : owned ? '#b9ad94' : wallet.coins >= it.price ? '#ffc23a' : '#ff7a5c';
-  ctx.fillText(worn ? 'WEARING' : owned ? 'OWNED' : `${it.price.toLocaleString()} coins`, 128, 106);
+  ctx.fillText(worn ? 'WEARING' : owned ? 'OWNED' : `${it.price.toLocaleString()} scrap`, 128, 106);
   L.tex.needsUpdate = true;
 }
 function drawShopSigns() {
@@ -4550,17 +4550,25 @@ function shopPress(b) {
     if (wallet.coins >= it.price) {
       wallet.coins -= it.price; wallet.owned.push(it.i); wallet.wear[it.slot] = it.i; saveWallet();
       SHOP.msg = `BOUGHT ${it.name}!`; sfx('win', b.pos);
-    } else { SHOP.msg = `YOU NEED ${it.price - wallet.coins} MORE COINS`; sfx('beep', b.pos); }
+    } else { SHOP.msg = `YOU NEED ${it.price - wallet.coins} MORE SCRAP`; sfx('beep', b.pos); }
   } else if (wallet.wear[it.slot] === it.i) { wallet.wear[it.slot] = -1; saveWallet(); SHOP.msg = `TOOK OFF ${it.name}`; }
   else { wallet.wear[it.slot] = it.i; saveWallet(); SHOP.msg = `WEARING ${it.name}`; }
   if (b.k !== 'buy') SHOP.msg = '';
   SHOP.msgT = 3;
   human.cos = myCos(); sendLook();
 }
+// the scrap icon: a rusty steel cog
 function coinIcon(ctx, x, y, r) {
-  ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(x, y + 3, r, 0, 6.283); ctx.fill();
-  ctx.fillStyle = '#ffc23a'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
-  ctx.fillStyle = '#8a5a0a'; ctx.font = `${Math.round(r * 1.3)}px ${FD}`; ctx.textAlign = 'center'; ctx.fillText('W', x, y + r * 0.45);
+  const cog = (cx, cy) => {
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2, rr2 = i % 2 ? r * 0.78 : r; ctx.lineTo(cx + Math.cos(a - 0.12) * rr2, cy + Math.sin(a - 0.12) * rr2); ctx.lineTo(cx + Math.cos(a + 0.12) * rr2, cy + Math.sin(a + 0.12) * rr2); }
+    ctx.closePath();
+  };
+  ctx.fillStyle = '#4a3a30'; cog(x, y + 2.5); ctx.fill();
+  ctx.fillStyle = '#b9b2a8'; cog(x, y); ctx.fill();
+  ctx.fillStyle = 'rgba(176,92,36,0.75)'; ctx.beginPath(); ctx.arc(x + r * 0.25, y + r * 0.2, r * 0.45, 0, 6.283); ctx.fill();   // rust
+  ctx.fillStyle = '#2a221c'; ctx.beginPath(); ctx.arc(x, y, r * 0.3, 0, 6.283); ctx.fill();
+  ctx.textAlign = 'center';
 }
 function drawShop() {
   const { ctx, c } = shopBoard, it = COS[SHOP.i];
@@ -4580,7 +4588,7 @@ function drawShop() {
   // button labels sit right above the three buttons on the counter
   const lab = [['PREV', 0.16], [owned ? (worn ? 'TAKE OFF' : 'WEAR') : 'BUY', 0.5], ['NEXT', 0.84]];
   for (const [t, u] of lab) { ctx.fillStyle = t === 'BUY' || t === 'WEAR' ? '#3fa356' : t === 'TAKE OFF' ? '#8a3a32' : '#3f6fd0'; rr(ctx, u * 1024 - 120, 400, 240, 76, 38); ctx.fill(); ctx.fillStyle = '#f3ead8'; ctx.font = `700 40px ${FB}`; ctx.fillText(t, u * 1024, 452); }
-  ctx.fillStyle = '#b9ad94'; ctx.font = `600 22px ${FB}`; ctx.fillText('Touch an item on the walls to look at it · earn coins in matches', 512, 500);
+  ctx.fillStyle = '#b9ad94'; ctx.font = `600 22px ${FB}`; ctx.fillText('Touch an item on the walls to look at it · earn scrap in matches', 512, 500);
   shopBoard.tex.needsUpdate = true;
 }
 function shopTick(dt, show) {
@@ -5005,6 +5013,8 @@ function perfWatch(ts, gap) {
   }
 }
 let last = -1, hudT = 0;
+// a hook for staging promo pictures from a script (unused in normal play)
+const PHOTO = { fn: null };
 function update(dt, frame) {
   now += dt; RIG.frame++; FDT = dt;
   for (const h of human.hands) h.prev.copy(h.pos);
@@ -5020,6 +5030,7 @@ function update(dt, frame) {
   for (const h of human.hands) h.vel.subVectors(h.pos, h.prev).multiplyScalar(1 / Math.max(dt, 1e-3));
   updateGame(dt);
   for (const b of bots) updateBot(b, dt);
+  if (PHOTO.fn) PHOTO.fn(dt);
   for (const a of actors) if (a.remote) updateProxy(a, dt);
   guestsTick(dt);
   syncHandTools();
@@ -5039,6 +5050,7 @@ function update(dt, frame) {
   yardTick(dt);
   netTick(dt);
   coinTick();
+  if (PHOTO.fn) PHOTO.fn(dt);
   updateVisuals(dt);
   cosEnd(); woundsEnd();
   updateCamera();
@@ -5087,7 +5099,7 @@ startPlay();
 loadApeModel();
 loadProps();
 
-window.AR = { THREE, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
+window.AR = { THREE, PHOTO, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
 
 </body>
