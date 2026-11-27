@@ -1240,12 +1240,43 @@ const COS = [
 const LIMITED = {};
 COS.forEach((it, i) => { it.i = i; it.geo = mergeParts(it.parts); it.im = inst(it.geo, MAXA + 10); if (LIMITED[it.name]) it.ends = Date.parse(LIMITED[it.name]); });
 const isGone = (it) => !!it.ends && Date.now() >= it.ends;
+// The creator's cosmetic models (Meshy). Each is fitted into the built-in head's coordinates (like the block
+// versions): s = scale, at = where its middle goes, rx = tilt; all are turned to face forward (-z).
+// keep = which block parts stay (the eye patch keeps its strap round the head). Until a model loads, the block version shows.
+const COS_MODELS = {
+  'COWBOY HAT': { f: 'cos-cowboy', s: 0.42, at: [0, 0.44, -0.07], rx: 0.18 },
+  'VIKING HELMET': { f: 'cos-viking', s: 0.5, at: [0, 0.25, -0.09] },
+  'HALO': { f: 'cos-halo', s: 0.158, at: [0, 0.56, -0.09] },
+  'SHADES': { f: 'cos-shades', s: 0.12, at: [0, 0.21, -0.236] },
+  'PIRATE PATCH': { f: 'cos-patch', s: 0.089, at: [-0.062, 0.207, -0.33], keep: [1, 2] },
+};
+async function loadCosModels() {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  for (const it of COS) {
+    const spec = COS_MODELS[it.name]; if (!spec) continue;
+    try {
+      const gl = await new GLTFLoader().loadAsync(`models/${spec.f}.glb?v=1`);
+      let mesh = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
+      const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).applyMatrix4(M(...spec.at, spec.rx || 0, Math.PI, 0, spec.s, spec.s, spec.s));
+      geo.computeBoundingSphere();
+      it.mgeo = geo; it.mmat = propMat(mesh.material.map);
+      it.mim = new THREE.InstancedMesh(geo, it.mmat, MAXA + 10); it.mim.frustumCulled = false; it.mim.count = 0; scene.add(it.mim);
+      // the block version stops showing (except any parts it keeps)
+      if (spec.keep) { it.geo = mergeParts(spec.keep.map((k) => it.parts[k])); it.im.geometry = it.geo; } else it.blockOff = true;
+    } catch (e) { console.warn('cosmetic model failed', it.name, e); }
+  }
+}
 const NO_COS = [-1, -1];
 const cosN = new Array(COS.length).fill(0);
 // put an ape's cosmetics on it, given its body matrix
 function wearCos(cos, bodyM) {
   if (!cos) return;
-  for (const id of cos) { const it = COS[id]; if (it && cosN[id] < MAXA + 10) it.im.setMatrixAt(cosN[id]++, bodyM); }
+  for (const id of cos) {
+    const it = COS[id]; if (!it || cosN[id] >= MAXA + 10) continue;
+    if (it.mim) it.mim.setMatrixAt(cosN[id], bodyM);
+    if (!it.blockOff) it.im.setMatrixAt(cosN[id], bodyM);
+    cosN[id]++;
+  }
 }
 function cosBegin() { cosN.fill(0); }
 // ================= the ape model (made in Meshy AI, rigged) =================
@@ -1413,7 +1444,7 @@ function applySkins() {
     for (const nm in s.bones) s.bones[nm].matrixWorld.copy(s.W[nm]);
   }
 }
-function cosEnd() { COS.forEach((it, i) => { it.im.count = cosN[i]; it.im.instanceMatrix.needsUpdate = true; }); }
+function cosEnd() { COS.forEach((it, i) => { it.im.count = it.blockOff ? 0 : cosN[i]; it.im.instanceMatrix.needsUpdate = true; if (it.mim) { it.mim.count = cosN[i]; it.mim.instanceMatrix.needsUpdate = true; } }); }
 const shadowIM = new THREE.InstancedMesh(new THREE.CircleGeometry(0.34, 12).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), MAXA);
 shadowIM.frustumCulled = false; shadowIM.count = 0; scene.add(shadowIM);
@@ -1639,6 +1670,8 @@ selfIM.ape = inst(apeFaceGeo, 1); selfIM.mouth = inst(mouthGeo, 1); selfIM.band 
 const SELFL = mkLimbs(1);
 const selfCos = [inst(COS[0].geo, 1), inst(COS[8].geo, 1)];
 for (const im of selfCos) { im.layers.set(SELF_LAYER); im.count = 0; }
+// (and the model versions, for items that have one)
+const selfCosM = [0, 1].map(() => { const im = new THREE.InstancedMesh(COS[0].geo, apeMat, 1); im.setColorAt(0, raw(1, 1, 1)); im.layers.set(SELF_LAYER); im.count = 0; im.frustumCulled = false; scene.add(im); return im; });
 for (const im of Object.values(SELFL)) im.layers.set(SELF_LAYER);
 for (const im of Object.values(selfIM)) im.layers.set(SELF_LAYER);
 // your reflection's fingers
@@ -5196,7 +5229,7 @@ function yardTick(dt) {
   const me = show && (!human.out || human.afkYard);
   for (const im of Object.values(selfIM)) im.count = !me ? 0 : im === selfIM.hands ? 2 : 1;
   FS_SELF.n = FS_SELF.tn = FS_SELF.jn = 0;
-  if (!me) { limbCount(SELFL, 0); for (const im of selfCos) im.count = 0; }
+  if (!me) { limbCount(SELFL, 0); for (const im of [...selfCos, ...selfCosM]) im.count = 0; }
   if (me) {
     const yaw = humanFacing();
     _q.setFromAxisAngle(_yAxis, yaw);
@@ -5207,7 +5240,11 @@ function yardTick(dt) {
     if (RIG.ready) selfIM.ape.count = selfIM.band.count = 0;
     selfIM.band.setMatrixAt(0, hm); selfIM.band.setColorAt(0, human.band);
     selfIM.mouth.setMatrixAt(0, mouthMatrix(hm, mouthOpen(human)));
-    mirrorCos().forEach((id, k) => { const im = selfCos[k]; if (COS[id]) { if (im.geometry !== COS[id].geo) im.geometry = COS[id].geo; im.setMatrixAt(0, hm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0; });
+    mirrorCos().forEach((id, k) => {
+      const im = selfCos[k], mm = selfCosM[k], it = COS[id];
+      if (it && !it.blockOff) { if (im.geometry !== it.geo) im.geometry = it.geo; im.setMatrixAt(0, hm); im.count = 1; im.instanceMatrix.needsUpdate = true; } else im.count = 0;
+      if (it && it.mim) { mm.geometry = it.mgeo; mm.material = it.mmat; mm.setMatrixAt(0, hm); mm.count = 1; mm.instanceMatrix.needsUpdate = true; } else mm.count = 0;
+    });
     _mm.compose(human.pos, _q, ONE);
     drawLimbs(SELFL, 0, human.pos, _q, yaw, ONE, human.hands[0].pos, human.hands[1].pos, human.fur, human.legPh, Math.min(1, hs / 1.5), 0);
     limbCount(SELFL, RIG.ready ? 0 : 1);
@@ -5374,7 +5411,7 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
 human.kind = 'pc'; human.active = true; human.afk = true; human.autoAfk = true;
 startPlay();
 loadApeModel();
-loadProps(); loadPoster(); loadStreetProps();
+loadProps(); loadPoster(); loadStreetProps(); loadCosModels();
 
 window.AR = { THREE, PHOTO, PED_BTNS, pedState, PED_LABELS, POSTER, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, buyItem, mirrorCos, isGone, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
