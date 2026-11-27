@@ -1130,7 +1130,7 @@ function drawLimbs(set, i, pos, bodyQ, yaw, sc, hA, hB, fur, ph, sw, splay, limp
 }
 const limbCount = (set, n) => { for (const [nm, im] of Object.entries(set)) { im.count = nm === 'legs' || nm === 'feet' ? 0 : n * 2; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; } };
 const _qI = new THREE.Quaternion();
-const handGeo = mergeParts([{ geo: ico(0.055, 1), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.72, 0.95, 1.0) }]);
+const handGeo = mergeParts([{ geo: ico(0.056, 2), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.78, 1.0, 1.05) }]);
 const starGeo = mergeParts([{ geo: new THREE.OctahedronGeometry(0.05, 0), c: [1, 0.86, 0.25] }]);
 const MAXA = 12;
 function inst(geo, n) {
@@ -1370,23 +1370,25 @@ const shadowIM = new THREE.InstancedMesh(new THREE.CircleGeometry(0.34, 12).rota
 shadowIM.frustumCulled = false; shadowIM.count = 0; scene.add(shadowIM);
 // your own hands (VR and computer)
 const myHandsIM = inst(mergeParts([
-  { geo: ico(0.055, 1), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.72, 0.95, 1.0) },
+  { geo: ico(0.056, 2), c: SKIN, m: M(0, 0, 0.005, 0, 0, 0, 0.78, 1.0, 1.05) },
   { geo: cyl(0.04, 0.045, 0.1, 7), c: F, layer: 'fur', tint: true, m: M(0, 0, 0.09, Math.PI / 2, 0, 0) },
 ]), 2);
 // three chunky ape fingers per hand: index (trigger), the rest (grip) and thumb (resting on the buttons)
 const fingerIM = inst(mergeParts([{ geo: cyl(0.017, 0.015, 1, 6).translate(0, 0.5, 0), c: SKIN }]), 156);
 const tipIM = inst(mergeParts([{ geo: ico(0.018, 1), c: [0.78, 0.6, 0.47] }]), 78);
+// round knuckles at the root and middle of every finger, so the bends have no gaps and the fingers grow out of the palm
+const jointIM = inst(mergeParts([{ geo: ico(0.0165, 1), c: SKIN }]), 156);
 const FING = {
-  base: [[0.012, 0.022, -0.04], [0.012, -0.022, -0.04], [0.03, 0.034, -0.004]],
-  len: [[0.042, 0.036], [0.044, 0.038], [0.036, 0.03]],
+  base: [[0.012, 0.022, -0.032], [0.012, -0.022, -0.032], [0.026, 0.032, -0.004]],
+  len: [[0.05, 0.036], [0.052, 0.038], [0.04, 0.03]],
   thick: [1, 1.35, 1.1],
 };
 const _fq = new THREE.Quaternion(), _fp = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], _fd = new THREE.Vector3(), _fm = new THREE.Matrix4();
 const _fx = new THREE.Vector3(), _fy = new THREE.Vector3(), _fz = new THREE.Vector3();
 // finger sets: everyone else's hands, your own first-person hands, and (later) your reflection's hands
-const FS_WORLD = { f: fingerIM, t: tipIM, n: 0, tn: 0, nf: 156, nt: 78 };
-const FS_MINE = { f: inst(fingerIM.geometry, 12), t: inst(tipIM.geometry, 6), n: 0, tn: 0, nf: 12, nt: 6 };
-function fsEnd(S) { S.f.count = S.n; S.t.count = S.tn; S.f.instanceMatrix.needsUpdate = true; S.t.instanceMatrix.needsUpdate = true; }
+const FS_WORLD = { f: fingerIM, t: tipIM, j: jointIM, n: 0, tn: 0, jn: 0, nf: 156, nt: 78, nj: 156 };
+const FS_MINE = { f: inst(fingerIM.geometry, 12), t: inst(tipIM.geometry, 6), j: inst(jointIM.geometry, 12), n: 0, tn: 0, jn: 0, nf: 12, nt: 6, nj: 12 };
+function fsEnd(S) { S.f.count = S.n; S.t.count = S.tn; S.j.count = S.jn; S.f.instanceMatrix.needsUpdate = true; S.t.instanceMatrix.needsUpdate = true; S.j.instanceMatrix.needsUpdate = true; }
 // side: +1 right hand, -1 left. Hand space: fingers point -Z, palm faces -side*X. curls: [index, grip, thumb] 0..1
 function drawFingers(pos, quat, side, c, S = FS_WORLD) {
   for (let f = 0; f < 3; f++) {
@@ -1408,6 +1410,7 @@ function drawFingers(pos, quat, side, c, S = FS_WORLD) {
       const len = Math.max(0.005, _a.length());
       _fq.setFromUnitVectors(_yAxis, _a.multiplyScalar(1 / len));
       S.f.setMatrixAt(S.n++, _fm.compose(_fp[seg], _fq, _s.set(FING.thick[f], len, FING.thick[f])));
+      if (S.jn < S.nj) S.j.setMatrixAt(S.jn++, _fm.compose(_fp[seg], _qI, _s.set(FING.thick[f], FING.thick[f], FING.thick[f])));
     }
     if (S.tn < S.nt) S.t.setMatrixAt(S.tn++, _fm.compose(_fp[2], _fq, _s.set(FING.thick[f], 1, FING.thick[f])));
   }
@@ -1590,8 +1593,8 @@ for (const im of selfCos) { im.layers.set(SELF_LAYER); im.count = 0; }
 for (const im of Object.values(SELFL)) im.layers.set(SELF_LAYER);
 for (const im of Object.values(selfIM)) im.layers.set(SELF_LAYER);
 // your reflection's fingers
-const FS_SELF = { f: inst(fingerIM.geometry, 12), t: inst(tipIM.geometry, 6), n: 0, tn: 0, nf: 12, nt: 6 };
-FS_SELF.f.layers.set(SELF_LAYER); FS_SELF.t.layers.set(SELF_LAYER);
+const FS_SELF = { f: inst(fingerIM.geometry, 12), t: inst(tipIM.geometry, 6), j: inst(jointIM.geometry, 12), n: 0, tn: 0, jn: 0, nf: 12, nt: 6, nj: 12 };
+FS_SELF.f.layers.set(SELF_LAYER); FS_SELF.t.layers.set(SELF_LAYER); FS_SELF.j.layers.set(SELF_LAYER);
 const yardLabels = () => {
   const draw = (p, lines, bg = 'rgba(22,18,13,0.9)') => {
     const { ctx, c } = p; ctx.clearRect(0, 0, c.width, c.height);
@@ -2670,7 +2673,7 @@ function fingerTargets(a, dt) {
 }
 function updateVisuals(dt) {
   let ai = 0, hi = 0, si = 0, sti = 0;
-  FS_WORLD.n = FS_WORLD.tn = FS_MINE.n = FS_MINE.tn = 0;
+  FS_WORLD.n = FS_WORLD.tn = FS_WORLD.jn = FS_MINE.n = FS_MINE.tn = FS_MINE.jn = 0;
   const drawn = guestPool.some((g) => g.active) ? actors.concat(guestPool.filter((g) => g.active)) : actors;
   for (const a of drawn) {
     if (!a.active) continue;
@@ -5114,7 +5117,7 @@ function yardTick(dt) {
   // your own ape for the mirror
   const me = show && (!human.out || human.afkYard);
   for (const im of Object.values(selfIM)) im.count = !me ? 0 : im === selfIM.hands ? 2 : 1;
-  FS_SELF.n = FS_SELF.tn = 0;
+  FS_SELF.n = FS_SELF.tn = FS_SELF.jn = 0;
   if (!me) { limbCount(SELFL, 0); for (const im of selfCos) im.count = 0; }
   if (me) {
     const yaw = humanFacing();
@@ -5175,7 +5178,7 @@ function renderShadows() {
 // The mirror is a camera behind the glass drawing the Yard onto a screen. In it you see your ape the way
 // other players do: your first-person hands (which follow the controller's own angle) are left out and
 // hands that line up with your arms are drawn instead.
-const MIRROR_HIDE = [myHandsIM, FS_MINE.f, FS_MINE.t, vignette];
+const MIRROR_HIDE = [myHandsIM, FS_MINE.f, FS_MINE.t, FS_MINE.j, vignette];
 function renderMirror() {
   if (!yardHere() || human.kind === 'none' || human.pos.distanceTo(mirrorScreen.position) > 16) return;
   if ((yard.mirrorN = (yard.mirrorN + 1) % 2) !== 0) return;
