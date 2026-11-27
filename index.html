@@ -471,17 +471,20 @@ function buildLevel() {
     blk(X + 10.15, Y, Z, 7.9, 7.6, 12.4, { mat: 'planks', col: [0.8, 1.05, 1.15] });
     for (const [x0, x1, h, o] of [[-14.2, -4.8, 7.2, { mat: 'planks', col: [1.3, 1.15, 0.7] }], [-4.8, 4.6, 8.2, { mat: 'stone', col: [1.15, 1.15, 1.2] }], [4.6, 14.2, 6.8, { mat: 'stone', col: [1.25, 0.6, 0.5] }]])
       blk(X + (x0 + x1) / 2, Y, Z + 17.8, x1 - x0, h, 1.2, o);
-    // invisible walls and a lid so nobody climbs out
-    blk(X - 14.3, Y - 1, Z + 6, 0.2, 9.7, 25, { hidden: true }); blk(X + 14.3, Y - 1, Z + 6, 0.2, 9.7, 25, { hidden: true });
-    blk(X, Y - 1, Z - 6.4, 28.8, 9.7, 0.2, { hidden: true }); blk(X, Y - 1, Z + 18.5, 28.8, 9.7, 0.2, { hidden: true });
-    blk(X, Y + 8.6, Z + 6, 28.8, 0.3, 25, { hidden: true });
+    // invisible barriers so nobody escapes: thick walls at both ends of the street and all round,
+    // a ceiling just under the house roofs (so you can't climb up on top of the houses), and the space
+    // over the shop filled in (so you can't stand on its roof either)
+    blk(X - 14.9, Y - 1, Z + 6, 1.2, 16, 27, { hidden: true }); blk(X + 14.9, Y - 1, Z + 6, 1.2, 16, 27, { hidden: true });
+    blk(X, Y - 1, Z - 6.9, 31, 16, 1.2, { hidden: true }); blk(X, Y - 1, Z + 19.0, 31, 16, 1.2, { hidden: true });
+    blk(X, Y + 6.4, Z + 6, 31, 1.2, 27, { hidden: true });
+    blk(X, Y + 14, Z + 6, 31, 1.2, 27, { hidden: true });   // (a spare lid high above, just in case)
+    blk(X, Y + 4.4, Z, 12.4, 2.1, 12.4, { hidden: true });
     // the street props are solid (their look is loaded from the creator's models)
     for (const [x, z] of [[-7.5, 8.75], [7.5, 8.75], [0, 15.75]]) blk(X + x, Y, Z + z, 0.28, 3.6, 0.28, { hidden: true });
     blk(X - 10, Y, Z + 6.85, 1.4, 0.48, 0.5, { hidden: true }); blk(X - 10, Y, Z + 6.65, 1.4, 0.85, 0.12, { hidden: true });
     blk(X + 3.2, Y, Z + 8.75, 0.42, 0.8, 0.42, { hidden: true });
     blk(X + 6.6, Y, Z + 8.75, 0.62, 0.95, 0.62, { hidden: true });
     blk(X - 6.7, Y, Z + 8.75, 0.16, 0.85, 0.16, { hidden: true }); blk(X - 6.7, Y + 0.82, Z + 8.75, 0.36, 0.33, 0.6, { hidden: true });
-    blk(X, Y + 4.4, Z, 12.4, 0.3, 12.4, { hidden: true });
     // counter at the back, the display stage, shelves, pedestals along the side walls
     blk(X, Y, Z - 4.6, 4.0, 1.0, 0.8, { top: 'planks', side: 'darkwood' });
     blk(X + 3.1, Y, Z - 4.3, 1.2, 0.5, 1.2, { top: 'planks', side: 'darkwood' });
@@ -4542,7 +4545,7 @@ function buildBusts() {
 const PED_LABELS = SHOP_PEDS.map((p) => { const L = panelAt(256, 128, 0.52, 0.26, new THREE.Vector3(p.x - p.side * 0.305, SR.y + 0.62, p.z), -p.side * Math.PI / 2); L.sig = ''; return L; });
 const shopHint = panelAt(1024, 160, 2.2, 0.34, new THREE.Vector3(SR.x - 5.94, SR.y + 2.72, SR.z + 4.7), Math.PI / 2);
 // the shop and its little street
-const inShopArea = (p) => Math.abs(p.x - SR.x) < 14.6 && p.z > SR.z - 6.7 && p.z < SR.z + 18.8 && p.y > SR.y - 4 && p.y < SR.y + 10;
+const inShopArea = (p) => Math.abs(p.x - SR.x) < 14.6 && p.z > SR.z - 6.7 && p.z < SR.z + 18.8 && p.y > SR.y - 4 && p.y < SR.y + 16;
 const inShop = () => inShopArea(human.pos);
 function drawPedLabel(i) {
   const it = COS[i], L = PED_LABELS[i], owned = wallet.owned.includes(i), worn = wallet.wear[it.slot] === i, on = SHOP.i === i, T = tierOf(it);
