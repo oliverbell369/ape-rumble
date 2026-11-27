@@ -343,6 +343,8 @@ const COMP = { x: LB.x - 9.85, z: LB.z + 2, top: LB.y + 0.49 };
 // the shop room: a separate room you teleport to from your hand menu (far away, out of sight)
 const SR = new THREE.Vector3(LB.x - 220, LB.y, LB.z);
 SUN.shopC.value.copy(SR);
+// the street lamps (x, z from the middle of the shop) and the height of their lanterns
+const STREET_LAMPS = [[-7.5, 8.75], [7.5, 8.75], [0, 15.75]], LANTERN_Y = 3.12;
 // one pedestal per shop item: six down each side wall
 const SHOP_PEDS = Array.from({ length: 12 }, (_, i) => { const side = i < 6 ? -1 : 1, j = i % 6; return { x: SR.x + side * 5.2, z: SR.z - 3 + j * 1.2, side }; });
 // you arrive on the little street outside the shop, facing its front
@@ -473,6 +475,12 @@ function buildLevel() {
     blk(X - 14.3, Y - 1, Z + 6, 0.2, 9.7, 25, { hidden: true }); blk(X + 14.3, Y - 1, Z + 6, 0.2, 9.7, 25, { hidden: true });
     blk(X, Y - 1, Z - 6.4, 28.8, 9.7, 0.2, { hidden: true }); blk(X, Y - 1, Z + 18.5, 28.8, 9.7, 0.2, { hidden: true });
     blk(X, Y + 8.6, Z + 6, 28.8, 0.3, 25, { hidden: true });
+    // the street props are solid (their look is loaded from the creator's models)
+    for (const [x, z] of [[-7.5, 8.75], [7.5, 8.75], [0, 15.75]]) blk(X + x, Y, Z + z, 0.28, 3.6, 0.28, { hidden: true });
+    blk(X - 10, Y, Z + 6.85, 1.4, 0.48, 0.5, { hidden: true }); blk(X - 10, Y, Z + 6.65, 1.4, 0.85, 0.12, { hidden: true });
+    blk(X + 3.2, Y, Z + 8.75, 0.42, 0.8, 0.42, { hidden: true });
+    blk(X + 6.6, Y, Z + 8.75, 0.62, 0.95, 0.62, { hidden: true });
+    blk(X - 6.7, Y, Z + 8.75, 0.16, 0.85, 0.16, { hidden: true }); blk(X - 6.7, Y + 0.82, Z + 8.75, 0.36, 0.33, 0.6, { hidden: true });
     blk(X, Y + 4.4, Z, 12.4, 0.3, 12.4, { hidden: true });
     // counter at the back, the display stage, shelves, pedestals along the side walls
     blk(X, Y, Z - 4.6, 4.0, 1.0, 0.8, { top: 'planks', side: 'darkwood' });
@@ -4287,7 +4295,6 @@ bulbIM.userData.noCast = true; bulbIM.frustumCulled = false; scene.add(bulbIM);
   for (let k = 0; k < 11; k++) for (const sd of [-1, 1]) bulb(SR.x + sd * 5.85, SR.y + 3.95 - 0.12 * Math.sin((k % 2.75) * 1.1), SR.z - 5 + k, 0.045, LC[(k + (sd > 0 ? 2 : 0)) % 5]);
   for (let k = 0; k < 9; k++) bulb(SR.x - 4 + k, SR.y + 4.0 - 0.1 * (k % 2), SR.z - 5.85, 0.045, LC[k % 5]);
   for (let k = 0; k < 9; k++) bulb(SR.x - 4 + k, SR.y + 4.0 - 0.1 * (k % 2), SR.z + 5.85, 0.045, LC[(k + 3) % 5]);
-  for (const [x, z, sd] of [[-7.5, 8.9, 1], [7.5, 8.9, 1], [0, 15.6, -1]]) bulb(SR.x + x, SR.y + 3.96, SR.z + z - sd * 0.72, 0.11, [1.7, 1.45, 0.9]);
   bulb(SR.x, SR.y + 2.95, SR.z + 6.32, 0.07, [1.7, 1.4, 0.8]);
   bulbIM.count = n; bulbIM.instanceMatrix.needsUpdate = true; bulbIM.instanceColor.needsUpdate = true;
 }
@@ -4366,23 +4373,12 @@ const shopDecorIM = inst(mergeParts((() => {
   for (let k = 0; k < 6; k++) P.push({ geo: B(2.6, 0.02, 0.5), c: [1.45, 1.45, 1.45], m: M(X, Y - 0.14, Z + 9.75 + k * 0.95) });
   // curbs
   for (const z of [9.2, 15.2]) P.push({ geo: B(28.4, 0.17, 0.18), c: [0.9, 0.9, 0.92], layer: 'stone', m: M(X, Y - 0.07, Z + z) });
-  // street lamps
-  for (const [x, z, sd] of [[-7.5, 8.9, 1], [7.5, 8.9, 1], [0, 15.6, -1]]) {
-    P.push({ geo: cyl(0.07, 0.1, 4.2, 8), c: [0.22, 0.24, 0.26], m: M(X + x, Y + 2.1, Z + z) });
-    P.push({ geo: B(0.08, 0.08, 0.8), c: [0.22, 0.24, 0.26], m: M(X + x, Y + 4.15, Z + z - sd * 0.35) });
-    P.push({ geo: new THREE.ConeGeometry(0.26, 0.22, 10, 1, true), c: [0.22, 0.24, 0.26], m: M(X + x, Y + 4.05, Z + z - sd * 0.72) });
-  }
-  // little trees in planters, a bench, a fire hydrant, a bin, a mailbox
+  // little trees in planters (the lamps, bench, hydrant, bin and mailbox are the creator's models: STREET_PROPS)
   for (const x of [-4.4, 4.4]) {
     P.push({ geo: B(0.9, 0.5, 0.9), c: [0.8, 0.55, 0.38], layer: 'planks', m: M(X + x, Y + 0.25, Z + 8.4) });
     P.push({ geo: cyl(0.06, 0.08, 1.4, 6), c: [0.8, 0.6, 0.45], layer: 'bark', m: M(X + x, Y + 1.1, Z + 8.4) });
     for (const [dx, dy, dz, r] of [[0, 2.0, 0, 0.6], [0.3, 1.75, 0.2, 0.42], [-0.3, 1.8, -0.15, 0.45]]) P.push({ geo: ico(r, 1), c: [0.6, 0.9, 0.5], layer: 'leaves', m: M(X + x + dx, Y + dy, Z + 8.4 + dz) });
   }
-  P.push({ geo: B(1.8, 0.08, 0.5), c: [0.95, 0.75, 0.55], layer: 'planks', m: M(X - 10, Y + 0.48, Z + 6.75) }, { geo: B(1.8, 0.5, 0.08), c: [0.95, 0.75, 0.55], layer: 'planks', m: M(X - 10, Y + 0.8, Z + 6.5) });
-  for (const dx of [-0.75, 0.75]) P.push({ geo: B(0.08, 0.48, 0.5), c: [0.2, 0.2, 0.22], m: M(X - 10 + dx, Y + 0.24, Z + 6.75) });
-  P.push({ geo: cyl(0.14, 0.16, 0.6, 10), c: [1.2, 0.2, 0.15], m: M(X + 3.2, Y + 0.3, Z + 8.9) }, { geo: ico(0.15, 1), c: [1.2, 0.2, 0.15], m: M(X + 3.2, Y + 0.62, Z + 8.9) }, { geo: cyl(0.06, 0.06, 0.4, 6), c: [1.2, 0.2, 0.15], m: M(X + 3.2, Y + 0.4, Z + 8.9, 0, 0, Math.PI / 2) });
-  P.push({ geo: cyl(0.28, 0.24, 0.85, 12), c: [0.3, 0.45, 0.35], m: M(X + 6.6, Y + 0.43, Z + 8.8) });
-  P.push({ geo: B(0.5, 0.8, 0.45), c: [0.25, 0.4, 1.0], m: M(X - 6.7, Y + 0.9, Z + 8.8) }, { geo: cyl(0.05, 0.05, 0.5, 6), c: [0.2, 0.2, 0.22], m: M(X - 6.7, Y + 0.25, Z + 8.8) });
   // road barriers closing both ends of the street
   for (const sx of [-1, 1]) {
     for (const z of [7.2, 10.5, 13.9, 16.6]) P.push({ geo: B(0.12, 1.1, 0.12), c: [0.3, 0.3, 0.32], m: M(X + sx * 13.9, Y + 0.4, Z + z) });
@@ -4410,8 +4406,7 @@ const shopDecorIM = inst(mergeParts((() => {
 })()), 1);
 shopDecorIM.count = 1; shopDecorIM.setMatrixAt(0, new THREE.Matrix4()); shopDecorIM.userData.noCast = true;
 // it's night on the street: the street lamps light the ground (see sunLight), and some windows are lit
-SUN.lampP.value[0].set(SR.x - 7.5, SR.y + 3.9, SR.z + 8.2); SUN.lampP.value[1].set(SR.x + 7.5, SR.y + 3.9, SR.z + 8.2);
-SUN.lampP.value[2].set(SR.x, SR.y + 3.9, SR.z + 16.3); SUN.lampP.value[3].set(SR.x, SR.y + 2.9, SR.z + 6.5);
+for (const [i, [x, z]] of STREET_LAMPS.entries()) SUN.lampP.value[i].set(SR.x + x, SR.y + LANTERN_Y, SR.z + z); SUN.lampP.value[3].set(SR.x, SR.y + 2.9, SR.z + 6.5);
 // the far-off haze turns dark at night too (every material keeps its own fog colour)
 let nightFog = false;
 const FOG_DAY = hexToV3(FOG_HEX), FOG_NIGHT = hexToV3(0x0a1024);
@@ -4433,6 +4428,38 @@ winGlowIM.userData.noCast = true; winGlowIM.frustumCulled = false; scene.add(win
   });
   winGlowIM.count = n; winGlowIM.instanceMatrix.needsUpdate = true; if (winGlowIM.instanceColor) winGlowIM.instanceColor.needsUpdate = true;
 }
+// ----- the creator's street props (Meshy models): lamps, a bench, a fire hydrant, a bin, a mailbox -----
+// h = real height in metres; each spot is [x, z, turn] from the middle of the shop
+const STREET_PROPS = [
+  { f: 'lamp', h: 3.6, at: STREET_LAMPS.map(([x, z]) => [x, z, 0]) },
+  { f: 'bench', h: 0.85, at: [[-10, 6.85, 0]] },
+  { f: 'hydrant', h: 0.8, at: [[3.2, 8.75, 0.4]] },
+  { f: 'bin', h: 0.95, at: [[6.6, 8.75, 0.6]] },
+  { f: 'mailbox', h: 1.15, at: [[-6.7, 8.75, -Math.PI / 2]] },
+];
+async function loadStreetProps() {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  for (const P of STREET_PROPS) {
+    try {
+      const gl = await new GLTFLoader().loadAsync(`models/street-${P.f}.glb?v=1`);
+      let mesh = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse((o) => { if (o.isMesh && !mesh) mesh = o; });
+      const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld); geo.computeBoundingBox();
+      const bb = geo.boundingBox, k = P.h / (bb.max.y - bb.min.y);
+      const im = new THREE.InstancedMesh(geo, propMat(mesh.material.map), P.at.length);
+      P.at.forEach(([x, z, ry], i) => im.setMatrixAt(i, M(SR.x + x, SR.y - bb.min.y * k, SR.z + z, 0, ry, 0, k, k, k)));
+      im.frustumCulled = false; im.visible = false; scene.add(im); P.im = im;
+    } catch (e) { console.warn('street prop failed', P.f, e); }
+  }
+}
+// the lanterns glow (a soft halo that always faces you, around a bright bulb)
+const lampHalos = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 2, 32, 32, 32); g.addColorStop(0, 'rgba(255,230,160,1)'); g.addColorStop(0.25, 'rgba(255,200,110,0.55)'); g.addColorStop(1, 'rgba(255,170,60,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
+  return STREET_LAMPS.map(([x2, z]) => { const sp = new THREE.Sprite(mat); sp.position.set(SR.x + x2, SR.y + LANTERN_Y, SR.z + z); sp.scale.setScalar(1.5); sp.userData.noCast = true; scene.add(sp); return sp; });
+})();
 // the windows' glass, with a couple of shine streaks
 const glassMat = new THREE.MeshBasicMaterial({ color: 0xbfe3f0, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide, fog: false });
 const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide, fog: false });
@@ -4636,6 +4663,8 @@ function shopRoomTick(dt, show) {
   for (const o of [bulbIM, shopDecorIM, shopTitle.mesh, shopIcon.mesh, shopHint.mesh, ...neonSpill, ...shopGlass, POSTER.back, ...POSTER.tape, ...PED_LABELS.map((L) => L.mesh)]) o.visible = here;
   if (POSTER.im) POSTER.im.visible = here;
   winGlowIM.visible = here;
+  for (const P of STREET_PROPS) if (P.im) P.im.visible = here;
+  for (const h of lampHalos) h.visible = here;
   SUN.nightK.value = here ? 1 : 0;
   setNightFog(here);
   // the neon hums, and now and then it flickers (the little ape more often)
@@ -5354,7 +5383,7 @@ if (document.fonts) Promise.all(['40px "Rubik Distressed"', '40px "Rubik Wet Pai
 human.kind = 'pc'; human.active = true; human.afk = true; human.autoAfk = true;
 startPlay();
 loadApeModel();
-loadProps(); loadPoster();
+loadProps(); loadPoster(); loadStreetProps();
 
 window.AR = { THREE, PHOTO, POSTER, scene, river, WATER, sky, SR, SHOP_PEDS, MENU, toggleMenu, menuPress, menuItems, BUST, canShop, goShop, leaveShop, inShop, woundIM, addWound, PROPS, gloveIM, springIM, ragOf, GRIP, guestPool, wake, starsIM, handsIM, FS_MINE, FS_SELF, selfIM, myHandsIM, vignette, keys, camera, board, renderer, mirrorRT, mirrorCam, MIRROR, beamIM, toggleAfk, readyPlayers, yardHere, START_BTN, DISC_BTN, openDiscord, pcClickDiscord, RIG, HEADMAP, wallet, COS, SHOP, SHOP_BTNS, shopPress, addCoins, creditTo, get coinState() { return coinState; }, voice, startMic, setMic, tags, get splats() { return splats; }, termKey, KB, keyAt, term, COMP, kbWorld, get look() { return look; }, die, get items() { return items; }, tryPickTool, dropTool, useTrigger, spawnFx, hostItemOp, mkItem, handHits, net, allBots, get mySlot() { return mySlot; }, updateLog, updateBot, logBox, vrGrabs, updateHeld, G, human, get bots() { return bots; }, get actors() { return actors; }, vrStep, xrIn, placeHuman, startRound, hit, grab, release, LOG, setNow: (t) => { now = t; }, get now() { return now; } };
 </script>
